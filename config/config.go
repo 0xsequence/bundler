@@ -22,9 +22,13 @@ type Config struct {
 }
 
 type LoggingConfig struct {
-	Level   string `toml:"level"`
-	JSON    bool   `toml:"json"`
-	Concise bool   `toml:"concise"`
+	ServiceName     string `toml:"service"`
+	Level           string `toml:"level"`
+	JSON            bool   `toml:"json"`
+	Concise         bool   `toml:"concise"`
+	RequestHeaders  bool   `toml:"req_headers"`
+	ResponseHeaders bool   `toml:"resp_headers"`
+	Source          string `toml:"source"`
 }
 
 func NewFromFile(file string, env string, cfg *Config) error {

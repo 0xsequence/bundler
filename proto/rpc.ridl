@@ -7,7 +7,7 @@ struct Version
   - webrpcVersion: string
   - schemaVersion: string
   - schemaHash: string
-  - nodeVersion: string
+  - nodeVersion: string # TODO... review name
 
 struct Status
   - healthOK: bool # overall status, true/false
@@ -24,16 +24,13 @@ struct Status
   - joinedTopics: []string
 
 
-#error 1000 NotFound "Not found" HTTP 404
-#error 2000 Unauthorized "Unauthorized access" HTTP 401
-#error 3000 PermissionDenied "Permission denied" HTTP 403
+error 1000 NotFound "Not found" HTTP 404
+error 2000 Unauthorized "Unauthorized access" HTTP 401
+error 3000 PermissionDenied "Permission denied" HTTP 403
 
 
 service Bundler
   - Ping() => (status: bool)
-  # TODO: add HTTP GET method /status
   - Status() => (status: Status)
-
-  # TODO also add HTTP GET /peers
   - Peers() => (peers: []string)
 

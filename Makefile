@@ -37,6 +37,10 @@ build: build-node
 build-node:
 	$(call build, ./cmd/bundler-node)
 
+.PHONY: test
+test:
+	go clean -testcache && go test -v -race $$(go list ./... | grep -v /cmd/)
+
 clean:
 	rm -rf ./bin/*
 	go clean -cache -testcache
