@@ -18,6 +18,6 @@ package tools
 // technique see https://gist.github.com/tschaub/66f5feb20ae1b5166e9fe928c5cba5e4
 
 import (
-	_ "github.com/goware/rerun/cmd/rerun"
-	_ "github.com/webrpc/webrpc/cmd/webrpc-gen"
+	_ "github.com/goware/rerun"
+	_ "github.com/webrpc/webrpc"
 )

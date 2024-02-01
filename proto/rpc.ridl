@@ -1,0 +1,39 @@
+webrpc = v1
+
+name = bundler
+version = v0.1.0
+
+struct Version
+  - webrpcVersion: string
+  - schemaVersion: string
+  - schemaHash: string
+  - nodeVersion: string
+
+struct Status
+  - healthOK: bool # overall status, true/false
+  - startTime: timestamp
+  - uptime: uint64
+  - ver: string
+  - branch: string
+  - commitHash: string
+
+  - multiaddrs: []string
+  - peerId: string
+    + go.field.name = PeerID
+  - peers: []string
+  - joinedTopics: []string
+
+
+#error 1000 NotFound "Not found" HTTP 404
+#error 2000 Unauthorized "Unauthorized access" HTTP 401
+#error 3000 PermissionDenied "Permission denied" HTTP 403
+
+
+service Bundler
+  - Ping() => (status: bool)
+  # TODO: add HTTP GET method /status
+  - Status() => (status: Status)
+
+  # TODO also add HTTP GET /peers
+  - Peers() => (peers: []string)
+
