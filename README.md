@@ -6,5 +6,6 @@ and ERC4337 UserOps.
 
 ## Usage
 
-...
+1. In one terminal, run: `make run`
+2. In another terminal, run: `make run2`
 

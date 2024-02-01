@@ -19,8 +19,8 @@ import (
 type Server struct {
 	Config *config.Config
 	Logger *httplog.Logger
-	// Node   *p2p.Node
-	RPC *rpc.RPC
+	Node   *p2p.Node
+	RPC    *rpc.RPC
 
 	ctx       context.Context
 	ctxStopFn context.CancelFunc

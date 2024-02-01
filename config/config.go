@@ -11,7 +11,9 @@ import (
 type Config struct {
 	GitCommit string `toml:"-"`
 
-	SeedKey   string   `toml:"seed_key"` // if empty will generate new
+	// TODO: add secp256k1 private key ... we can also support mnemonic + path
+	SeedKey string `toml:"seed_key"` // used for debugging purposes
+
 	P2PPort   int      `toml:"p2p_port"`
 	RPCPort   int      `toml:"rpc_port"`
 	BootNodes []string `toml:"boot_nodes"`
