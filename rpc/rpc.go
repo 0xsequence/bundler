@@ -40,7 +40,7 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, node *p2p.Node) (*RPC, e
 
 	s := &RPC{
 		Config:    cfg,
-		Log:       logger, //logger.With("ps", "rpc"),
+		Log:       logger,
 		Node:      node,
 		HTTP:      httpServer,
 		startTime: time.Now().UTC(),
