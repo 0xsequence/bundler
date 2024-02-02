@@ -19,7 +19,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/p2p/discovery/routing"
+	drouting "github.com/libp2p/go-libp2p/p2p/discovery/routing"
 	dutil "github.com/libp2p/go-libp2p/p2p/discovery/util"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/libp2p/go-libp2p/p2p/security/noise"
@@ -112,8 +112,9 @@ func NewNode(cfg *config.Config, logger *slog.Logger) (*Node, error) {
 		libp2p.NATPortMap(),
 
 		// Let this host use the DHT to find other hosts
-		// libp2p.Routing(func(h host.Host) (corerouting.PeerRouting, error) {
-		// 	idht, err = dht.New(ctx, h)
+		// libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
+		// 	ctx := context.Background() // TODO ....
+		// 	idht, err := dht.New(ctx, h)
 		// 	return idht, err
 		// }),
 
@@ -184,7 +185,7 @@ func (n *Node) Run(ctx context.Context) error {
 	}
 
 	// advertise our existence at the given namespace.
-	routingDiscovery := routing.NewRoutingDiscovery(kademliaDHT)
+	routingDiscovery := drouting.NewRoutingDiscovery(kademliaDHT)
 	dutil.Advertise(ctx, routingDiscovery, DiscoveryNameSpace)
 
 	// start discovery process in the background.
