@@ -19,8 +19,8 @@ import (
 type Server struct {
 	Config *config.Config
 	Logger *httplog.Logger
-	// Node   *p2p.Node
-	RPC *rpc.RPC
+	Node   *p2p.Node
+	RPC    *rpc.RPC
 
 	ctx       context.Context
 	ctxStopFn context.CancelFunc
@@ -58,21 +58,10 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	}
 	logger := httplog.NewLogger("bundler", loggerOptions)
 
-	// ctx := context.Background()
-	// _ = ctx
-
-	// node, err := p2p.NewNode(ctx, cfg, db, logger)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	node := &p2p.Node{}
-
-	// priv, pub := node.KeyPair()
-
-	// clog, err := p2p.NewLog(cfg, db, node.PeerID(), node, priv, pub, logger)
-	// if err != nil {
-	// 	return nil, err
-	// }
+	node, err := p2p.NewNode(cfg, logger.Logger)
+	if err != nil {
+		return nil, err
+	}
 
 	// RPC
 	rpc, err := rpc.NewRPC(cfg, logger, node)
@@ -86,16 +75,11 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	server := &Server{
 		Config: cfg,
 		Logger: logger,
-		// Node:   node,
-		RPC: rpc,
+		Node:   node,
+		RPC:    rpc,
 	}
 
 	return server, nil
-}
-
-func (s *Server) P2PNodeAddr() string {
-	// return s.Node.NodeAddr()
-	return ""
 }
 
 func (s *Server) Run() error {
@@ -122,10 +106,10 @@ func (s *Server) Run() error {
 	})
 
 	// Node
-	// g.Go(func() error {
-	// 	oplog.Info("-> p2p: run")
-	// 	return s.Node.Run(ctx)
-	// })
+	g.Go(func() error {
+		oplog.Info("-> p2p: run")
+		return s.Node.Run(ctx)
+	})
 
 	// Once run context is done, trigger a server-stop.
 	go func() {
@@ -148,7 +132,8 @@ func (s *Server) Stop() {
 	atomic.StoreInt32(&s.running, 2)
 
 	// Shutdown signal with grace period of 30 seconds
-	shutdownCtx, _ := context.WithTimeout(context.Background(), 30*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	var wg sync.WaitGroup
 
@@ -158,11 +143,11 @@ func (s *Server) Stop() {
 		s.RPC.Stop(shutdownCtx)
 	}()
 
-	// wg.Add(1)
-	// go func() {
-	// 	defer wg.Done()
-	// 	s.Node.Stop()
-	// }()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		s.Node.Stop(shutdownCtx)
+	}()
 
 	// Force shutdown after grace period
 	go func() {
