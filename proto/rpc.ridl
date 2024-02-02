@@ -34,3 +34,5 @@ service Bundler
   - Status() => (status: Status)
   - Peers() => (peers: []string)
 
+  # TODO: remove, this is just a test method
+  - Broadcast(data: string) => (status: bool)

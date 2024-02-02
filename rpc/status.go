@@ -19,13 +19,13 @@ func (s *RPC) Version(ctx context.Context) (*proto.Version, error) {
 }
 
 func (s *RPC) Status(ctx context.Context) (*proto.Status, error) {
-	// peerID := s.Node.PeerID().String()
+	peerID := s.Node.PeerID().String()
 
-	// addrs := s.Node.Addrs()
-	// statusAddrs := make([]string, len(addrs))
-	// for i := range addrs {
-	// 	statusAddrs[i] = addrs[i].String()
-	// }
+	addrs := s.Node.Addrs()
+	statusAddrs := make([]string, len(addrs))
+	for i := range addrs {
+		statusAddrs[i] = addrs[i].String()
+	}
 
 	status := &proto.Status{
 		HealthOK:   true,
@@ -35,8 +35,8 @@ func (s *RPC) Status(ctx context.Context) (*proto.Status, error) {
 		Branch:     bundler.GITBRANCH,
 		CommitHash: bundler.GITCOMMIT,
 
-		// PeerID:       peerID,
-		// Multiaddrs:   statusAddrs,
+		PeerID:     peerID,
+		Multiaddrs: statusAddrs,
 		// JoinedTopics: []string{}, // TODO..
 		// Peers:        statusPeers,
 	}
@@ -44,13 +44,12 @@ func (s *RPC) Status(ctx context.Context) (*proto.Status, error) {
 }
 
 func (s *RPC) Peers(ctx context.Context) ([]string, error) {
-	return nil, nil
-	// peers := s.Node.Peers()
-	// statusPeers := make([]string, len(peers))
-	// for i := range peers {
-	// 	statusPeers[i] = peers[i].String()
-	// }
-	// return statusPeers, nil
+	peers := s.Node.Peers()
+	statusPeers := make([]string, len(peers))
+	for i := range peers {
+		statusPeers[i] = peers[i].String()
+	}
+	return statusPeers, nil
 }
 
 func (s *RPC) statusPage(w http.ResponseWriter, r *http.Request) {

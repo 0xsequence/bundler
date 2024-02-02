@@ -11,8 +11,8 @@ import (
 type Config struct {
 	GitCommit string `toml:"-"`
 
-	// TODO: add secp256k1 private key ... we can also support mnemonic + path
-	SeedKey string `toml:"seed_key"` // used for debugging purposes
+	// TODO: add support for mnemonic + hd wallet
+	PrivateKey string `toml:"private_key"`
 
 	P2PPort   int      `toml:"p2p_port"`
 	RPCPort   int      `toml:"rpc_port"`
