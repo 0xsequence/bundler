@@ -5,6 +5,7 @@ package p2p
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sync/atomic"
@@ -144,7 +145,7 @@ func (n *Node) Run(ctx context.Context) error {
 		return err
 	}
 
-	err = n.Bootstrap(bootPeers)
+	err = n.bootstrap(bootPeers)
 	if err != nil {
 		return err
 	}
@@ -180,7 +181,7 @@ func (s *Node) IsStopping() bool {
 	return atomic.LoadInt32(&s.running) == 2
 }
 
-func (n *Node) Bootstrap(bootPeers []peer.AddrInfo) error {
+func (n *Node) bootstrap(bootPeers []peer.AddrInfo) error {
 	// run a DHT router in server mode
 	kdht, err := dht.New(n.ctx, n.host, dht.Mode(dht.ModeServer))
 	if err != nil {
@@ -218,65 +219,14 @@ func (n *Node) Bootstrap(bootPeers []peer.AddrInfo) error {
 				continue
 			}
 
-			// n.logger.Info("found namespaced peer! connecting to peer...", "peerId", peerInfo.String())
 			if err := n.host.Connect(n.ctx, peerInfo); err != nil {
-				n.logger.Error(fmt.Sprintf("error while connecting with namespaced peer %s", peerInfo.String()), "err", err)
+				n.logger.Error(fmt.Sprintf("failed to connect with namespaced peer %s", peerInfo.String()), "err", err)
 				continue
 			}
 
 			// tag the peer so that we can offer it higher priority among peers
 			n.logger.Info("connected with namespaced peer", "peerId", peerInfo.String())
 			n.host.ConnManager().TagPeer(peerInfo.ID, DiscoveryNamespace, 500)
-		}
-	}()
-
-	return nil
-}
-
-func (n *Node) setupPubsub() error {
-	logger := n.logger
-	ctx := context.Background() // TODO ..
-
-	pb, err := pubsub.NewGossipSub(ctx, n.host, pubsub.WithEventTracer(&PubSubTracer{logger: logger}))
-	if err != nil {
-		logger.Error("unable to create gossip pub sub", "err", err)
-		return err
-	}
-	topic, err := pb.Join(PubsubTopic)
-	if err != nil {
-		logger.Error("while creating pub sub topic", "err", err)
-		return err
-	}
-
-	n.pubsub = pb
-	n.topic = topic
-
-	// TODO........
-	go n.StartEventHandler()
-
-	return nil
-}
-
-func (n *Node) StartEventHandler() error {
-	n.logger.Info("starting event handler")
-
-	sub, err := n.topic.Subscribe()
-	if err != nil {
-		n.logger.Error("while creating pubsub subscriber", "err", err)
-		return err
-	}
-
-	// start receiving gossip message from other peers.
-	go func() {
-		for {
-			msg, err := sub.Next(n.ctx)
-			if err != nil {
-				n.logger.Error("while receving pubsub message", "err", err)
-				continue
-			}
-			fmt.Println("local msg..?", msg.Local, msg.ReceivedFrom.String())
-			fmt.Println("msg data:", string(msg.Data))
-			// spew.Dump(msg)
 		}
 	}()
 
@@ -322,7 +272,11 @@ func (n *Node) PriorityPeers() []peer.ID {
 	return priorityPeers
 }
 
-func (n *Node) Broadcast(data []byte) error {
-	ctx := context.Background() // TODO: use n.ctx etc.
-	return n.topic.Publish(ctx, data)
+func (n *Node) Broadcast(payload interface{}) error {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	return n.topic.Publish(n.ctx, data)
 }
