@@ -14,17 +14,23 @@ func (s *RPC) Version(ctx context.Context) (*proto.Version, error) {
 		WebrpcVersion: proto.WebRPCVersion(),
 		SchemaVersion: proto.WebRPCSchemaVersion(),
 		SchemaHash:    proto.WebRPCSchemaHash(),
-		NodeVersion:   bundler.GITCOMMIT, // TODO: review...
+		NodeVersion:   bundler.GITCOMMIT,
 	}, nil
 }
 
 func (s *RPC) Status(ctx context.Context) (*proto.Status, error) {
-	peerID := s.Node.PeerID().String()
+	hostID := s.Node.HostID().String()
 
 	addrs := s.Node.Addrs()
-	statusAddrs := make([]string, len(addrs))
+	hostAddrs := make([]string, len(addrs))
 	for i := range addrs {
-		statusAddrs[i] = addrs[i].String()
+		hostAddrs[i] = addrs[i].String()
+	}
+
+	priorityPeers := s.Node.PriorityPeers()
+	statusPeers := make([]string, len(priorityPeers))
+	for i := range priorityPeers {
+		statusPeers[i] = priorityPeers[i].String()
 	}
 
 	status := &proto.Status{
@@ -35,21 +41,27 @@ func (s *RPC) Status(ctx context.Context) (*proto.Status, error) {
 		Branch:     bundler.GITBRANCH,
 		CommitHash: bundler.GITCOMMIT,
 
-		PeerID:     peerID,
-		Multiaddrs: statusAddrs,
-		// JoinedTopics: []string{}, // TODO..
-		// Peers:        statusPeers,
+		HostID:        hostID,
+		HostAddrs:     hostAddrs,
+		PriorityPeers: statusPeers,
 	}
 	return status, nil
 }
 
-func (s *RPC) Peers(ctx context.Context) ([]string, error) {
+func (s *RPC) Peers(ctx context.Context) ([]string, []string, error) {
 	peers := s.Node.Peers()
 	statusPeers := make([]string, len(peers))
 	for i := range peers {
 		statusPeers[i] = peers[i].String()
 	}
-	return statusPeers, nil
+
+	priorityPeers := s.Node.PriorityPeers()
+	statusPriorityPeers := make([]string, len(priorityPeers))
+	for i := range priorityPeers {
+		statusPriorityPeers[i] = priorityPeers[i].String()
+	}
+
+	return statusPeers, statusPriorityPeers, nil
 }
 
 func (s *RPC) statusPage(w http.ResponseWriter, r *http.Request) {
@@ -62,10 +74,16 @@ func (s *RPC) statusPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *RPC) peersPage(w http.ResponseWriter, r *http.Request) {
-	peers, err := s.Peers(r.Context())
+	peers, priorityPeers, err := s.Peers(r.Context())
 	if err != nil {
 		s.renderJSON(w, r, err.Error(), 500)
 		return
 	}
-	s.renderJSON(w, r, peers, 200)
+
+	result := struct {
+		Peers         []string `json:"peers"`
+		PriorityPeers []string `json:"priorityPeers"`
+	}{peers, priorityPeers}
+
+	s.renderJSON(w, r, result, 200)
 }

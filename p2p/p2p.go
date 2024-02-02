@@ -7,15 +7,14 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
-	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
-	pubsubpb "github.com/libp2p/go-libp2p-pubsub/pb"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -25,30 +24,12 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/security/noise"
 	libp2ptls "github.com/libp2p/go-libp2p/p2p/security/tls"
 	"github.com/multiformats/go-multiaddr"
-	mh "github.com/multiformats/go-multihash"
 )
 
-var DiscoveryNameSpace = "sequence-bundler"
-
-var DiscoveryNameSpaceCid cid.Cid
-
-var PubSubTopic = "erc5189-bundler"
-
-func init() {
-	var err error
-	DiscoveryNameSpaceCid, err = nsToCid(DiscoveryNameSpace)
-	if err != nil {
-		panic(err)
-	}
-}
-
-func nsToCid(ns string) (cid.Cid, error) {
-	h, err := mh.Sum([]byte(ns), mh.SHA2_256, -1)
-	if err != nil {
-		return cid.Undef, err
-	}
-	return cid.NewCidV1(cid.Raw, h), nil
-}
+const (
+	DiscoveryNamespace = "erc5189-bundler"
+	PubsubTopic        = "erc5189-bundler-mempool"
+)
 
 type Node struct {
 	cfg    *config.Config
@@ -56,12 +37,16 @@ type Node struct {
 	host   host.Host
 	pubsub *pubsub.PubSub
 	topic  *pubsub.Topic
-	ctx    context.Context
+
+	ctx     context.Context
+	ctxStop context.CancelFunc
+	running int32
+	// mu      sync.RWMutex
 }
 
 func NewNode(cfg *config.Config, logger *slog.Logger) (*Node, error) {
 
-	// TODO: support for mnemonic + path ?
+	// TODO: support for mnemonic + hd wallets
 	privKey, err := hexutil.Decode(cfg.PrivateKey)
 	if err != nil {
 		return nil, err
@@ -76,7 +61,7 @@ func NewNode(cfg *config.Config, logger *slog.Logger) (*Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	logger = logger.With("peerId", id.String())
+	logger = logger.With("hostId", id.String())
 
 	connmgr, err := connmgr.NewConnManager(
 		100, // Lowwater
@@ -136,23 +121,128 @@ func NewNode(cfg *config.Config, logger *slog.Logger) (*Node, error) {
 		cfg:    cfg,
 		logger: logger,
 		host:   h,
-		ctx:    context.Background(), // TODO: setup in Run()..
 	}
 
 	return nd, nil
 }
 
 func (n *Node) Run(ctx context.Context) error {
-	// TODO: .. standard pattern of Run/Stop/IsRuning, etc..
+	if n.IsRunning() {
+		return fmt.Errorf("node: already running")
+	}
+	atomic.StoreInt32(&n.running, 1)
+	defer atomic.StoreInt32(&n.running, 0)
 
+	n.ctx, n.ctxStop = context.WithCancel(ctx)
+
+	hostAddr := getHostAddress(n.host)
+	n.logger.Info(fmt.Sprintf("-> node: listening on %s", hostAddr), "op", "run", "addr", hostAddr)
+
+	bootPeers, err := AddrInfoFromP2pAddrs(n.cfg.BootNodeAddrs)
+	if err != nil {
+		n.logger.Error("error while parsing libp2p boot node addrs", "err", err)
+		return err
+	}
+
+	err = n.Bootstrap(bootPeers)
+	if err != nil {
+		return err
+	}
+
+	err = n.setupPubsub()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (n *Node) Stop(timeoutCtx context.Context) {
+	if !n.IsRunning() || n.IsStopping() {
+		return
+	}
+	atomic.StoreInt32(&n.running, 2)
+	defer atomic.StoreInt32(&n.running, 0)
+
+	n.logger.Info("-> node: stopping..", "op", "stop")
+
+	// .. any cleanup/stop here
+	// ..
+
+	n.logger.Info("-> rpc: stopped.", "op", "stop")
+}
+
+func (s *Node) IsRunning() bool {
+	return atomic.LoadInt32(&s.running) == 1
+}
+
+func (s *Node) IsStopping() bool {
+	return atomic.LoadInt32(&s.running) == 2
+}
+
+func (n *Node) Bootstrap(bootPeers []peer.AddrInfo) error {
+	// run a DHT router in server mode
+	kdht, err := dht.New(n.ctx, n.host, dht.Mode(dht.ModeServer))
+	if err != nil {
+		return err
+	}
+
+	if err = kdht.Bootstrap(n.ctx); err != nil {
+		return err
+	}
+
+	// connect with bootstrap peers
+	for _, bootPeer := range bootPeers {
+		if err := n.host.Connect(n.ctx, bootPeer); err != nil {
+			n.logger.Error(fmt.Sprintf("error while connecting with boot peer %s", bootPeer.String()), "err", err)
+			continue
+		}
+		n.logger.Info("connected with the given bootstrap peer", "peerId", bootPeer.String())
+	}
+
+	// advertise our existence at the given namespace.
+	routingDiscovery := drouting.NewRoutingDiscovery(kdht)
+	dutil.Advertise(n.ctx, routingDiscovery, DiscoveryNamespace)
+
+	// start discovery process in the background.
+	discoveryNameSpaceCid, err := nsToCid(DiscoveryNamespace)
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		peerCh := kdht.FindProvidersAsync(n.ctx, discoveryNameSpaceCid, 0)
+		for peerInfo := range peerCh {
+			if peerInfo.ID == n.host.ID() {
+				// do not dial ourselves
+				continue
+			}
+
+			// n.logger.Info("found namespaced peer! connecting to peer...", "peerId", peerInfo.String())
+			if err := n.host.Connect(n.ctx, peerInfo); err != nil {
+				n.logger.Error(fmt.Sprintf("error while connecting with namespaced peer %s", peerInfo.String()), "err", err)
+				continue
+			}
+
+			// tag the peer so that we can offer it higher priority among peers
+			n.logger.Info("connected with namespaced peer", "peerId", peerInfo.String())
+			n.host.ConnManager().TagPeer(peerInfo.ID, DiscoveryNamespace, 500)
+		}
+	}()
+
+	return nil
+}
+
+func (n *Node) setupPubsub() error {
 	logger := n.logger
+	ctx := context.Background() // TODO ..
 
 	pb, err := pubsub.NewGossipSub(ctx, n.host, pubsub.WithEventTracer(&PubSubTracer{logger: logger}))
 	if err != nil {
 		logger.Error("unable to create gossip pub sub", "err", err)
 		return err
 	}
-	topic, err := pb.Join(PubSubTopic)
+	topic, err := pb.Join(PubsubTopic)
 	if err != nil {
 		logger.Error("while creating pub sub topic", "err", err)
 		return err
@@ -160,72 +250,11 @@ func (n *Node) Run(ctx context.Context) error {
 
 	n.pubsub = pb
 	n.topic = topic
-	logger.Info("host started running", "addr", getHostAddress(n.host))
-
-	// run a DHT router in server mode.
-	kademliaDHT, err := dht.New(ctx, n.host, dht.Mode(dht.ModeServer))
-	if err != nil {
-		return err
-	}
-
-	if err = kademliaDHT.Bootstrap(ctx); err != nil {
-		return err
-	}
-
-	// connect with bootstrap node.
-	for i, bootNode := range n.cfg.BootNodeAddrs {
-		peerInfo, err := peer.AddrInfoFromP2pAddr(bootNode)
-		if err != nil {
-			n.logger.Error("error while parsing p2p addr", "boot_node", n.cfg.BootNodes[i], "err", err)
-			continue
-		}
-		if err := n.host.Connect(ctx, *peerInfo); err != nil {
-			n.logger.Error(fmt.Sprintf("error while connecting with boot node %s", peerInfo.String()), "err", err)
-		}
-		n.logger.Info("connected with the given bootstrap node", "peerId", peerInfo.String())
-	}
-
-	// advertise our existence at the given namespace.
-	routingDiscovery := drouting.NewRoutingDiscovery(kademliaDHT)
-	dutil.Advertise(ctx, routingDiscovery, DiscoveryNameSpace)
-
-	// start discovery process in the background.
-	go func() {
-		peerCh := kademliaDHT.FindProvidersAsync(ctx, DiscoveryNameSpaceCid, 0)
-		for peerInfo := range peerCh {
-			if peerInfo.ID == n.host.ID() {
-				// do not dial ourselves
-				continue
-			}
-
-			fmt.Println("found namespaced peer!! connecting to peer..", peerInfo) // TODO: use logger
-			if err := n.host.Connect(context.Background(), peerInfo); err != nil {
-				n.logger.Error(fmt.Sprintf("error while connecting with boot node %s", peerInfo.String()), "err", err)
-			} else {
-				// ..
-				n.host.ConnManager().TagPeer(peerInfo.ID, "keep-namespaced-peer", 100)
-			}
-			n.logger.Info("connected with discovered node", "peerId", peerInfo.String())
-		}
-	}()
 
 	// TODO........
 	go n.StartEventHandler()
 
 	return nil
-}
-
-func (n *Node) Stop() {
-	// TODO ... copy pattern..
-}
-
-func (n *Node) Bootstrap(peers []peer.AddrInfo) {
-	// ..
-}
-
-func (n *Node) Broadcast(data []byte) error {
-	ctx := context.Background() // TODO: use n.ctx etc.
-	return n.topic.Publish(ctx, data)
 }
 
 func (n *Node) StartEventHandler() error {
@@ -254,38 +283,11 @@ func (n *Node) StartEventHandler() error {
 	return nil
 }
 
-func getHostAddress(ha host.Host) string {
-	// Build host multiaddress
-	hostAddr, _ := multiaddr.NewMultiaddr(fmt.Sprintf("/p2p/%s", ha.ID().String()))
-
-	// Now we can build a full multiaddress to reach this host
-	// by encapsulating both addresses:
-	addr := ha.Addrs()[0]
-	return addr.Encapsulate(hostAddr).String()
-}
-
-type PubSubTracer struct {
-	logger *slog.Logger
-}
-
-func (t *PubSubTracer) Trace(evt *pubsubpb.TraceEvent) {
-	switch *evt.Type {
-	case pubsubpb.TraceEvent_ADD_PEER:
-		peerID, err := peer.IDFromBytes(evt.AddPeer.PeerID)
-		if err != nil {
-			panic(err)
-		}
-		t.logger.Info("new peer added", "id", peerID.String())
-	default:
-		t.logger.Debug("trace", "event", evt)
-	}
-}
-
-func (n *Node) Peers() []peer.ID {
+func (n *Node) HostID() peer.ID {
 	if n.host == nil {
-		return []peer.ID{}
+		return ""
 	} else {
-		return n.host.Network().Peers()
+		return n.host.ID()
 	}
 }
 
@@ -297,10 +299,30 @@ func (n *Node) Addrs() []multiaddr.Multiaddr {
 	}
 }
 
-func (n *Node) PeerID() peer.ID {
+func (n *Node) Peers() []peer.ID {
 	if n.host == nil {
-		return ""
+		return []peer.ID{}
 	} else {
-		return n.host.ID()
+		return n.host.Network().Peers()
 	}
+}
+
+func (n *Node) PriorityPeers() []peer.ID {
+	if n.host == nil {
+		return []peer.ID{}
+	}
+
+	priorityPeers := []peer.ID{}
+	for _, p := range n.host.Network().Peers() {
+		tag := n.host.ConnManager().GetTagInfo(p)
+		if tag != nil && tag.Tags[DiscoveryNamespace] > 0 {
+			priorityPeers = append(priorityPeers, p)
+		}
+	}
+	return priorityPeers
+}
+
+func (n *Node) Broadcast(data []byte) error {
+	ctx := context.Background() // TODO: use n.ctx etc.
+	return n.topic.Publish(ctx, data)
 }

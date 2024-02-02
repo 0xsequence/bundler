@@ -146,7 +146,7 @@ func (s *Server) Stop() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s.Node.Stop()
+		s.Node.Stop(shutdownCtx)
 	}()
 
 	// Force shutdown after grace period

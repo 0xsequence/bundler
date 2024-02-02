@@ -7,7 +7,7 @@ struct Version
   - webrpcVersion: string
   - schemaVersion: string
   - schemaHash: string
-  - nodeVersion: string # TODO... review name
+  - nodeVersion: string
 
 struct Status
   - healthOK: bool # overall status, true/false
@@ -17,11 +17,11 @@ struct Status
   - branch: string
   - commitHash: string
 
-  - multiaddrs: []string
-  - peerId: string
-    + go.field.name = PeerID
-  - peers: []string
-  - joinedTopics: []string
+  - hostId: string
+    + go.field.name = HostID
+  - hostAddrs: []string
+  - priorityPeers: []string
+  #- topics: []string
 
 
 error 1000 NotFound "Not found" HTTP 404
@@ -32,7 +32,7 @@ error 3000 PermissionDenied "Permission denied" HTTP 403
 service Bundler
   - Ping() => (status: bool)
   - Status() => (status: Status)
-  - Peers() => (peers: []string)
+  - Peers() => (peers: []string, priorityPeers: []string)
 
   # TODO: remove, this is just a test method
   - Broadcast(data: string) => (status: bool)
