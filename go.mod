@@ -5,6 +5,7 @@ go 1.21.6
 require (
 	github.com/0xsequence/ethkit v1.22.6
 	github.com/BurntSushi/toml v1.3.2
+	github.com/davecgh/go-spew v1.1.1
 	github.com/go-chi/chi/v5 v5.0.11
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/httplog/v2 v2.0.9
