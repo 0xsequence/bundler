@@ -35,4 +35,4 @@ service Bundler
   - Peers() => (peers: []string, priorityPeers: []string)
 
   # TODO: remove, this is just a test method
-  - Broadcast(data: any) => (status: bool)
+  - Broadcast(message: any) => (status: bool)
