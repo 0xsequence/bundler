@@ -14,7 +14,7 @@ func (s *RPC) Version(ctx context.Context) (*proto.Version, error) {
 		WebrpcVersion: proto.WebRPCVersion(),
 		SchemaVersion: proto.WebRPCSchemaVersion(),
 		SchemaHash:    proto.WebRPCSchemaHash(),
-		NodeVersion:   bundler.GITCOMMIT,
+		NodeVersion:   bundler.GITCOMMIT, // TODO: review...
 	}, nil
 }
 

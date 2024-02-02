@@ -95,28 +95,29 @@ func NewNode(cfg *config.Config, logger *slog.Logger) (*Node, error) {
 		// libp2p.PrivateNetwork(),
 
 		// Multiple listen addresses
+		//
+		// Addr hosts result in, for example:
+		// /ip4/127.0.0.1/tcp/5000/p2p/16Uiu2HAmKygtVwc8pYhcHPbAJidkLtNce4Mge6eFu3fZpB7Vu3ri
+		// /ip4/127.0.0.1/udp/5000/quic-v1/p2p/16Uiu2HAmKygtVwc8pYhcHPbAJidkLtNce4Mge6eFu3fZpB7Vu3ri
 		libp2p.ListenAddrStrings(
-			fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", cfg.P2PPort), // regular tcp connections
-			// fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic", cfg.P2PPort), // a UDP endpoint for the QUIC transport
+			fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", cfg.P2PPort),         // TCP transport
+			fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1", cfg.P2PPort), // QUIC transport
 		),
+
 		// support TLS connections
 		libp2p.Security(libp2ptls.ID, libp2ptls.New),
 		// support noise connections
 		libp2p.Security(noise.ID, noise.New),
+
 		// support any other default transports (TCP)
 		// libp2p.DefaultTransports,
+
 		// Let's prevent our peer from having too many
 		// connections by attaching a connection manager.
 		libp2p.ConnectionManager(connmgr),
+
 		// Attempt to open ports using uPNP for NATed hosts.
 		libp2p.NATPortMap(),
-
-		// Let this host use the DHT to find other hosts
-		// libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
-		// 	ctx := context.Background() // TODO ....
-		// 	idht, err := dht.New(ctx, h)
-		// 	return idht, err
-		// }),
 
 		// If you want to help other peers to figure out if they are behind
 		// NATs, you can launch the server-side of AutoNAT too (AutoRelay
