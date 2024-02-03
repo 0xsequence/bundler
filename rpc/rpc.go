@@ -20,14 +20,14 @@ import (
 type RPC struct {
 	Config *config.Config
 	Log    *httplog.Logger
-	Node   *p2p.Node
+	Host   *p2p.Host
 	HTTP   *http.Server
 
 	running   int32
 	startTime time.Time
 }
 
-func NewRPC(cfg *config.Config, logger *httplog.Logger, node *p2p.Node) (*RPC, error) {
+func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host) (*RPC, error) {
 	// HTTP Server
 	httpServer := &http.Server{
 		// Addr:              cfg.Service.Listen,
@@ -41,7 +41,7 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, node *p2p.Node) (*RPC, e
 	s := &RPC{
 		Config:    cfg,
 		Log:       logger,
-		Node:      node,
+		Host:      host,
 		HTTP:      httpServer,
 		startTime: time.Now().UTC(),
 	}

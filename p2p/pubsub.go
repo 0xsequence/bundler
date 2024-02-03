@@ -7,7 +7,7 @@ import (
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
 
-func (n *Node) setupPubsub() error {
+func (n *Host) setupPubsub() error {
 	logger := n.logger
 
 	// TODO: only use pubsubtracer in debug mode
@@ -34,7 +34,7 @@ func (n *Node) setupPubsub() error {
 	return nil
 }
 
-func (n *Node) pubsubEventHandler() error {
+func (n *Host) pubsubEventHandler() error {
 	n.logger.Info("starting pubsub event handler")
 
 	sub, err := n.topic.Subscribe()
