@@ -271,6 +271,10 @@ func (n *Host) PriorityPeers() []peer.ID {
 }
 
 func (n *Host) Broadcast(payload interface{}) error {
+	if n.topic == nil {
+		return fmt.Errorf("pubsub topic not initialized")
+	}
+
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return err
