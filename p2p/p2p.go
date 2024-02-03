@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/0xsequence/bundler/config"
-	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
 	"github.com/libp2p/go-libp2p"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -46,19 +45,18 @@ type Node struct {
 }
 
 func NewNode(cfg *config.Config, logger *slog.Logger) (*Node, error) {
+	wallet, peerPrivKeyBytes, err := setupWallet(cfg.PrivateKey, cfg.DerivationPath)
+	if err != nil {
+		return nil, err
+	}
+	_ = wallet // TODO ......
 
-	// TODO: support for mnemonic + hd wallets
-	privKey, err := hexutil.Decode(cfg.PrivateKey)
+	peerPrivKey, err := crypto.UnmarshalSecp256k1PrivateKey(peerPrivKeyBytes)
 	if err != nil {
 		return nil, err
 	}
 
-	priv, err := crypto.UnmarshalSecp256k1PrivateKey(privKey)
-	if err != nil {
-		return nil, err
-	}
-
-	id, err := peer.IDFromPrivateKey(priv)
+	id, err := peer.IDFromPrivateKey(peerPrivKey)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +73,7 @@ func NewNode(cfg *config.Config, logger *slog.Logger) (*Node, error) {
 
 	h, err := libp2p.New(
 		// Use the keypair we generated
-		libp2p.Identity(priv),
+		libp2p.Identity(peerPrivKey),
 
 		// if we want network to be separated, etc.
 		// libp2p.PrivateNetwork(),

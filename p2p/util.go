@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/0xsequence/ethkit/ethwallet"
+	"github.com/0xsequence/ethkit/go-ethereum/accounts"
+	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
 	"github.com/ipfs/go-cid"
 	pubsubpb "github.com/libp2p/go-libp2p-pubsub/pb"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -11,6 +14,41 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	mh "github.com/multiformats/go-multihash"
 )
+
+func setupWallet(privateKeyHex string, derivationPath string) (*ethwallet.Wallet, []byte, error) {
+	privKey, err := hexutil.Decode(privateKeyHex)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	derivPath := accounts.DefaultBaseDerivationPath
+	if derivationPath != "" {
+		derivPath, err = ethwallet.ParseDerivationPath(derivationPath)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	hdnode, err := ethwallet.NewHDNodeFromEntropy(privKey, &derivPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	// fmt.Println("hdnode", hdnode.Address().String(), hdnode.DerivationPath().String())
+
+	// Create ethereum HD wallet used by the txn senders.
+	wallet, err := ethwallet.NewWalletFromHDNode(hdnode)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Use private key at HD node account index 0 as the peer private key.
+	peerPrivKeyBytes, err := hexutil.Decode(wallet.PrivateKeyHex())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return wallet, peerPrivKeyBytes, nil
+}
 
 func nsToCid(ns string) (cid.Cid, error) {
 	h, err := mh.Sum([]byte(ns), mh.SHA2_256, -1)
