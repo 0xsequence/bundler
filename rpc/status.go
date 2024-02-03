@@ -19,15 +19,15 @@ func (s *RPC) Version(ctx context.Context) (*proto.Version, error) {
 }
 
 func (s *RPC) Status(ctx context.Context) (*proto.Status, error) {
-	hostID := s.Node.HostID().String()
+	hostID := s.Host.HostID().String()
 
-	addrs := s.Node.Addrs()
+	addrs := s.Host.Addrs()
 	hostAddrs := make([]string, len(addrs))
 	for i := range addrs {
 		hostAddrs[i] = addrs[i].String()
 	}
 
-	priorityPeers := s.Node.PriorityPeers()
+	priorityPeers := s.Host.PriorityPeers()
 	statusPeers := make([]string, len(priorityPeers))
 	for i := range priorityPeers {
 		statusPeers[i] = priorityPeers[i].String()
@@ -49,13 +49,13 @@ func (s *RPC) Status(ctx context.Context) (*proto.Status, error) {
 }
 
 func (s *RPC) Peers(ctx context.Context) ([]string, []string, error) {
-	peers := s.Node.Peers()
+	peers := s.Host.Peers()
 	statusPeers := make([]string, len(peers))
 	for i := range peers {
 		statusPeers[i] = peers[i].String()
 	}
 
-	priorityPeers := s.Node.PriorityPeers()
+	priorityPeers := s.Host.PriorityPeers()
 	statusPriorityPeers := make([]string, len(priorityPeers))
 	for i := range priorityPeers {
 		statusPriorityPeers[i] = priorityPeers[i].String()

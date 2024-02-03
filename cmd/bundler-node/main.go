@@ -10,7 +10,7 @@ import (
 	"syscall"
 
 	"github.com/0xsequence/bundler/config"
-	"github.com/0xsequence/bundler/server"
+	"github.com/0xsequence/bundler/node"
 	"github.com/spf13/cobra"
 )
 
@@ -99,7 +99,7 @@ func main() {
 }
 
 func run() error {
-	s, err := server.NewServer(cfg)
+	s, err := node.NewNode(cfg)
 	if err != nil {
 		return err
 	}

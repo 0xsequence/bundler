@@ -1,4 +1,4 @@
-package server
+package node
 
 import (
 	"context"
@@ -12,22 +12,24 @@ import (
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/rpc"
+	"github.com/0xsequence/ethkit/ethwallet"
 	"github.com/go-chi/httplog/v2"
 	"golang.org/x/sync/errgroup"
 )
 
-type Server struct {
+type Node struct {
 	Config *config.Config
 	Logger *httplog.Logger
-	Node   *p2p.Node
+	Host   *p2p.Host
 	RPC    *rpc.RPC
+	Wallet *ethwallet.Wallet
 
 	ctx       context.Context
 	ctxStopFn context.CancelFunc
 	running   int32
 }
 
-func NewServer(cfg *config.Config) (*Server, error) {
+func NewNode(cfg *config.Config) (*Node, error) {
 	var err error
 
 	cfg.GitCommit = bundler.GITCOMMIT
@@ -58,13 +60,20 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	}
 	logger := httplog.NewLogger("bundler", loggerOptions)
 
-	node, err := p2p.NewNode(cfg, logger.Logger)
+	// wallet
+	wallet, err := setupWallet(cfg.PrivateKey, cfg.DerivationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// p2p host
+	host, err := p2p.NewHost(cfg, logger.Logger, wallet)
 	if err != nil {
 		return nil, err
 	}
 
 	// RPC
-	rpc, err := rpc.NewRPC(cfg, logger, node)
+	rpc, err := rpc.NewRPC(cfg, logger, host)
 	if err != nil {
 		return nil, err
 	}
@@ -72,17 +81,18 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	//
 	// Server
 	//
-	server := &Server{
+	server := &Node{
 		Config: cfg,
 		Logger: logger,
-		Node:   node,
+		Host:   host,
 		RPC:    rpc,
+		Wallet: wallet,
 	}
 
 	return server, nil
 }
 
-func (s *Server) Run() error {
+func (s *Node) Run() error {
 	if s.IsRunning() {
 		return fmt.Errorf("server already running")
 	}
@@ -108,7 +118,7 @@ func (s *Server) Run() error {
 	// Node
 	g.Go(func() error {
 		oplog.Info("-> p2p: run")
-		return s.Node.Run(ctx)
+		return s.Host.Run(ctx)
 	})
 
 	// Once run context is done, trigger a server-stop.
@@ -121,7 +131,7 @@ func (s *Server) Run() error {
 	return g.Wait()
 }
 
-func (s *Server) Stop() {
+func (s *Node) Stop() {
 	if !s.IsRunning() || s.IsStopping() {
 		return
 	}
@@ -146,7 +156,7 @@ func (s *Server) Stop() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s.Node.Stop(shutdownCtx)
+		s.Host.Stop(shutdownCtx)
 	}()
 
 	// Force shutdown after grace period
@@ -163,19 +173,19 @@ func (s *Server) Stop() {
 	atomic.StoreInt32(&s.running, 0)
 }
 
-func (s *Server) IsRunning() bool {
+func (s *Node) IsRunning() bool {
 	return atomic.LoadInt32(&s.running) >= 1
 }
 
-func (s *Server) IsStopping() bool {
+func (s *Node) IsStopping() bool {
 	return atomic.LoadInt32(&s.running) == 2
 }
 
-func (s *Server) Fatal(format string, v ...interface{}) {
+func (s *Node) Fatal(format string, v ...interface{}) {
 	s.Logger.Error(fmt.Sprintf(format, v...))
 	os.Exit(1)
 }
 
-func (s *Server) End() {
+func (s *Node) End() {
 	s.Logger.Info("-> bundler: bye")
 }
