@@ -8,18 +8,21 @@ peers running the same bundler-node app
 - [x] private key hd wallet support 
 - [x] p2p package, node package
 
-- [ ] 5189 Operation payload.. 
+- [x] 5189 Operation payload
 
-- [ ] endorser, isOperationReady, check readiness before adding to mempool -- should we sign too?
+- [ ] endorser, isOperationReady, check readiness before publishing to mempool. By publishing the
+operation to the pool, it means the node checked readiness first. And any pubished message is auto-signed.
+Therefore, if a peer continues to send isOperationReady messages which are determined to not be ready,
+other peers will begin to score it low and reject its messages.
 
-- [ ] mempool operation queue, with signing the messages sent into the mempool..
-perhaps there is a way to determine the address from the peer / signature..? maybe..
+- [ ] mempool operation queue, as well track the peer/address who sent the operation into the pool for
+future peer scoring.
 
 - [ ] chain provider (ethrpc) -- for now, we'll make it work for just a single chain, but really we can support multi-chain
 
-- [ ] sender(s) reading operations from the queue..
-
 - [ ] ethgas monitoring for pricing
+
+- [ ] sender(s) reading operations from the queue and dispatching native txns to the chain
 
 - [ ] gas estimation for operation -- how to do this for different smart wallets tho...?
 - [ ] compression -- how to know which compression module to use, etc. prob endorser / similar can tell us ..
