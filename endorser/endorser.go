@@ -1,4 +1,4 @@
-package bundler
+package endorser
 
 // TODO: interact with the endorser ABI, etc.
 

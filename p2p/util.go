@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/0xsequence/ethkit/go-ethereum/common"
+	ethcrypto "github.com/0xsequence/ethkit/go-ethereum/crypto"
+	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/ipfs/go-cid"
 	pubsubpb "github.com/libp2p/go-libp2p-pubsub/pb"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -12,8 +15,23 @@ import (
 	mh "github.com/multiformats/go-multihash"
 )
 
-func nsToCid(ns string) (cid.Cid, error) {
-	h, err := mh.Sum([]byte(ns), mh.SHA2_256, -1)
+func PeerIDToETHAddress(peerID peer.ID) (common.Address, error) {
+	pubKey, err := peerID.ExtractPublicKey()
+	if err != nil {
+		return common.Address{}, err
+	}
+
+	raw, _ := pubKey.Raw()
+	k, err := secp256k1.ParsePubKey(raw)
+	if err != nil {
+		return common.Address{}, err
+	}
+
+	return ethcrypto.PubkeyToAddress(*k.ToECDSA()), nil
+}
+
+func NamespaceToCid(namespace string) (cid.Cid, error) {
+	h, err := mh.Sum([]byte(namespace), mh.SHA2_256, -1)
 	if err != nil {
 		return cid.Undef, err
 	}

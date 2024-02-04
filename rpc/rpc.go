@@ -139,8 +139,12 @@ func (s *RPC) handler() http.Handler {
 	r.Get("/peers", s.peersPage)
 
 	// Mount rpc endpoints
-	rpcHandler := proto.NewBundlerServer(s)
-	r.Post("/rpc/*", rpcHandler.ServeHTTP)
+	bundlerRPCHandler := proto.NewBundlerServer(s)
+	r.Post("/rpc/Bundler/*", bundlerRPCHandler.ServeHTTP)
+
+	// TODO: take config flag with debug_mode true/false
+	debugRPCHandler := proto.NewDebugServer(&Debug{RPC: s})
+	r.Post("/rpc/Debug/*", debugRPCHandler.ServeHTTP)
 
 	return r
 }

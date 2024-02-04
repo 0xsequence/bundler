@@ -22,12 +22,9 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/libp2p/go-libp2p/p2p/security/noise"
 	libp2ptls "github.com/libp2p/go-libp2p/p2p/security/tls"
+	quic "github.com/libp2p/go-libp2p/p2p/transport/quic"
+	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	"github.com/multiformats/go-multiaddr"
-)
-
-const (
-	DiscoveryNamespace = "erc5189-bundler"
-	PubsubTopic        = "erc5189-bundler-mempool"
 )
 
 type Host struct {
@@ -95,6 +92,10 @@ func NewHost(cfg *config.Config, logger *slog.Logger, wallet *ethwallet.Wallet) 
 
 		// support any other default transports (TCP)
 		// libp2p.DefaultTransports,
+		libp2p.ChainOptions(
+			libp2p.Transport(tcp.NewTCPTransport),
+			libp2p.Transport(quic.NewTransport),
+		),
 
 		// Let's prevent our peer from having too many
 		// connections by attaching a connection manager.
@@ -109,7 +110,12 @@ func NewHost(cfg *config.Config, logger *slog.Logger, wallet *ethwallet.Wallet) 
 		//
 		// This service is highly rate-limited and should not cause any
 		// performance issues.
-		libp2p.EnableNATService(),
+		// libp2p.EnableNATService(),
+
+		// ..
+		libp2p.DisableRelay(),
+
+		// TODO: review all libp2p options and defaults
 	)
 
 	if err != nil {
@@ -204,7 +210,7 @@ func (n *Host) bootstrap(bootPeers []peer.AddrInfo) error {
 	dutil.Advertise(n.ctx, routingDiscovery, DiscoveryNamespace)
 
 	// start discovery process in the background.
-	discoveryNameSpaceCid, err := nsToCid(DiscoveryNamespace)
+	discoveryNameSpaceCid, err := NamespaceToCid(DiscoveryNamespace)
 	if err != nil {
 		return err
 	}
