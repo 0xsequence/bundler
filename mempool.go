@@ -1,5 +1,7 @@
 package bundler
 
+import "github.com/0xsequence/bundler/proto"
+
 type Mempool struct {
-	Operations []Operation `json:"operations"`
+	Operations []proto.Operation `json:"operations"`
 }

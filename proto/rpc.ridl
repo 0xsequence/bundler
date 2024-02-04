@@ -3,6 +3,9 @@ webrpc = v1
 name = bundler
 version = v0.1.0
 
+# TODO: we may move the core types to protobuf, and use this just for RPC
+# calls. Or we can keep this, rename to bundler.ridl and this for all types..
+
 struct Version
   - webrpcVersion: string
   - schemaVersion: string
@@ -24,6 +27,41 @@ struct Status
   #- topics: []string
 
 
+struct Operation
+  # TODO: use prototyp.Hash etc
+
+  # contract address that must be called with callData to execute the operation.
+  - entrypoint: string
+
+  # data that must be passed to the entrypoint call to execute the operation.
+  - callData: string
+
+  # minimum gasLimit that must be passed when executing the operation.
+  - gasLimit: uint64
+
+  # contract address of the ERC-20 token used to repay the bundler. (address(0) for the native token).
+  - feeToken: string
+
+  # address of the endorser contract that should be used to validate the operation.
+  - endorser: string
+
+  # additional data that must be passed to the endorser when calling isOperationReady().
+  - endorserCallData: string
+
+  # amount of gas that should be passed to the endorser when validating the operation.
+  - endorserGasLimit: uint64
+
+  # uint256 max amount of basefee that the operation execution is expected to pay. (Similar to EIP-1559 max_fee_per_gas).
+  - maxFeePerGas: string # TODO: can we use BigInt in JS later..? check webrpc..	
+
+  # uint256	fixed amount of fees that the operation execution is expected to pay to the bundler. (Similar to EIP-1559 max_priority_fee_per_gas).
+  - priorityFeePerGas: string	# TODO: can we use BigInt in JS later..? check webrpc..	
+
+  # bundle flag if the operation is allowed to be bundled / aggregated with other operations.
+  # we could also make this an opt-out and name it "noBundle" or similar.
+  - bundle?: bool
+
+
 error 1000 NotFound "Not found" HTTP 404
 error 2000 Unauthorized "Unauthorized access" HTTP 401
 error 3000 PermissionDenied "Permission denied" HTTP 403
@@ -34,5 +72,6 @@ service Bundler
   - Status() => (status: Status)
   - Peers() => (peers: []string, priorityPeers: []string)
 
-  # TODO: remove, this is just a test method
+
+service Debug
   - Broadcast(message: any) => (status: bool)
