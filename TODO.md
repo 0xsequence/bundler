@@ -8,7 +8,7 @@ peers running the same bundler-node app
 - [x] private key hd wallet support 
 - [x] p2p package, node package
 
-- [ ] 5189 Operation payload.. + pass `bundle: bool` argument
+- [ ] 5189 Operation payload.. 
 
 - [ ] endorser, isOperationReady, check readiness before adding to mempool -- should we sign too?
 
