@@ -2,7 +2,9 @@ package p2p
 
 import (
 	"encoding/json"
+	"fmt"
 
+	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
 	"github.com/davecgh/go-spew/spew"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
@@ -10,8 +12,15 @@ import (
 func (n *Host) setupPubsub() error {
 	logger := n.logger
 
-	// TODO: only use pubsubtracer in debug mode
-	ps, err := pubsub.NewGossipSub(n.ctx, n.host, pubsub.WithEventTracer(&PubSubTracer{logger: logger}))
+	psOptions := []pubsub.Option{
+		pubsub.WithMessageSignaturePolicy(pubsub.StrictSign),
+		pubsub.WithMaxMessageSize(1 << 20), // 1MB
+
+		// TODO: only use pubsubtracer in debug mode
+		pubsub.WithEventTracer(&PubSubTracer{logger: logger}),
+	}
+
+	ps, err := pubsub.NewGossipSub(n.ctx, n.host, psOptions...)
 	if err != nil {
 		logger.Error("unable to create gossip pub sub", "err", err)
 		return err
@@ -59,10 +68,20 @@ func (n *Host) pubsubEventHandler() error {
 				continue
 			}
 
-			// TODO: in the future, lets check the peerId of msg.ReceivedFrom,
-			// and potentially the signature too, so we can ignore any malicious peers.
+			// NOTE: StrictSign message policy ensures that signatures
+			// are validated.
 
 			// TODO: consider using pubsubpb with protobuf for message data
+
+			fmt.Println("From:", msg.GetFrom().String())
+			fmt.Println("ReceivedFrom:", msg.ReceivedFrom.String())
+			fmt.Println("Key:", hexutil.Encode(msg.Key))
+
+			address, err := PeerIDToETHAddress(msg.GetFrom())
+			if err != nil {
+				panic(err)
+			}
+			fmt.Println("ETH ADDRESS OF PEER", address.String())
 
 			var data interface{}
 			err = json.Unmarshal(msg.Data, &data)

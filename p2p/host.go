@@ -110,7 +110,12 @@ func NewHost(cfg *config.Config, logger *slog.Logger, wallet *ethwallet.Wallet) 
 		//
 		// This service is highly rate-limited and should not cause any
 		// performance issues.
-		libp2p.EnableNATService(),
+		// libp2p.EnableNATService(),
+
+		// ..
+		libp2p.DisableRelay(),
+
+		// TODO: review all libp2p options and defaults
 	)
 
 	if err != nil {
@@ -205,7 +210,7 @@ func (n *Host) bootstrap(bootPeers []peer.AddrInfo) error {
 	dutil.Advertise(n.ctx, routingDiscovery, DiscoveryNamespace)
 
 	// start discovery process in the background.
-	discoveryNameSpaceCid, err := nsToCid(DiscoveryNamespace)
+	discoveryNameSpaceCid, err := NamespaceToCid(DiscoveryNamespace)
 	if err != nil {
 		return err
 	}

@@ -14,5 +14,5 @@ and ERC4337 UserOps.
 to the p2p pubsub channel:
 
 ```
-curl -H "Content-Type: application/json" http://localhost:3000/rpc/Bundler/Broadcast -d '{"message":{"txn":"anything goes here"}}'
+curl -H "Content-Type: application/json" http://localhost:3000/rpc/Debug/Broadcast -d '{"message":{"txn":"anything goes here"}}'
 ```
