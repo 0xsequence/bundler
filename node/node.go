@@ -12,17 +12,19 @@ import (
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/rpc"
+	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/ethwallet"
 	"github.com/go-chi/httplog/v2"
 	"golang.org/x/sync/errgroup"
 )
 
 type Node struct {
-	Config *config.Config
-	Logger *httplog.Logger
-	Host   *p2p.Host
-	RPC    *rpc.RPC
-	Wallet *ethwallet.Wallet
+	Config  *config.Config
+	Logger  *httplog.Logger
+	Host    *p2p.Host
+	RPC     *rpc.RPC
+	Wallet  *ethwallet.Wallet
+	Mempool *bundler.Mempool
 
 	ctx       context.Context
 	ctxStopFn context.CancelFunc
@@ -79,15 +81,28 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		return nil, err
 	}
 
+	// Provider
+	provider, err := ethrpc.NewProvider(cfg.NetworkConfig.RpcUrl)
+	if err != nil {
+		return nil, err
+	}
+
+	// Mempool
+	mempool, err := bundler.NewMempool(&cfg.MempoolConfig, logger, provider)
+	if err != nil {
+		return nil, err
+	}
+
 	//
 	// Server
 	//
 	server := &Node{
-		Config: cfg,
-		Logger: logger,
-		Host:   host,
-		RPC:    rpc,
-		Wallet: wallet,
+		Config:  cfg,
+		Logger:  logger,
+		Host:    host,
+		RPC:     rpc,
+		Wallet:  wallet,
+		Mempool: mempool,
 	}
 
 	return server, nil
@@ -120,6 +135,13 @@ func (s *Node) Run() error {
 	g.Go(func() error {
 		oplog.Info("-> p2p: run")
 		return s.Host.Run(ctx)
+	})
+
+	// Mempoool processor
+	g.Go(func() error {
+		oplog.Info("-> mempool: run")
+		s.Mempool.StartProcessor(ctx)
+		return nil
 	})
 
 	// Once run context is done, trigger a server-stop.

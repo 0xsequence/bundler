@@ -182,7 +182,7 @@ func useEndorserAbi() *abi.ABI {
 	return parsedEndorserABI
 }
 
-func IsOperationReady(provider *ethrpc.Provider, op *proto.Operation) (*EndorserResult, error) {
+func IsOperationReady(ctx context.Context, provider *ethrpc.Provider, op *proto.Operation) (*EndorserResult, error) {
 	endorserAddr := common.HexToAddress(op.Endorser)
 	if endorserAddr == (common.Address{}) {
 		return nil, fmt.Errorf("invalid endorser address")
@@ -216,7 +216,7 @@ func IsOperationReady(provider *ethrpc.Provider, op *proto.Operation) (*Endorser
 
 	var res string
 	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall, nil, nil)
-	_, err = provider.Do(context.Background(), rpcCall.Into(&res))
+	_, err = provider.Do(ctx, rpcCall.Into(&res))
 	if err != nil {
 		return nil, err
 	}
