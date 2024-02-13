@@ -155,7 +155,7 @@ type Constraint struct {
 }
 
 type Dependency struct {
-	Addr       *common.Address
+	Addr       common.Address
 	Balance    bool
 	Code       bool
 	Nonce      bool
