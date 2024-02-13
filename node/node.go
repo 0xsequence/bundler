@@ -75,12 +75,6 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		return nil, err
 	}
 
-	// RPC
-	rpc, err := rpc.NewRPC(cfg, logger, host)
-	if err != nil {
-		return nil, err
-	}
-
 	// Provider
 	provider, err := ethrpc.NewProvider(cfg.NetworkConfig.RpcUrl)
 	if err != nil {
@@ -89,6 +83,12 @@ func NewNode(cfg *config.Config) (*Node, error) {
 
 	// Mempool
 	mempool, err := bundler.NewMempool(&cfg.MempoolConfig, logger, provider)
+	if err != nil {
+		return nil, err
+	}
+
+	// RPC
+	rpc, err := rpc.NewRPC(cfg, logger, host, mempool)
 	if err != nil {
 		return nil, err
 	}

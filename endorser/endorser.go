@@ -189,15 +189,30 @@ func IsOperationReady(ctx context.Context, provider *ethrpc.Provider, op *proto.
 	}
 
 	endorser := ethcontract.NewContractCaller(endorserAddr, *useEndorserAbi(), provider)
+
+	entrypointAddr := common.HexToAddress(op.Entrypoint)
+	calldataBytes := common.FromHex(op.CallData)
+	endorserCalldataBytes := common.FromHex(op.EndorserCallData)
+	gasLimitBigInt := new(big.Int).SetUint64(op.GasLimit)
+	maxFeePerGasBigInt, ok := new(big.Int).SetString(op.MaxFeePerGas, 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid max fee per gas")
+	}
+	priorityFeePerGas, ok := new(big.Int).SetString(op.PriorityFeePerGas, 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid priority fee per gas")
+	}
+	feeToken := common.HexToAddress(op.FeeToken)
+
 	calldata, err := endorser.Encode(
 		"isOperationReady",
-		op.Entrypoint,
-		op.CallData,
-		op.EndorserCallData,
-		op.GasLimit,
-		op.MaxFeePerGas,
-		op.PriorityFeePerGas,
-		op.FeeToken,
+		entrypointAddr,
+		calldataBytes,
+		endorserCalldataBytes,
+		gasLimitBigInt,
+		maxFeePerGasBigInt,
+		priorityFeePerGas,
+		feeToken,
 	)
 
 	if err != nil {

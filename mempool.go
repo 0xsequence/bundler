@@ -53,12 +53,18 @@ func (mp *Mempool) Size() int {
 }
 
 func (mp *Mempool) AddOperation(op *proto.Operation) error {
+	if op == nil {
+		return fmt.Errorf("mempool: operation is nil")
+	}
+
 	mp.flock.Lock()
 	defer mp.flock.Unlock()
 
 	if mp.Size() >= int(mp.MaxSize) {
 		return fmt.Errorf("mempool: max size reached")
 	}
+
+	mp.logger.Info("mempool: adding operation to fresh", "op", op)
 
 	nlist := append(*mp.FreshOperations, op)
 	mp.FreshOperations = &nlist
@@ -112,7 +118,7 @@ func (mp *Mempool) HandleFreshOps(ctx context.Context) error {
 	for _, op := range *freshOps {
 		res, err := endorser.IsOperationReady(ctx, mp.Provider, op)
 		if err != nil {
-			mp.logger.Debug("dropping operation", "op", op, "reason", "endorser error", "err", err)
+			mp.logger.Warn("dropping operation", "op", op, "reason", "endorser error", "err", err)
 			continue
 		}
 
@@ -125,6 +131,7 @@ func (mp *Mempool) HandleFreshOps(ctx context.Context) error {
 		// then we add it to the mempool
 
 		mp.olock.Lock()
+		mp.logger.Info("operation added to mempool", "op", op)
 		mp.Operations = append(mp.Operations, TrackedOperation{
 			Operation:      *op,
 			EndorserResult: res,

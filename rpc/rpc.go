@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/0xsequence/bundler"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
@@ -23,11 +24,13 @@ type RPC struct {
 	Host   *p2p.Host
 	HTTP   *http.Server
 
+	mempool *bundler.Mempool
+
 	running   int32
 	startTime time.Time
 }
 
-func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host) (*RPC, error) {
+func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool *bundler.Mempool) (*RPC, error) {
 	// HTTP Server
 	httpServer := &http.Server{
 		// Addr:              cfg.Service.Listen,
@@ -39,6 +42,8 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host) (*RPC, e
 	}
 
 	s := &RPC{
+		mempool: mempool,
+
 		Config:    cfg,
 		Log:       logger,
 		Host:      host,
@@ -156,6 +161,15 @@ func (s *RPC) Ping(ctx context.Context) (bool, error) {
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("."))
+}
+
+func (s *RPC) SendOperation(ctx context.Context, op *proto.Operation) (bool, error) {
+	err := s.mempool.AddOperation(op)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func stubHandler(respBody string) http.HandlerFunc {
