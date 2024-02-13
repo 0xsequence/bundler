@@ -7,7 +7,6 @@ import (
 	"math/big"
 
 	"github.com/0xsequence/bundler/proto"
-	"github.com/0xsequence/ethkit/ethcoder"
 	"github.com/0xsequence/ethkit/ethcontract"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi"
@@ -334,7 +333,8 @@ func IsOperationReady(ctx context.Context, provider *ethrpc.Provider, op *proto.
 		return nil, fmt.Errorf("invalid endorser address")
 	}
 
-	endorser := ethcontract.NewContractCaller(endorserAddr, *useEndorserAbi(), provider)
+	ab := useEndorserAbi()
+	endorser := ethcontract.NewContractCaller(endorserAddr, *ab, provider)
 
 	entrypointAddr := common.HexToAddress(op.Entrypoint)
 	calldataBytes := common.FromHex(op.CallData)
@@ -384,23 +384,76 @@ func IsOperationReady(ctx context.Context, provider *ethrpc.Provider, op *proto.
 
 	resBytes := common.FromHex(res)
 
-	var readiness bool
-	var blockDependency BlockDependency
-	var dependencies []Dependency
+	endorserResult := &EndorserResult{}
 
-	err = ethcoder.AbiDecoder(
-		[]string{"bool", "tuple(uint256,uint256)", "tuple(address,bool,bool,bool,bool,bytes32[],tuple(bytes32,bytes32,bytes32)[])[]"},
-		resBytes,
-		[]interface{}{&readiness, &blockDependency, &dependencies},
-	)
-
+	dec1, err := ab.Methods["isOperationReady"].Outputs.Unpack(resBytes)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to unpack result: %w", err)
 	}
 
-	return &EndorserResult{
-		Readiness:       readiness,
-		BlockDependency: blockDependency,
-		Dependencies:    dependencies,
-	}, nil
+	// It must have 3 elements
+	if len(dec1) != 3 {
+		return nil, fmt.Errorf("invalid result length")
+	}
+
+	// First element must be a bool
+	endorserResult.Readiness, ok = dec1[0].(bool)
+	if !ok {
+		return nil, fmt.Errorf("invalid readiness")
+	}
+
+	// Second element must be a struct
+	dec2, ok := dec1[1].(struct {
+		MaxNumber    *big.Int "json:\"maxNumber\""
+		MaxTimestamp *big.Int "json:\"maxTimestamp\""
+	})
+	if !ok {
+		return nil, fmt.Errorf("invalid block dependency")
+	}
+
+	endorserResult.BlockDependency = BlockDependency{
+		MaxNumber:    dec2.MaxNumber,
+		MaxTimestamp: dec2.MaxTimestamp,
+	}
+
+	// Third element must be an array of structs
+	dec3, ok := dec1[2].([]struct {
+		Addr        common.Address "json:\"addr\""
+		Balance     bool           "json:\"balance\""
+		Code        bool           "json:\"code\""
+		Nonce       bool           "json:\"nonce\""
+		AllSlots    bool           "json:\"allSlots\""
+		Slots       [][32]byte     "json:\"slots\""
+		Constraints []struct {
+			Slot     [32]byte "json:\"slot\""
+			MinValue [32]byte "json:\"minValue\""
+			MaxValue [32]byte "json:\"maxValue\""
+		} "json:\"constraints\""
+	})
+	if !ok {
+		return nil, fmt.Errorf("invalid dependencies")
+	}
+
+	endorserResult.Dependencies = make([]Dependency, 0, len(dec3))
+	for _, dep := range dec3 {
+		dependency := Dependency{
+			Addr:     dep.Addr,
+			Balance:  dep.Balance,
+			Code:     dep.Code,
+			Nonce:    dep.Nonce,
+			AllSlots: dep.AllSlots,
+			Slots:    dep.Slots,
+		}
+		dependency.Constraint = make([]Constraint, 0, len(dep.Constraints))
+		for _, c := range dep.Constraints {
+			dependency.Constraint = append(dependency.Constraint, Constraint{
+				Slot:     c.Slot,
+				MinValue: c.MinValue,
+				MaxValue: c.MaxValue,
+			})
+		}
+		endorserResult.Dependencies = append(endorserResult.Dependencies, dependency)
+	}
+
+	return endorserResult, nil
 }
