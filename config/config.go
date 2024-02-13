@@ -21,6 +21,9 @@ type Config struct {
 
 	Logging LoggingConfig `toml:"logging"`
 
+	NetworkConfig NetworkConfig `toml:"network"`
+	MempoolConfig MempoolConfig `toml:"mempool"`
+
 	BootNodeAddrs []multiaddr.Multiaddr `toml:"-"`
 }
 
@@ -32,6 +35,16 @@ type LoggingConfig struct {
 	RequestHeaders  bool   `toml:"req_headers"`
 	ResponseHeaders bool   `toml:"resp_headers"`
 	Source          string `toml:"source"`
+}
+
+type NetworkConfig struct {
+	RpcUrl string `toml:"rpc_url"`
+}
+
+type MempoolConfig struct {
+	Size uint `toml:"max_size"`
+
+	MaxEndorserGasLimit uint `toml:"max_endorser_gas_limit"`
 }
 
 func NewFromFile(file string, env string, cfg *Config) error {
