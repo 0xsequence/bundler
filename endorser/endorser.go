@@ -166,7 +166,14 @@ type Dependency struct {
 	Constraint []Constraint
 }
 
-func (d *Dependency) HasChanged(x, y *dependencyState) (bool, error) {
+type DependencyState struct {
+	Balance *big.Int
+	Code    []byte
+	Nonce   *uint64
+	Slots   [][32]byte
+}
+
+func (d *Dependency) HasChanged(x, y *DependencyState) (bool, error) {
 	if err := d.Validate(x); err != nil {
 		return false, fmt.Errorf("x is not a valid state for dependency on %v: %w", d.Addr, err)
 	}
@@ -195,7 +202,7 @@ func (d *Dependency) HasChanged(x, y *dependencyState) (bool, error) {
 	return false, nil
 }
 
-func (d *Dependency) Validate(state *dependencyState) error {
+func (d *Dependency) Validate(state *DependencyState) error {
 	if (state.Balance != nil) != d.Balance {
 		return fmt.Errorf("balance existence does not match dependency")
 	}
@@ -215,24 +222,21 @@ func (d *Dependency) Validate(state *dependencyState) error {
 	return nil
 }
 
-type dependencyState struct {
-	Balance *big.Int
-	Code    []byte
-	Nonce   *uint64
-	Slots   [][32]byte
-}
-
 type EndorserResult struct {
 	Readiness       bool
 	BlockDependency BlockDependency
 	Dependencies    []Dependency
 }
 
-func (r *EndorserResult) State(ctx context.Context, provider *ethrpc.Provider) (*endorserResultState, error) {
-	state := endorserResultState{}
+type EndorserResultState struct {
+	Dependencies []DependencyState
+}
+
+func (r *EndorserResult) State(ctx context.Context, provider *ethrpc.Provider) (*EndorserResultState, error) {
+	state := EndorserResultState{}
 
 	for _, dependency := range r.Dependencies {
-		state_ := dependencyState{}
+		state_ := DependencyState{}
 
 		if dependency.Balance {
 			var err error
@@ -276,7 +280,7 @@ func (r *EndorserResult) State(ctx context.Context, provider *ethrpc.Provider) (
 	return &state, nil
 }
 
-func (r *EndorserResult) HasChanged(x, y *endorserResultState) (bool, error) {
+func (r *EndorserResult) HasChanged(x, y *EndorserResultState) (bool, error) {
 	if err := r.Validate(x); err != nil {
 		return false, fmt.Errorf("x is not a valid state for endorser result: %w", err)
 	}
@@ -298,7 +302,7 @@ func (r *EndorserResult) HasChanged(x, y *endorserResultState) (bool, error) {
 	return false, nil
 }
 
-func (r *EndorserResult) Validate(state *endorserResultState) error {
+func (r *EndorserResult) Validate(state *EndorserResultState) error {
 	if len(state.Dependencies) != len(r.Dependencies) {
 		return fmt.Errorf("number of dependencies does not match endorser result")
 	}
@@ -310,10 +314,6 @@ func (r *EndorserResult) Validate(state *endorserResultState) error {
 	}
 
 	return nil
-}
-
-type endorserResultState struct {
-	Dependencies []dependencyState
 }
 
 var parsedEndorserABI *abi.ABI
