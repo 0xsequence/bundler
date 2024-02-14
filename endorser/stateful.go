@@ -159,3 +159,25 @@ func (r *EndorserResult) Validate(state *EndorserResultState) error {
 
 	return nil
 }
+
+func (r *EndorserResult) CheckConstraints(ctx context.Context, provider *ethrpc.Provider) (bool, error) {
+	for _, dependency := range r.Dependencies {
+		for _, constraint := range dependency.Constraints {
+			slot := constraint.Slot
+			value, err := provider.StorageAt(ctx, dependency.Addr, slot, nil)
+			if err != nil {
+				return false, fmt.Errorf("unable to read storage for %v at %v: %w", dependency.Addr, hexutil.Encode(slot[:]), err)
+			}
+
+			bnMin := new(big.Int).SetBytes(constraint.MinValue[:])
+			bnMax := new(big.Int).SetBytes(constraint.MaxValue[:])
+			bnValue := new(big.Int).SetBytes(value[:])
+
+			if bnValue.Cmp(bnMin) < 0 || bnValue.Cmp(bnMax) > 0 {
+				return false, nil
+			}
+		}
+	}
+
+	return true, nil
+}

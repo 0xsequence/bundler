@@ -138,6 +138,18 @@ func (mp *Mempool) HandleFreshOps(ctx context.Context) error {
 			continue
 		}
 
+		// Check the constraints
+		okc, err := res.CheckConstraints(ctx, mp.Provider)
+		if err != nil {
+			mp.logger.Warn("dropping operation", "op", op, "reason", "constraint error", "err", err)
+			continue
+		}
+
+		if !okc {
+			mp.logger.Debug("dropping operation", "op", op, "reason", "constraint not met")
+			continue
+		}
+
 		// If the operation is ready
 		// then we add it to the mempool
 

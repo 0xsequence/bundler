@@ -154,13 +154,13 @@ type Constraint struct {
 }
 
 type Dependency struct {
-	Addr       common.Address
-	Balance    bool
-	Code       bool
-	Nonce      bool
-	AllSlots   bool
-	Slots      [][32]byte
-	Constraint []Constraint
+	Addr        common.Address
+	Balance     bool
+	Code        bool
+	Nonce       bool
+	AllSlots    bool
+	Slots       [][32]byte
+	Constraints []Constraint
 }
 
 var parsedEndorserABI *abi.ABI
@@ -292,9 +292,9 @@ func IsOperationReady(ctx context.Context, provider *ethrpc.Provider, op *proto.
 			AllSlots: dep.AllSlots,
 			Slots:    dep.Slots,
 		}
-		dependency.Constraint = make([]Constraint, 0, len(dep.Constraints))
+		dependency.Constraints = make([]Constraint, 0, len(dep.Constraints))
 		for _, c := range dep.Constraints {
-			dependency.Constraint = append(dependency.Constraint, Constraint{
+			dependency.Constraints = append(dependency.Constraints, Constraint{
 				Slot:     c.Slot,
 				MinValue: c.MinValue,
 				MaxValue: c.MaxValue,
