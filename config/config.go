@@ -39,6 +39,8 @@ type LoggingConfig struct {
 
 type NetworkConfig struct {
 	RpcUrl string `toml:"rpc_url"`
+
+	EntrypointContract string `toml:"entrypoint_contract"`
 }
 
 type MempoolConfig struct {

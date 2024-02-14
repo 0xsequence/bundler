@@ -5,7 +5,10 @@ import "./interfaces/ERC20.sol";
 import "./interfaces/Endorser.sol";
 import "./Math.sol";
 
-contract Simulator {
+contract BundlerEntrypoint {
+  error BundlerExecutionFailed();
+  error BundlerUnderpaid(uint256 _paid, uint256 _expected);
+
   struct SimulationResult {
     bool paid;
     bool lied;
@@ -35,15 +38,17 @@ contract Simulator {
     uint256 preGas = gasleft();
     // Ignore the return value, we don't trust any of it
     _entrypoint.call{ gas: _gasLimit }(_data);
-    uint256 postGas = gasleft();
 
-    uint256 postBal = fetchPaymentBal(_feeToken);
+    {
+      uint256 postGas = gasleft();
+      uint256 postBal = fetchPaymentBal(_feeToken);
 
-    uint256 gasUsed = preGas - postGas + _calldataGas;
-    uint256 gasPrice = Math.min(block.basefee + _maxPriorityFeePerGas, _maxFeePerGas);
-    uint256 expectPayment = gasUsed * gasPrice;
+      uint256 gasUsed = preGas - postGas + _calldataGas;
+      uint256 gasPrice = Math.min(block.basefee + _maxPriorityFeePerGas, _maxFeePerGas);
+      uint256 expectPayment = gasUsed * gasPrice;
 
-    result.paid = postBal - preBal >= expectPayment;
+      result.paid = postBal - preBal >= expectPayment;
+    }
 
     // We didn't got paid, we need to know
     // if the endorser considers the operation ready
@@ -58,6 +63,37 @@ contract Simulator {
         _maxPriorityFeePerGas,
         _feeToken
       ); 
+    }
+  }
+
+  function safeExecute(
+    address _entrypoint,
+    bytes calldata _data,
+    uint256 _gasLimit,
+    uint256 _maxFeePerGas,
+    uint256 _maxPriorityFeePerGas,
+    address _feeToken,
+    uint256 _calldataGas
+  ) external {
+    uint256 preBal = fetchPaymentBal(_feeToken);
+    
+    uint256 preGas = gasleft();
+    (bool ok,) = _entrypoint.call{ gas: _gasLimit }(_data);
+    uint256 postGas = gasleft();
+
+    if (!ok) {
+      revert BundlerExecutionFailed();
+    }
+
+    uint256 postBal = fetchPaymentBal(_feeToken);
+
+    uint256 gasUsed = preGas - postGas + _calldataGas;
+    uint256 gasPrice = Math.min(block.basefee + _maxPriorityFeePerGas, _maxFeePerGas);
+    uint256 expectPayment = gasUsed * gasPrice;
+    uint256 paid = postBal - preBal;
+
+    if (paid < expectPayment) {
+      revert BundlerUnderpaid(paid, expectPayment);
     }
   }
 }
