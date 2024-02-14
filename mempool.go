@@ -17,6 +17,10 @@ import (
 type TrackedOperation struct {
 	proto.Operation
 
+	ReservedSince *time.Time
+	CreatedAt     time.Time
+	ReadyAt       time.Time
+
 	EndorserResult *endorser.EndorserResult
 }
 
@@ -30,7 +34,7 @@ type Mempool struct {
 	FreshOperations *[]*proto.Operation
 
 	olock      sync.Mutex
-	Operations []TrackedOperation
+	Operations []*TrackedOperation
 
 	digests map[common.Hash]struct{}
 }
@@ -45,7 +49,7 @@ func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, provider *eth
 		olock: sync.Mutex{},
 
 		FreshOperations: &[]*proto.Operation{},
-		Operations:      []TrackedOperation{},
+		Operations:      []*TrackedOperation{},
 
 		digests: map[common.Hash]struct{}{},
 	}
@@ -81,6 +85,56 @@ func (mp *Mempool) AddOperation(op *proto.Operation) error {
 	mp.FreshOperations = &nlist
 
 	return nil
+}
+
+func (mp *Mempool) ReserveOps(ctx context.Context, selec func([]*TrackedOperation) []*TrackedOperation) {
+	mp.olock.Lock()
+	defer mp.olock.Unlock()
+
+	// Filter out the operations that are already reserved
+	// and the ones that are not ready
+	avalOps := []*TrackedOperation{}
+	for _, op := range mp.Operations {
+		if op.ReservedSince != nil {
+			continue
+		}
+		avalOps = append(avalOps, op)
+	}
+
+	// Select the operations to reserve
+	resOps := selec(avalOps)
+	for _, op := range resOps {
+		n := time.Now()
+		op.ReservedSince = &n
+	}
+}
+
+func (mp *Mempool) DiscardOps(ctx context.Context, ops []*TrackedOperation) {
+	mp.olock.Lock()
+	defer mp.olock.Unlock()
+
+	var kops []*TrackedOperation
+	for _, op := range mp.Operations {
+		discard := false
+
+		for _, dop := range ops {
+			if op.Digest() == dop.Digest() {
+				discard = true
+				break
+			}
+		}
+
+		if discard {
+			continue
+		}
+
+		kops = append(kops, op)
+	}
+
+	// Remove them from the digest map too
+	delete(mp.digests, ops[0].Digest())
+
+	mp.Operations = kops
 }
 
 func (mp *Mempool) StartProcessor(ctx context.Context) {
@@ -155,8 +209,12 @@ func (mp *Mempool) HandleFreshOps(ctx context.Context) error {
 
 		mp.olock.Lock()
 		mp.logger.Info("operation added to mempool", "op", op)
-		mp.Operations = append(mp.Operations, TrackedOperation{
-			Operation:      *op,
+		mp.Operations = append(mp.Operations, &TrackedOperation{
+			Operation: *op,
+
+			CreatedAt: time.Now(),
+			ReadyAt:   time.Now(),
+
 			EndorserResult: res,
 		})
 		mp.olock.Unlock()
