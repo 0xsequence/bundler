@@ -1,9 +1,9 @@
 # openssl rand -hex 32
-private_key = ""
+private_key = "0x"
 # (optional) key derivation path, if empty will default to m/44'/60'/0'/0/0
 derivation_path  = "m/44'/60'/0'/0/0"
 
-p2p_port = 5000
+p2p_port = 0
 rpc_port = 3000
 
 boot_nodes = [
