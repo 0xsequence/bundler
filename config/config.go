@@ -23,6 +23,7 @@ type Config struct {
 
 	NetworkConfig NetworkConfig `toml:"network"`
 	MempoolConfig MempoolConfig `toml:"mempool"`
+	SendersConfig SendersConfig `toml:"senders"`
 
 	BootNodeAddrs []multiaddr.Multiaddr `toml:"-"`
 }
@@ -47,6 +48,10 @@ type MempoolConfig struct {
 	Size uint `toml:"max_size"`
 
 	MaxEndorserGasLimit uint `toml:"max_endorser_gas_limit"`
+}
+
+type SendersConfig struct {
+	NumSenders uint `toml:"num_senders"`
 }
 
 func NewFromFile(file string, env string, cfg *Config) error {

@@ -12,6 +12,8 @@ import (
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
+	"github.com/0xsequence/ethkit/ethrpc"
+	"github.com/0xsequence/ethkit/ethwallet"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -25,12 +27,13 @@ type RPC struct {
 	HTTP   *http.Server
 
 	mempool *bundler.Mempool
+	senders []*bundler.Sender
 
 	running   int32
 	startTime time.Time
 }
 
-func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool *bundler.Mempool) (*RPC, error) {
+func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool *bundler.Mempool, provider *ethrpc.Provider) (*RPC, error) {
 	// HTTP Server
 	httpServer := &http.Server{
 		// Addr:              cfg.Service.Listen,
@@ -41,8 +44,23 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
+	hdnode, err := ethwallet.NewHDNodeFromPrivateKey(cfg.PrivateKey[2:])
+	if err != nil {
+		return nil, fmt.Errorf("unable to create hd node from private key: %w", err)
+	}
+
+	senders := make([]*bundler.Sender, 0, cfg.SendersConfig.NumSenders)
+	for i := 0; i < int(cfg.SendersConfig.NumSenders); i++ {
+		wallet, err := ethwallet.NewWalletFromHDNode(hdnode)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create wallet for sender %v from hd node: %w", i, err)
+		}
+		senders = append(senders, bundler.NewSender(uint32(i), wallet, mempool, provider))
+	}
+
 	s := &RPC{
 		mempool: mempool,
+		senders: senders,
 
 		Config:    cfg,
 		Log:       logger,
@@ -77,6 +95,12 @@ func (s *RPC) Run(ctx context.Context) error {
 	if err != nil && err != http.ErrServerClosed {
 		return err
 	}
+
+	// Run the senders
+	for _, sender := range s.senders {
+		go sender.Run(ctx)
+	}
+
 	return nil
 }
 

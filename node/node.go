@@ -90,7 +90,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 
 	// RPC
-	rpc, err := rpc.NewRPC(cfg, logger, host, mempool)
+	rpc, err := rpc.NewRPC(cfg, logger, host, mempool, provider)
 	if err != nil {
 		return nil, err
 	}

@@ -21,7 +21,8 @@ type TrackedOperation struct {
 	CreatedAt     time.Time
 	ReadyAt       time.Time
 
-	EndorserResult *endorser.EndorserResult
+	EndorserResult      *endorser.EndorserResult
+	EndorserResultState *endorser.EndorserResultState
 }
 
 type Mempool struct {
@@ -87,26 +88,28 @@ func (mp *Mempool) AddOperation(op *proto.Operation) error {
 	return nil
 }
 
-func (mp *Mempool) ReserveOps(ctx context.Context, selec func([]*TrackedOperation) []*TrackedOperation) {
+func (mp *Mempool) ReserveOps(ctx context.Context, selectFn func([]*TrackedOperation) []*TrackedOperation) []*TrackedOperation {
 	mp.olock.Lock()
 	defer mp.olock.Unlock()
 
 	// Filter out the operations that are already reserved
 	// and the ones that are not ready
-	avalOps := []*TrackedOperation{}
+	availOps := []*TrackedOperation{}
 	for _, op := range mp.Operations {
 		if op.ReservedSince != nil {
 			continue
 		}
-		avalOps = append(avalOps, op)
+		availOps = append(availOps, op)
 	}
 
 	// Select the operations to reserve
-	resOps := selec(avalOps)
+	resOps := selectFn(availOps)
 	for _, op := range resOps {
 		n := time.Now()
 		op.ReservedSince = &n
 	}
+
+	return resOps
 }
 
 func (mp *Mempool) ReleaseOps(ctx context.Context, ops []*TrackedOperation, updateReadyAt bool) {
@@ -199,7 +202,7 @@ func (mp *Mempool) HandleFreshOps(ctx context.Context) error {
 	for _, op := range *freshOps {
 		res, err := endorser.IsOperationReady(ctx, mp.Provider, op)
 		if err != nil {
-			mp.logger.Warn("dropping operation", "op", op, "reason", "endorser error", "err", err)
+			mp.logger.Error("dropping operation", "op", op, "reason", "endorser error", "err", err)
 			continue
 		}
 
@@ -211,12 +214,18 @@ func (mp *Mempool) HandleFreshOps(ctx context.Context) error {
 		// Check the constraints
 		okc, err := res.CheckConstraints(ctx, mp.Provider)
 		if err != nil {
-			mp.logger.Warn("dropping operation", "op", op, "reason", "constraint error", "err", err)
+			mp.logger.Error("dropping operation", "op", op, "reason", "constraint error", "err", err)
 			continue
 		}
 
 		if !okc {
 			mp.logger.Debug("dropping operation", "op", op, "reason", "constraint not met")
+			continue
+		}
+
+		state, err := res.State(ctx, mp.Provider)
+		if err != nil {
+			mp.logger.Error("dropping operation", "op", op, "reason", "unable to fetch state")
 			continue
 		}
 
@@ -231,7 +240,8 @@ func (mp *Mempool) HandleFreshOps(ctx context.Context) error {
 			CreatedAt: time.Now(),
 			ReadyAt:   time.Now(),
 
-			EndorserResult: res,
+			EndorserResult:      res,
+			EndorserResultState: state,
 		})
 		mp.olock.Unlock()
 	}
