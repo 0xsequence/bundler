@@ -11,9 +11,11 @@ import (
 	"github.com/0xsequence/bundler"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/p2p"
+	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/rpc"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/ethwallet"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/go-chi/httplog/v2"
 	"golang.org/x/sync/errgroup"
 )
@@ -104,6 +106,10 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		Wallet:  wallet,
 		Mempool: mempool,
 	}
+
+	host.HandleMessageType(proto.MessageType_DEBUG, func(message any) {
+		spew.Dump(message)
+	})
 
 	return server, nil
 }

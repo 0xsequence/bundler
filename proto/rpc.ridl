@@ -58,6 +58,15 @@ struct Operation
   - priorityFeePerGas: string	# TODO: can we use BigInt in JS later..? check webrpc..	
 
 
+enum MessageType: int
+  - DEBUG
+  - NEW_OPERATION
+
+struct Message
+  - type: MessageType
+  - message: any
+
+
 error 1000 NotFound "Not found" HTTP 404
 error 2000 Unauthorized "Unauthorized access" HTTP 401
 error 3000 PermissionDenied "Permission denied" HTTP 403

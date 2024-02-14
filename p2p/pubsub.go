@@ -4,10 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
-	"github.com/davecgh/go-spew/spew"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
+
+func (n *Host) HandleMessageType(messageType proto.MessageType, handler func(message any)) {
+	n.handlers[messageType] = handler
+}
 
 func (n *Host) setupPubsub() error {
 	logger := n.logger
@@ -83,16 +87,19 @@ func (n *Host) pubsubEventHandler() error {
 			}
 			fmt.Println("ETH ADDRESS OF PEER", address.String())
 
-			var data interface{}
-			err = json.Unmarshal(msg.Data, &data)
+			var message proto.Message
+			err = json.Unmarshal(msg.Data, &message)
 			if err != nil {
 				n.logger.Info("failed to unmarshal pubsub message", "err", err)
 				continue
 			}
 
-			// TODO: parse msg.Data, etc. etc.. check the kind of event, etc.
-			spew.Dump(data)
-
+			if message.Type != nil {
+				handler := n.handlers[*message.Type]
+				if handler != nil {
+					handler(message.Message)
+				}
+			}
 		}
 	}()
 
