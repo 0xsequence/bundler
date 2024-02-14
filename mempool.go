@@ -109,6 +109,22 @@ func (mp *Mempool) ReserveOps(ctx context.Context, selec func([]*TrackedOperatio
 	}
 }
 
+func (mp *Mempool) ReleaseOps(ctx context.Context, ops []*TrackedOperation, updateReadyAt bool) {
+	mp.olock.Lock()
+	defer mp.olock.Unlock()
+
+	for _, op := range mp.Operations {
+		for _, rop := range ops {
+			if op.Digest() == rop.Digest() {
+				rop.ReservedSince = nil
+				if updateReadyAt {
+					rop.ReadyAt = time.Now()
+				}
+			}
+		}
+	}
+}
+
 func (mp *Mempool) DiscardOps(ctx context.Context, ops []*TrackedOperation) {
 	mp.olock.Lock()
 	defer mp.olock.Unlock()
