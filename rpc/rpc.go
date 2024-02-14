@@ -169,6 +169,12 @@ func (s *RPC) SendOperation(ctx context.Context, op *proto.Operation) (bool, err
 		return false, err
 	}
 
+	messageType := proto.MessageType_NEW_OPERATION
+	s.Host.Broadcast(proto.Message{
+		Type:    &messageType,
+		Message: op,
+	})
+
 	return true, nil
 }
 

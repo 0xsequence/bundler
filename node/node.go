@@ -111,6 +111,14 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		spew.Dump(message)
 	})
 
+	host.HandleMessageType(proto.MessageType_NEW_OPERATION, func(message any) {
+		operation, ok := message.(*proto.Operation)
+		if !ok {
+			return
+		}
+		mempool.AddOperation(operation)
+	})
+
 	return server, nil
 }
 
