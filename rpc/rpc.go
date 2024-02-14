@@ -13,7 +13,6 @@ import (
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/ethkit/ethrpc"
-	"github.com/0xsequence/ethkit/ethwallet"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -44,14 +43,9 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	hdnode, err := ethwallet.NewHDNodeFromPrivateKey(cfg.PrivateKey[2:])
-	if err != nil {
-		return nil, fmt.Errorf("unable to create hd node from private key: %w", err)
-	}
-
 	senders := make([]*bundler.Sender, 0, cfg.SendersConfig.NumSenders)
 	for i := 0; i < int(cfg.SendersConfig.NumSenders); i++ {
-		wallet, err := ethwallet.NewWalletFromHDNode(hdnode)
+		wallet, err := SetupWallet(cfg.Mnemonic, uint32(1 + i))
 		if err != nil {
 			return nil, fmt.Errorf("unable to create wallet for sender %v from hd node: %w", i, err)
 		}

@@ -14,7 +14,6 @@ import (
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/rpc"
 	"github.com/0xsequence/ethkit/ethrpc"
-	"github.com/0xsequence/ethkit/ethwallet"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-chi/httplog/v2"
 	"golang.org/x/sync/errgroup"
@@ -25,7 +24,6 @@ type Node struct {
 	Logger  *httplog.Logger
 	Host    *p2p.Host
 	RPC     *rpc.RPC
-	Wallet  *ethwallet.Wallet
 	Mempool *bundler.Mempool
 
 	ctx       context.Context
@@ -65,7 +63,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	logger := httplog.NewLogger("bundler", loggerOptions)
 
 	// wallet
-	wallet, err := setupWallet(cfg.PrivateKey, cfg.DerivationPath)
+	wallet, err := rpc.SetupWallet(cfg.Mnemonic, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +101,6 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		Logger:  logger,
 		Host:    host,
 		RPC:     rpc,
-		Wallet:  wallet,
 		Mempool: mempool,
 	}
 

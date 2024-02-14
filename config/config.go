@@ -11,9 +11,7 @@ import (
 type Config struct {
 	GitCommit string `toml:"-"`
 
-	// TODO: add support for mnemonic + hd wallet
-	PrivateKey     string `toml:"private_key"`
-	DerivationPath string `toml:"derivation_path"`
+	Mnemonic string `toml:"mnemonic"`
 
 	P2PPort   int      `toml:"p2p_port"`
 	RPCPort   int      `toml:"rpc_port"`
