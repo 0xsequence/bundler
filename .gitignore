@@ -1,2 +1,4 @@
 bin
 db
+etc/bundler-1.conf
+etc/bundler-2.conf
