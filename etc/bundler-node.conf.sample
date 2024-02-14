@@ -21,6 +21,9 @@ boot_nodes = [
 [mempool]
   max_size = 1000
 
+[senders]
+  num_senders = 3
+
 [logging]
   service       = "bundler"
   level         = "INFO"
