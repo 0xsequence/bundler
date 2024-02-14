@@ -10,6 +10,7 @@ import (
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/ethkit/ethrpc"
+	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/httplog/v2"
 )
 
@@ -30,6 +31,8 @@ type Mempool struct {
 
 	olock      sync.Mutex
 	Operations []TrackedOperation
+
+	digests map[common.Hash]struct{}
 }
 
 func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, provider *ethrpc.Provider) (*Mempool, error) {
@@ -43,6 +46,8 @@ func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, provider *eth
 
 		FreshOperations: &[]*proto.Operation{},
 		Operations:      []TrackedOperation{},
+
+		digests: map[common.Hash]struct{}{},
 	}
 
 	return mp, nil
@@ -56,6 +61,12 @@ func (mp *Mempool) AddOperation(op *proto.Operation) error {
 	if op == nil {
 		return fmt.Errorf("mempool: operation is nil")
 	}
+
+	digest := op.Digest()
+	if _, ok := mp.digests[digest]; ok {
+		return fmt.Errorf("mempool: duplicate operation")
+	}
+	mp.digests[digest] = struct{}{}
 
 	mp.flock.Lock()
 	defer mp.flock.Unlock()
