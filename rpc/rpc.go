@@ -55,7 +55,7 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		if err != nil {
 			return nil, fmt.Errorf("unable to create wallet for sender %v from hd node: %w", i, err)
 		}
-		logger.Info("sender %v: %v", i, wallet.Address())
+		logger.Info(fmt.Sprintf("sender %v: %v", i, wallet.Address()))
 		senders = append(senders, bundler.NewSender(uint32(i), wallet, mempool, provider))
 	}
 
