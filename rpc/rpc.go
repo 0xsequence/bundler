@@ -85,15 +85,15 @@ func (s *RPC) Run(ctx context.Context) error {
 		s.Stop(context.Background())
 	}()
 
+	// Run the senders
+	for _, sender := range s.senders {
+		go sender.Run(ctx)
+	}
+
 	// Start the http server and serve!
 	err := s.HTTP.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
 		return err
-	}
-
-	// Run the senders
-	for _, sender := range s.senders {
-		go sender.Run(ctx)
 	}
 
 	return nil
