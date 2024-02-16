@@ -3,6 +3,7 @@ package bundler
 import (
 	"context"
 	"math/big"
+	"time"
 
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/ethkit/ethrpc"
@@ -48,6 +49,11 @@ func (s *Sender) Run(ctx context.Context) {
 				return to
 			}
 		})
+
+		if len(ops) == 0 {
+			time.Sleep(time.Second)
+			continue
+		}
 
 		for _, op := range ops {
 			state, err := op.EndorserResult.State(ctx, s.Provider)
