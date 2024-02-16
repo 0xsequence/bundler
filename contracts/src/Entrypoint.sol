@@ -22,7 +22,7 @@ contract BundlerEntrypoint {
     }
   }
 
-  function simuleOperation(
+  function simulateOperation(
     address _entrypoint,
     bytes calldata _data,
     bytes calldata _endorserCallData,
@@ -30,6 +30,9 @@ contract BundlerEntrypoint {
     uint256 _maxFeePerGas,
     uint256 _maxPriorityFeePerGas,
     address _feeToken,
+    uint256 _baseFeeScalingFactor,
+    uint256 _baseFeeNormalizationFactor,
+    bool _hasUntrustedContext,
     address _endorser,
     uint256 _calldataGas
   ) external returns (SimulationResult memory result) {
@@ -61,7 +64,10 @@ contract BundlerEntrypoint {
         _gasLimit,
         _maxFeePerGas,
         _maxPriorityFeePerGas,
-        _feeToken
+        _feeToken,
+        _baseFeeScalingFactor,
+        _baseFeeNormalizationFactor,
+        _hasUntrustedContext
       ); 
     }
   }
@@ -73,6 +79,8 @@ contract BundlerEntrypoint {
     uint256 _maxFeePerGas,
     uint256 _maxPriorityFeePerGas,
     address _feeToken,
+    uint256 _baseFeeScalingFactor,
+    uint256 _baseFeeNormalizationFactor,
     uint256 _calldataGas
   ) external {
     uint256 preBal = fetchPaymentBal(_feeToken);
@@ -88,7 +96,7 @@ contract BundlerEntrypoint {
     uint256 postBal = fetchPaymentBal(_feeToken);
 
     uint256 gasUsed = preGas - postGas + _calldataGas;
-    uint256 gasPrice = Math.min(block.basefee + _maxPriorityFeePerGas, _maxFeePerGas);
+    uint256 gasPrice = Math.min(Math.mulDiv(block.basefee, _baseFeeScalingFactor, _baseFeeNormalizationFactor) + _maxPriorityFeePerGas, _maxFeePerGas);
     uint256 expectPayment = gasUsed * gasPrice;
     uint256 paid = postBal - preBal;
 
