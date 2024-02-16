@@ -62,8 +62,14 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 	logger := httplog.NewLogger("bundler", loggerOptions)
 
+	// Provider
+	provider, err := ethrpc.NewProvider(cfg.NetworkConfig.RpcUrl)
+	if err != nil {
+		return nil, err
+	}
+
 	// wallet
-	wallet, err := rpc.SetupWallet(cfg.Mnemonic, 0)
+	wallet, err := rpc.SetupWallet(cfg.Mnemonic, 0, provider)
 	if err != nil {
 		return nil, err
 	}
@@ -71,12 +77,6 @@ func NewNode(cfg *config.Config) (*Node, error) {
 
 	// p2p host
 	host, err := p2p.NewHost(cfg, logger.Logger, wallet)
-	if err != nil {
-		return nil, err
-	}
-
-	// Provider
-	provider, err := ethrpc.NewProvider(cfg.NetworkConfig.RpcUrl)
 	if err != nil {
 		return nil, err
 	}
