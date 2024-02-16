@@ -26,6 +26,21 @@ func (o *Operation) Digest() common.Hash {
 		priorityFeePerGas = big.NewInt(0)
 	}
 
+	baseFeeScalingFactor, ok := new(big.Int).SetString(o.BaseFeeScalingFactor, 0)
+	if !ok {
+		baseFeeScalingFactor = big.NewInt(0)
+	}
+
+	baseFeeNormalizationFactor, ok := new(big.Int).SetString(o.BaseFeeNormalizationFactor, 0)
+	if !ok {
+		baseFeeNormalizationFactor = big.NewInt(0)
+	}
+
+	hasUntrustedContext := []byte{0}
+	if o.HasUntrustedContext {
+		hasUntrustedContext = []byte{1}
+	}
+
 	return crypto.Keccak256Hash(
 		common.HexToAddress(o.Entrypoint).Bytes(),
 		hexutil.MustDecode(o.CallData),
@@ -36,5 +51,8 @@ func (o *Operation) Digest() common.Hash {
 		endorserGasLimit[:],
 		maxFeePerGas.Bytes(),
 		priorityFeePerGas.Bytes(),
+		baseFeeScalingFactor.Bytes(),
+		baseFeeNormalizationFactor.Bytes(),
+		hasUntrustedContext,
 	)
 }
