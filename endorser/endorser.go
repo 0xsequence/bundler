@@ -50,6 +50,21 @@ const ENDORSER_ABI = `
 				"internalType": "address",
 				"name": "_feeToken",
 				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_baseFeeScalingFactor",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_baseFeeNormalizationFactor",
+				"type": "uint256"
+			},
+			{
+				"internalType": "bool",
+				"name": "_hasUntrustedContext",
+				"type": "bool"
 			}
 		],
 		"name": "isOperationReady",
@@ -197,6 +212,14 @@ func IsOperationReady(ctx context.Context, provider *ethrpc.Provider, op *proto.
 		return nil, fmt.Errorf("invalid priority fee per gas")
 	}
 	feeToken := common.HexToAddress(op.FeeToken)
+	baseFeeScalingFactor, ok := new(big.Int).SetString(op.BaseFeeScalingFactor, 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid base fee scaling factor")
+	}
+	baseFeeNormalizationFactor, ok := new(big.Int).SetString(op.BaseFeeNormalizationFactor, 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid base fee normalization factor")
+	}
 
 	calldata, err := endorser.Encode(
 		"isOperationReady",
@@ -207,6 +230,9 @@ func IsOperationReady(ctx context.Context, provider *ethrpc.Provider, op *proto.
 		maxFeePerGasBigInt,
 		priorityFeePerGas,
 		feeToken,
+		baseFeeScalingFactor,
+		baseFeeNormalizationFactor,
+		op.HasUntrustedContext,
 	)
 
 	if err != nil {

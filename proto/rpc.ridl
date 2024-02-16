@@ -57,6 +57,14 @@ struct Operation
   # uint256	fixed amount of fees that the operation execution is expected to pay to the bundler. (Similar to EIP-1559 max_priority_fee_per_gas).
   - priorityFeePerGas: string	# TODO: can we use BigInt in JS later..? check webrpc..	
 
+  # Scaling factor to convert block.basefee into the feeToken unit.
+  - baseFeeScalingFactor: string
+
+  # Normalization factor to convert block.basefee into the feeToken unit.
+  - baseFeeNormalizationFactor: string
+
+  # If true, the operation may have untrusted code paths. These should be treated differently by the bundler (see untrusted environment).
+  - hasUntrustedContext: bool
 
 enum MessageType: int
   - DEBUG
