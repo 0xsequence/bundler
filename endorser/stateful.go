@@ -67,9 +67,9 @@ func (d *Dependency) Validate(state *DependencyState) error {
 }
 
 type EndorserResult struct {
-	Readiness       bool
-	BlockDependency BlockDependency
-	Dependencies    []Dependency
+	Readiness        bool
+	GlobalDependency GlobalDependency
+	Dependencies     []Dependency
 }
 
 type EndorserResultState struct {

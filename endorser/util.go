@@ -3,7 +3,7 @@ package endorser
 import "github.com/0xsequence/ethkit/go-ethereum/accounts/abi"
 
 func (r *EndorserResult) Encode() ([]byte, error) {
-	return args().Pack(r.Readiness, r.BlockDependency, r.Dependencies)
+	return args().Pack(r.Readiness, r.GlobalDependency, r.Dependencies)
 }
 
 func args() abi.Arguments {
@@ -14,15 +14,65 @@ func args() abi.Arguments {
 				Type: newType("bool", "bool", nil),
 			},
 			{
-				Name: "blockDependency",
-				Type: newType("tuple", "struct Endorser.BlockDependency", []abi.ArgumentMarshaling{
+				Name: "globalDependency",
+				Type: newType("tuple", "struct Endorser.GlobalDependency", []abi.ArgumentMarshaling{
 					{
-						Name:         "maxNumber",
+						Name:         "basefee",
+						Type:         "bool",
+						InternalType: "bool",
+					},
+					{
+						Name:         "blobbasefee",
+						Type:         "bool",
+						InternalType: "bool",
+					},
+					{
+						Name:         "chainid",
+						Type:         "bool",
+						InternalType: "bool",
+					},
+					{
+						Name:         "coinbase",
+						Type:         "bool",
+						InternalType: "bool",
+					},
+					{
+						Name:         "difficulty",
+						Type:         "bool",
+						InternalType: "bool",
+					},
+					{
+						Name:         "gasLimit",
+						Type:         "bool",
+						InternalType: "bool",
+					},
+					{
+						Name:         "number",
+						Type:         "bool",
+						InternalType: "bool",
+					},
+					{
+						Name:         "timestamp",
+						Type:         "bool",
+						InternalType: "bool",
+					},
+					{
+						Name:         "txOrigin",
+						Type:         "bool",
+						InternalType: "bool",
+					},
+					{
+						Name:         "txGasPrice",
+						Type:         "bool",
+						InternalType: "bool",
+					},
+					{
+						Name:         "maxBlockNumber",
 						Type:         "uint256",
 						InternalType: "uint256",
 					},
 					{
-						Name:         "maxTimestamp",
+						Name:         "maxBlockTimestamp",
 						Type:         "uint256",
 						InternalType: "uint256",
 					},

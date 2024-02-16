@@ -77,18 +77,68 @@ const ENDORSER_ABI = `
 			{
 				"components": [
 					{
+						"internalType": "bool",
+						"name": "basefee",
+						"type": "bool"
+					},
+					{
+						"internalType": "bool",
+						"name": "blobbasefee",
+						"type": "bool"
+					},
+					{
+						"internalType": "bool",
+						"name": "chainid",
+						"type": "bool"
+					},
+					{
+						"internalType": "bool",
+						"name": "coinbase",
+						"type": "bool"
+					},
+					{
+						"internalType": "bool",
+						"name": "difficulty",
+						"type": "bool"
+					},
+					{
+						"internalType": "bool",
+						"name": "gasLimit",
+						"type": "bool"
+					},
+					{
+						"internalType": "bool",
+						"name": "number",
+						"type": "bool"
+					},
+					{
+						"internalType": "bool",
+						"name": "timestamp",
+						"type": "bool"
+					},
+					{
+						"internalType": "bool",
+						"name": "txOrigin",
+						"type": "bool"
+					},
+					{
+						"internalType": "bool",
+						"name": "txGasPrice",
+						"type": "bool"
+					},
+					{
 						"internalType": "uint256",
-						"name": "maxNumber",
+						"name": "maxBlockNumber",
 						"type": "uint256"
 					},
 					{
 						"internalType": "uint256",
-						"name": "maxTimestamp",
+						"name": "maxBlockTimestamp",
 						"type": "uint256"
 					}
 				],
-				"internalType": "struct Endorser.BlockDependency",
-				"name": "blockDependency",
+				"internalType": "struct Endorser.GlobalDependency",
+				"name": "globalDependency",
 				"type": "tuple"
 			},
 			{
@@ -157,9 +207,19 @@ const ENDORSER_ABI = `
 ]
 `
 
-type BlockDependency struct {
-	MaxNumber    *big.Int
-	MaxTimestamp *big.Int
+type GlobalDependency struct {
+	BaseFee           bool
+	BlobBaseFee       bool
+	ChainID           bool
+	Coinbase          bool
+	Difficulty        bool
+	BlockGasLimit     bool
+	BlockNumber       bool
+	BlockTimestamp    bool
+	TxOrigin          bool
+	TxGasPrice        bool
+	MaxBlockNumber    *big.Int
+	MaxBlockTimestamp *big.Int
 }
 
 type Constraint struct {
@@ -278,16 +338,36 @@ func IsOperationReady(ctx context.Context, provider *ethrpc.Provider, op *proto.
 
 	// Second element must be a struct
 	dec2, ok := dec1[1].(struct {
-		MaxNumber    *big.Int "json:\"maxNumber\""
-		MaxTimestamp *big.Int "json:\"maxTimestamp\""
+		BaseFee        bool     "json:\"basefee\""
+		BlobBaseFee    bool     "json:\"blobbasefee\""
+		ChainID        bool     "json:\"chainid\""
+		Coinbase       bool     "json:\"coinbase\""
+		Difficulty     bool     "json:\"difficulty\""
+		BlockGasLimit  bool     "json:\"gasLimit\""
+		BlockNumber    bool     "json:\"number\""
+		BlockTimestamp bool     "json:\"timestamp\""
+		TxOrigin       bool     "json:\"txOrigin\""
+		TxGasPrice     bool     "json:\"txGasPrice\""
+		MaxNumber      *big.Int "json:\"maxBlockNumber\""
+		MaxTimestamp   *big.Int "json:\"maxBlockTimestamp\""
 	})
 	if !ok {
 		return nil, fmt.Errorf("invalid block dependency")
 	}
 
-	endorserResult.BlockDependency = BlockDependency{
-		MaxNumber:    dec2.MaxNumber,
-		MaxTimestamp: dec2.MaxTimestamp,
+	endorserResult.GlobalDependency = GlobalDependency{
+		BaseFee:           dec2.BaseFee,
+		BlobBaseFee:       dec2.BlobBaseFee,
+		ChainID:           dec2.ChainID,
+		Coinbase:          dec2.Coinbase,
+		Difficulty:        dec2.Difficulty,
+		BlockGasLimit:     dec2.BlockGasLimit,
+		BlockNumber:       dec2.BlockNumber,
+		BlockTimestamp:    dec2.BlockTimestamp,
+		TxOrigin:          dec2.TxOrigin,
+		TxGasPrice:        dec2.TxGasPrice,
+		MaxBlockNumber:    dec2.MaxNumber,
+		MaxBlockTimestamp: dec2.MaxTimestamp,
 	}
 
 	// Third element must be an array of structs
