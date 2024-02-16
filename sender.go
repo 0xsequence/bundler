@@ -56,26 +56,16 @@ func (s *Sender) Run(ctx context.Context) {
 		}
 
 		for _, op := range ops {
-			state, err := op.EndorserResult.State(ctx, s.Provider)
+			result, err := endorser.IsOperationReady(ctx, s.Provider, &op.Operation)
 			if err != nil {
 			}
-
-			hasChanged, err := op.EndorserResult.HasChanged(op.EndorserResultState, state)
-			if err != nil {
+			if op.EndorserResult.Readiness {
+				execute = append(execute, op)
+			} else {
+				discard = append(discard, op)
 			}
 
-			if hasChanged {
-				result, err := endorser.IsOperationReady(ctx, s.Provider, &op.Operation)
-				if err != nil {
-				}
-				if op.EndorserResult.Readiness {
-					execute = append(execute, op)
-				} else {
-					discard = append(discard, op)
-				}
-
-				op.EndorserResult = result
-			}
+			op.EndorserResult = result
 		}
 
 		s.Mempool.DiscardOps(ctx, discard)
