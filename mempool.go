@@ -148,10 +148,10 @@ func (mp *Mempool) DiscardOps(ctx context.Context, ops []*TrackedOperation) {
 		}
 
 		kops = append(kops, op)
-	}
 
-	// Remove them from the digest map too
-	delete(mp.digests, ops[0].Digest())
+		// Remove them from the digest map too
+		delete(mp.digests, op.Digest())
+	}
 
 	mp.Operations = kops
 }
