@@ -10,9 +10,11 @@ import (
 
 	"github.com/0xsequence/bundler"
 	"github.com/0xsequence/bundler/config"
+	"github.com/0xsequence/bundler/contracts/gen/operationvalidator"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/ethkit/ethrpc"
+	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -25,15 +27,22 @@ type RPC struct {
 	Host   *p2p.Host
 	HTTP   *http.Server
 
-	mempool *bundler.Mempool
-	senders []*bundler.Sender
-	prunner *bundler.Prunner
+	mempool   *bundler.Mempool
+	prunner   *bundler.Prunner
+	senders   []*bundler.Sender
+	executor  *operationvalidator.OperationValidator
+	simulator *operationvalidator.OperationValidatorSimulator
 
 	running   int32
 	startTime time.Time
 }
 
 func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool *bundler.Mempool, provider *ethrpc.Provider) (*RPC, error) {
+	if !common.IsHexAddress(cfg.NetworkConfig.ValidatorContract) {
+		return nil, fmt.Errorf("\"%v\" is not a valid operation validator contract", cfg.NetworkConfig.ValidatorContract)
+	}
+	validatorContract := common.HexToAddress(cfg.NetworkConfig.ValidatorContract)
+
 	// HTTP Server
 	httpServer := &http.Server{
 		// Addr:              cfg.Service.Listen,
@@ -44,6 +53,16 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
+	executor, err := operationvalidator.NewOperationValidator(validatorContract, provider)
+	if err != nil {
+		return nil, fmt.Errorf("unable to connect to validator contract")
+	}
+
+	simulator, err := operationvalidator.NewOperationValidatorSimulator(validatorContract, provider)
+	if err != nil {
+		return nil, fmt.Errorf("unable to connect to validator contract")
+	}
+
 	senders := make([]*bundler.Sender, 0, cfg.SendersConfig.NumSenders)
 	for i := 0; i < int(cfg.SendersConfig.NumSenders); i++ {
 		wallet, err := SetupWallet(cfg.Mnemonic, uint32(1+i), provider)
@@ -51,15 +70,17 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 			return nil, fmt.Errorf("unable to create wallet for sender %v from hd node: %w", i, err)
 		}
 		logger.Info(fmt.Sprintf("sender %v: %v", i, wallet.Address()))
-		senders = append(senders, bundler.NewSender(uint32(i), wallet, mempool, provider))
+		senders = append(senders, bundler.NewSender(uint32(i), wallet, mempool, provider, executor, simulator))
 	}
 
 	prunner := bundler.NewPrunner(mempool, provider, logger)
 
 	s := &RPC{
-		mempool: mempool,
-		senders: senders,
-		prunner: prunner,
+		mempool:   mempool,
+		senders:   senders,
+		executor:  executor,
+		simulator: simulator,
+		prunner:   prunner,
 
 		Config:    cfg,
 		Log:       logger,
