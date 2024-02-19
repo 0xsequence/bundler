@@ -13,7 +13,7 @@ boot_nodes = [
 
 [network]
   rpc_url = "https://nodes.sequence.app/arbitrum-nova"
-  entrypoint_contract = "0xdaf22f3d80cfdc035a4c7c2045c53acadcf77de4"
+  validator_contract = "0x3B206b315c2C4130E0602858af1812BE87795Cb0"
 
 [mempool]
   max_size = 1000
