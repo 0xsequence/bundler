@@ -27,6 +27,7 @@ type RPC struct {
 
 	mempool *bundler.Mempool
 	senders []*bundler.Sender
+	prunner *bundler.Prunner
 
 	running   int32
 	startTime time.Time
@@ -53,9 +54,12 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		senders = append(senders, bundler.NewSender(uint32(i), wallet, mempool, provider))
 	}
 
+	prunner := bundler.NewPrunner(mempool, provider, logger)
+
 	s := &RPC{
 		mempool: mempool,
 		senders: senders,
+		prunner: prunner,
 
 		Config:    cfg,
 		Log:       logger,
@@ -89,6 +93,9 @@ func (s *RPC) Run(ctx context.Context) error {
 	for _, sender := range s.senders {
 		go sender.Run(ctx)
 	}
+
+	// Run the prunner
+	go s.prunner.Run(ctx)
 
 	// Start the http server and serve!
 	err := s.HTTP.ListenAndServe()

@@ -13,7 +13,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 )
 
-const BatchSize = 10
+const BatchSize = 1
 
 type Sender struct {
 	ID uint32

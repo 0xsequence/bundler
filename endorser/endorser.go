@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/ethkit/ethcontract"
@@ -313,6 +314,14 @@ func IsOperationReady(ctx context.Context, provider *ethrpc.Provider, op *proto.
 	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall, nil, nil)
 	_, err = provider.Do(ctx, rpcCall.Into(&res))
 	if err != nil {
+		if strings.Contains(err.Error(), "execution reverted") {
+			// TODO: Add the reason, as it may be useful
+			// for someone adding a new op using an RPC call
+			return &EndorserResult{
+				Readiness: false,
+			}, nil
+		}
+
 		return nil, err
 	}
 
