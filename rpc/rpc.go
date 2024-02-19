@@ -28,7 +28,7 @@ type RPC struct {
 	HTTP   *http.Server
 
 	mempool   *bundler.Mempool
-	prunner   *bundler.Prunner
+	pruner    *bundler.Pruner
 	senders   []*bundler.Sender
 	executor  *operationvalidator.OperationValidator
 	simulator *operationvalidator.OperationValidatorSimulator
@@ -73,14 +73,14 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		senders = append(senders, bundler.NewSender(uint32(i), wallet, mempool, provider, executor, simulator))
 	}
 
-	prunner := bundler.NewPrunner(mempool, provider, logger)
+	pruner := bundler.NewPruner(mempool, provider, logger)
 
 	s := &RPC{
 		mempool:   mempool,
 		senders:   senders,
 		executor:  executor,
 		simulator: simulator,
-		prunner:   prunner,
+		pruner:    pruner,
 
 		Config:    cfg,
 		Log:       logger,
@@ -115,8 +115,8 @@ func (s *RPC) Run(ctx context.Context) error {
 		go sender.Run(ctx)
 	}
 
-	// Run the prunner
-	go s.prunner.Run(ctx)
+	// Run the pruner
+	go s.pruner.Run(ctx)
 
 	// Start the http server and serve!
 	err := s.HTTP.ListenAndServe()

@@ -9,17 +9,17 @@ import (
 	"github.com/go-chi/httplog/v2"
 )
 
-const PrunnerBatchSize = 1
+const PrunerBatchSize = 1
 
-type Prunner struct {
+type Pruner struct {
 	logger *httplog.Logger
 
 	Mempool  *Mempool
 	Provider *ethrpc.Provider
 }
 
-func NewPrunner(mempool *Mempool, provider *ethrpc.Provider, logger *httplog.Logger) *Prunner {
-	return &Prunner{
+func NewPruner(mempool *Mempool, provider *ethrpc.Provider, logger *httplog.Logger) *Pruner {
+	return &Pruner{
 		logger: logger,
 
 		Mempool:  mempool,
@@ -27,14 +27,14 @@ func NewPrunner(mempool *Mempool, provider *ethrpc.Provider, logger *httplog.Log
 	}
 }
 
-func (s *Prunner) Run(ctx context.Context) {
+func (s *Pruner) Run(ctx context.Context) {
 	for ctx.Err() == nil {
 		ops := s.Mempool.ReserveOps(ctx, func(to []*TrackedOperation) []*TrackedOperation {
 			var ops []*TrackedOperation
 
-			// Pick the last `PrunnerBatchSize` operations
-			if PrunnerBatchSize < len(to) {
-				ops = to[len(to)-PrunnerBatchSize:]
+			// Pick the last `PrunerBatchSize` operations
+			if PrunerBatchSize < len(to) {
+				ops = to[len(to)-PrunerBatchSize:]
 			} else {
 				ops = to
 			}
@@ -56,14 +56,14 @@ func (s *Prunner) Run(ctx context.Context) {
 		for _, op := range ops {
 			nextState, err := op.EndorserResult.State(ctx, s.Provider)
 			if err != nil {
-				s.logger.Error("prunner: error getting state", "error", err)
+				s.logger.Error("pruner: error getting state", "error", err)
 				failedOps = append(failedOps, op)
 				continue
 			}
 
 			changed, err := op.EndorserResult.HasChanged(op.EndorserResultState, nextState)
 			if err != nil {
-				s.logger.Error("prunner: error comparing state", "error", err)
+				s.logger.Error("pruner: error comparing state", "error", err)
 				failedOps = append(failedOps, op)
 				continue
 			}
@@ -72,7 +72,7 @@ func (s *Prunner) Run(ctx context.Context) {
 				// We need to re-validate the operation
 				res, err := endorser.IsOperationReady(ctx, s.Provider, &op.Operation)
 				if err != nil {
-					s.logger.Error("prunner: error validating operation", "error", err)
+					s.logger.Error("pruner: error validating operation", "error", err)
 					failedOps = append(failedOps, op)
 					continue
 				}
@@ -90,15 +90,15 @@ func (s *Prunner) Run(ctx context.Context) {
 		}
 
 		if len(releaseOps) != 0 {
-			s.logger.Info("prunner: releasing operations", "operations", len(releaseOps))
+			s.logger.Info("pruner: releasing operations", "operations", len(releaseOps))
 		}
 
 		if len(discartOps) != 0 {
-			s.logger.Info("prunner: discarding operations", "operations", len(discartOps))
+			s.logger.Info("pruner: discarding operations", "operations", len(discartOps))
 		}
 
 		if len(failedOps) != 0 {
-			s.logger.Warn("prunner: failed operations", "operations", len(failedOps))
+			s.logger.Warn("pruner: failed operations", "operations", len(failedOps))
 		}
 
 		// Release the operations
