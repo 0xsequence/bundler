@@ -5,7 +5,7 @@ import "./interfaces/ERC20.sol";
 import "./interfaces/Endorser.sol";
 import "./Math.sol";
 
-contract BundlerEntrypoint {
+contract OperationValidator {
   error BundlerExecutionFailed();
   error BundlerUnderpaid(uint256 _paid, uint256 _expected);
 
