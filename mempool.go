@@ -17,12 +17,12 @@ import (
 type TrackedOperation struct {
 	proto.Operation
 
-	ReservedSince *time.Time
-	CreatedAt     time.Time
-	ReadyAt       time.Time
+	ReservedSince *time.Time `json:"reserved_since,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	ReadyAt       time.Time  `json:"ready_at"`
 
-	EndorserResult      *endorser.EndorserResult
-	EndorserResultState *endorser.EndorserResultState
+	EndorserResult      *endorser.EndorserResult      `json:"endorser_result,omitempty"`
+	EndorserResultState *endorser.EndorserResultState `json:"endorser_result_state,omitempty"`
 }
 
 type Mempool struct {
@@ -247,4 +247,37 @@ func (mp *Mempool) HandleFreshOps(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (mp *Mempool) Inspect(ctx context.Context) *proto.MempoolView {
+	mp.olock.Lock()
+	defer mp.olock.Unlock()
+
+	lockCount := 0
+	ops := make([]*TrackedOperation, 0, len(mp.Operations))
+	for i := range mp.Operations {
+		ops = append(ops, mp.Operations[i])
+		if mp.Operations[i].ReservedSince != nil {
+			lockCount++
+		}
+	}
+
+	fops := make([]*proto.Operation, 0, len(*mp.FreshOperations))
+	fops = append(fops, *mp.FreshOperations...)
+
+	seen := make([]string, 0, len(mp.digests))
+	for k := range mp.digests {
+		seen = append(seen, common.Bytes2Hex(k[:]))
+	}
+
+	return &proto.MempoolView{
+		FreshOperationsSize: len(*mp.FreshOperations),
+		OperationsSize:      len(mp.Operations),
+		SeenSize:            len(mp.digests),
+		LockSize:            lockCount,
+
+		Seen:            seen,
+		Operations:      ops,
+		FreshOperations: fops,
+	}
 }

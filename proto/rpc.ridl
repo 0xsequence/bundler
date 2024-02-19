@@ -74,6 +74,14 @@ struct Message
   - type: MessageType
   - message: any
 
+struct MempoolView
+  - freshOperationsSize: int
+  - operationsSize: int
+  - seenSize: int
+  - lockSize: int
+  - seen: []string
+  - freshOperations: any
+  - operations: any
 
 error 1000 NotFound "Not found" HTTP 404
 error 2000 Unauthorized "Unauthorized access" HTTP 401
@@ -84,6 +92,7 @@ service Bundler
   - Ping() => (status: bool)
   - Status() => (status: Status)
   - Peers() => (peers: []string, priorityPeers: []string)
+  - Mempool() => (mempool: MempoolView)
   - SendOperation(operation: Operation) => (status: bool)
 
 service Debug

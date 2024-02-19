@@ -11,10 +11,10 @@ import (
 )
 
 type DependencyState struct {
-	Balance *big.Int
-	Code    []byte
-	Nonce   *uint64
-	Slots   [][32]byte
+	Balance *big.Int   `json:"balance,omitempty"`
+	Code    []byte     `json:"code,omitempty"`
+	Nonce   *uint64    `json:"nonce,omitempty"`
+	Slots   [][32]byte `json:"slots,omitempty"`
 }
 
 func (d *Dependency) HasChanged(x, y *DependencyState) (bool, error) {
@@ -67,13 +67,13 @@ func (d *Dependency) Validate(state *DependencyState) error {
 }
 
 type EndorserResult struct {
-	Readiness        bool
-	GlobalDependency GlobalDependency
-	Dependencies     []Dependency
+	Readiness        bool             `json:"readiness"`
+	GlobalDependency GlobalDependency `json:"global_dependency"`
+	Dependencies     []Dependency     `json:"dependencies"`
 }
 
 type EndorserResultState struct {
-	Dependencies []DependencyState
+	Dependencies []DependencyState `json:"dependencies"`
 }
 
 func (r *EndorserResult) State(ctx context.Context, provider *ethrpc.Provider) (*EndorserResultState, error) {

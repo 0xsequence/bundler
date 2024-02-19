@@ -197,6 +197,10 @@ func (s *RPC) SendOperation(ctx context.Context, op *proto.Operation) (bool, err
 	return true, nil
 }
 
+func (s RPC) Mempool(ctx context.Context) (*proto.MempoolView, error) {
+	return s.mempool.Inspect(ctx), nil
+}
+
 func stubHandler(respBody string) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(respBody))
