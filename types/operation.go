@@ -8,6 +8,7 @@ import (
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/0xsequence/ethkit/go-ethereum/log"
+	"github.com/0xsequence/go-sequence/lib/prototyp"
 )
 
 type Operation struct {
@@ -31,86 +32,59 @@ func NewOperation() *Operation {
 
 func (o *Operation) ToProto() *proto.Operation {
 	return &proto.Operation{
-		Entrypoint:                 o.Entrypoint.String(),
-		CallData:                   "0x" + common.Bytes2Hex(o.Calldata),
-		GasLimit:                   o.GasLimit.Uint64(),
-		FeeToken:                   o.FeeToken.String(),
-		Endorser:                   o.Endorser.String(),
-		EndorserCallData:           "0x" + common.Bytes2Hex(o.EndorserCallData),
-		EndorserGasLimit:           o.EndorserGasLimit.Uint64(),
-		MaxFeePerGas:               o.MaxFeePerGas.String(),
-		PriorityFeePerGas:          o.PriorityFeePerGas.String(),
-		BaseFeeScalingFactor:       o.BaseFeeScalingFactor.String(),
-		BaseFeeNormalizationFactor: o.BaseFeeNormalizationFactor.String(),
+		Entrypoint:                 prototyp.ToHash(o.Entrypoint),
+		CallData:                   prototyp.HashFromBytes(o.Calldata),
+		GasLimit:                   prototyp.ToBigInt(o.GasLimit),
+		FeeToken:                   prototyp.ToHash(o.FeeToken),
+		Endorser:                   prototyp.ToHash(o.Endorser),
+		EndorserCallData:           prototyp.HashFromBytes(o.EndorserCallData),
+		EndorserGasLimit:           prototyp.ToBigInt(o.EndorserGasLimit),
+		MaxFeePerGas:               prototyp.ToBigInt(o.MaxFeePerGas),
+		PriorityFeePerGas:          prototyp.ToBigInt(o.PriorityFeePerGas),
+		BaseFeeScalingFactor:       prototyp.ToBigInt(o.BaseFeeScalingFactor),
+		BaseFeeNormalizationFactor: prototyp.ToBigInt(o.BaseFeeNormalizationFactor),
 		HasUntrustedContext:        o.HasUntrustedContext,
 	}
 }
 
-func (o *Operation) FromProto(op *proto.Operation) (*Operation, error) {
-	endorser := common.HexToAddress(op.Endorser)
-	if endorser == (common.Address{}) {
-		return nil, fmt.Errorf("invalid endorser address")
+func NewOperationFromProto(op *proto.Operation) (*Operation, error) {
+	if !op.Entrypoint.IsValidAddress() {
+		return nil, fmt.Errorf("invalid entrypoint address \"%v\"", op.Entrypoint)
+	}
+	entrypoint := op.Entrypoint.ToAddress()
+
+	if op.GasLimit.Int().Sign() <= 0 {
+		return nil, fmt.Errorf("invalid gas limit %v", op.GasLimit)
 	}
 
-	entrypoint := common.HexToAddress(op.Entrypoint)
-	if entrypoint == (common.Address{}) {
-		return nil, fmt.Errorf("invalid entrypoint address")
+	if !op.FeeToken.IsValidAddress() {
+		return nil, fmt.Errorf("invalid fee token address \"%v\"", op.FeeToken)
+	}
+	feeToken := op.FeeToken.ToAddress()
+
+	if !op.Endorser.IsValidAddress() {
+		return nil, fmt.Errorf("invalid endorser address \"%v\"", op.Endorser)
+	}
+	endorser := op.Endorser.ToAddress()
+
+	if op.EndorserGasLimit.Int().Sign() <= 0 {
+		return nil, fmt.Errorf("invalid endorser gas limit %v", op.EndorserGasLimit)
 	}
 
-	calldata, err := FromHex(op.CallData)
-	if err != nil {
-		return nil, err
-	}
-
-	endorserCalldata, err := FromHex(op.EndorserCallData)
-	if err != nil {
-		return nil, err
-	}
-
-	if op.GasLimit <= 0 {
-		return nil, fmt.Errorf("invalid gas limit")
-	}
-	gasLimit := new(big.Int).SetUint64(op.GasLimit)
-
-	if op.EndorserGasLimit <= 0 {
-		return nil, fmt.Errorf("invalid endorser gas limit")
-	}
-	endorserGasLimit := new(big.Int).SetUint64(op.EndorserGasLimit)
-
-	maxFeePerGas, err := HexToBigInt(op.MaxFeePerGas)
-	if err != nil {
-		return nil, err
-	}
-
-	priorityFeePerGas, err := HexToBigInt(op.PriorityFeePerGas)
-	if err != nil {
-		return nil, err
-	}
-
-	baseFeeScalingFactor, err := HexToBigInt(op.BaseFeeScalingFactor)
-	if err != nil {
-		return nil, err
-	}
-
-	baseFeeNormalizationFactor, err := HexToBigInt(op.BaseFeeNormalizationFactor)
-	if err != nil {
-		return nil, err
-	}
-
-	o.Entrypoint = entrypoint
-	o.Calldata = calldata
-	o.GasLimit = gasLimit
-	o.FeeToken = common.HexToAddress(op.FeeToken)
-	o.Endorser = endorser
-	o.EndorserCallData = endorserCalldata
-	o.EndorserGasLimit = endorserGasLimit
-	o.MaxFeePerGas = maxFeePerGas
-	o.PriorityFeePerGas = priorityFeePerGas
-	o.BaseFeeScalingFactor = baseFeeScalingFactor
-	o.BaseFeeNormalizationFactor = baseFeeNormalizationFactor
-	o.HasUntrustedContext = op.HasUntrustedContext
-
-	return o, nil
+	return &Operation{
+		Entrypoint:                 entrypoint,
+		Calldata:                   op.CallData.Bytes(),
+		GasLimit:                   op.GasLimit.Int(),
+		FeeToken:                   feeToken,
+		Endorser:                   endorser,
+		EndorserCallData:           op.EndorserCallData.Bytes(),
+		EndorserGasLimit:           op.EndorserGasLimit.Int(),
+		MaxFeePerGas:               op.MaxFeePerGas.Int(),
+		PriorityFeePerGas:          op.PriorityFeePerGas.Int(),
+		BaseFeeScalingFactor:       op.BaseFeeScalingFactor.Int(),
+		BaseFeeNormalizationFactor: op.BaseFeeScalingFactor.Int(),
+		HasUntrustedContext:        op.HasUntrustedContext,
+	}, nil
 }
 
 func (op *Operation) Digest() string {

@@ -117,7 +117,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 			return
 		}
 
-		operation, err := types.NewOperation().FromProto(protoOperation)
+		operation, err := types.NewOperationFromProto(protoOperation)
 		if err != nil {
 			// TODO: Mark peer as bad
 			logger.Warn("invalid operation message - parse operation")
