@@ -3,6 +3,7 @@ package bundler
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -12,6 +13,14 @@ import (
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/go-chi/httplog/v2"
+)
+
+type ReadyAtChange int
+
+const (
+	ReadyAtChangeNone ReadyAtChange = iota
+	ReadyAtChangeNow
+	ReadyAtChangeZero
 )
 
 type TrackedOperation struct {
@@ -115,7 +124,7 @@ func (mp *Mempool) ReserveOps(ctx context.Context, selectFn func([]*TrackedOpera
 	return resOps
 }
 
-func (mp *Mempool) ReleaseOps(ctx context.Context, ops []*TrackedOperation, updateReadyAt bool) {
+func (mp *Mempool) ReleaseOps(ctx context.Context, ops []*TrackedOperation, updateReadyAt ReadyAtChange) {
 	mp.olock.Lock()
 	defer mp.olock.Unlock()
 
@@ -123,12 +132,24 @@ func (mp *Mempool) ReleaseOps(ctx context.Context, ops []*TrackedOperation, upda
 		for _, rop := range ops {
 			if op.Digest() == rop.Digest() {
 				rop.ReservedSince = nil
-				if updateReadyAt {
+
+				switch updateReadyAt {
+				case ReadyAtChangeNow:
 					rop.ReadyAt = time.Now()
+				case ReadyAtChangeZero:
+					rop.ReadyAt = time.Time{}
 				}
 			}
 		}
 	}
+
+	mp.SortOperations()
+}
+
+func (mp *Mempool) SortOperations() {
+	sort.Slice(mp.Operations, func(i, j int) bool {
+		return mp.Operations[i].ReadyAt.Before(mp.Operations[j].ReadyAt)
+	})
 }
 
 func (mp *Mempool) DiscardOps(ctx context.Context, ops []*TrackedOperation) {
@@ -215,7 +236,7 @@ func (mp *Mempool) HandleFreshOps(ctx context.Context) error {
 		}
 
 		// Check the constraints
-		okc, err := res.CheckConstraints(ctx, mp.Provider)
+		okc, err := endorser.CheckDependencyConstraints(ctx, res.Dependencies, mp.Provider)
 		if err != nil {
 			mp.logger.Error("dropping operation", "op", op, "reason", "constraint error", "err", err)
 			continue
@@ -249,6 +270,10 @@ func (mp *Mempool) HandleFreshOps(ctx context.Context) error {
 		})
 		mp.olock.Unlock()
 	}
+
+	mp.olock.Lock()
+	mp.SortOperations()
+	mp.olock.Unlock()
 
 	return nil
 }

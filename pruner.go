@@ -102,7 +102,7 @@ func (s *Pruner) Run(ctx context.Context) {
 		}
 
 		// Release the operations
-		s.Mempool.ReleaseOps(ctx, releaseOps, true)
+		s.Mempool.ReleaseOps(ctx, releaseOps, ReadyAtChangeNow)
 		s.Mempool.DiscardOps(ctx, discartOps)
 
 		// TODO: Handle error operations, ideally

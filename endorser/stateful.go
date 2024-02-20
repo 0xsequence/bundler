@@ -7,7 +7,9 @@ import (
 	"math/big"
 
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
+	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
 	"github.com/0xsequence/ethkit/ethrpc"
+	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
 )
 
@@ -161,23 +163,52 @@ func (r *EndorserResult) Validate(state *EndorserResultState) error {
 	return nil
 }
 
-func (r *EndorserResult) CheckConstraints(ctx context.Context, provider *ethrpc.Provider) (bool, error) {
-	for _, dependency := range r.Dependencies {
+func CheckDependencyConstraints(ctx context.Context, r []abiendorser.EndorserDependency, provider *ethrpc.Provider) (bool, error) {
+	for _, dependency := range r {
 		for _, constraint := range dependency.Constraints {
-			slot := constraint.Slot
-			value, err := provider.StorageAt(ctx, dependency.Addr, slot, nil)
+			ok, err := CheckDependencyConstraint(ctx, provider, dependency.Addr, constraint.Slot, constraint.MinValue, constraint.MaxValue)
 			if err != nil {
-				return false, fmt.Errorf("unable to read storage for %v at %v: %w", dependency.Addr, hexutil.Encode(slot[:]), err)
+				return false, err
 			}
 
-			bnMin := new(big.Int).SetBytes(constraint.MinValue[:])
-			bnMax := new(big.Int).SetBytes(constraint.MaxValue[:])
-			bnValue := new(big.Int).SetBytes(value[:])
-
-			if bnValue.Cmp(bnMin) < 0 || bnValue.Cmp(bnMax) > 0 {
+			if !ok {
 				return false, nil
 			}
 		}
+	}
+
+	return true, nil
+}
+
+func CheckDependencyConstraints2(ctx context.Context, r []abivalidator.EndorserDependency, provider *ethrpc.Provider) (bool, error) {
+	for _, dependency := range r {
+		for _, constraint := range dependency.Constraints {
+			ok, err := CheckDependencyConstraint(ctx, provider, dependency.Addr, constraint.Slot, constraint.MinValue, constraint.MaxValue)
+			if err != nil {
+				return false, err
+			}
+
+			if !ok {
+				return false, nil
+			}
+		}
+	}
+
+	return true, nil
+}
+
+func CheckDependencyConstraint(ctx context.Context, provider *ethrpc.Provider, addr common.Address, slot [32]byte, minValue, maxValue [32]byte) (bool, error) {
+	value, err := provider.StorageAt(ctx, addr, slot, nil)
+	if err != nil {
+		return false, fmt.Errorf("unable to read storage for %v at %v: %w", addr, hexutil.Encode(slot[:]), err)
+	}
+
+	bnMin := new(big.Int).SetBytes(minValue[:])
+	bnMax := new(big.Int).SetBytes(maxValue[:])
+	bnValue := new(big.Int).SetBytes(value[:])
+
+	if bnValue.Cmp(bnMin) < 0 || bnValue.Cmp(bnMax) > 0 {
+		return false, nil
 	}
 
 	return true, nil

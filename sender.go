@@ -12,11 +12,9 @@ import (
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/ethwallet"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi/bind"
-	ethtypes "github.com/0xsequence/ethkit/go-ethereum/core/types"
-	"github.com/davecgh/go-spew/spew"
-)
 
-const BatchSize = 1
+	ethtypes "github.com/0xsequence/ethkit/go-ethereum/core/types"
+)
 
 type Sender struct {
 	ID uint32
@@ -47,15 +45,13 @@ func NewSender(id uint32, wallet *ethwallet.Wallet, mempool *Mempool, provider *
 }
 
 func (s *Sender) Run(ctx context.Context) {
-	var execute, discard []*TrackedOperation
-
 	for ctx.Err() == nil {
 		ops := s.Mempool.ReserveOps(ctx, func(to []*TrackedOperation) []*TrackedOperation {
-			if BatchSize < len(to) {
-				return to[:BatchSize]
-			} else {
-				return to
+			if len(to) != 0 {
+				return []*TrackedOperation{to[0]}
 			}
+
+			return nil
 		})
 
 		if len(ops) == 0 {
@@ -63,44 +59,46 @@ func (s *Sender) Run(ctx context.Context) {
 			continue
 		}
 
-		for _, op := range ops {
-			result, err := endorser.IsOperationReady(ctx, s.Provider, &op.Operation)
-			if err != nil {
-			}
-			if op.EndorserResult.Readiness {
-				execute = append(execute, op)
+		op := ops[0]
+
+		paid, lied, err := s.simulateOperation(ctx, &op.Operation)
+
+		// If we got an error, we should discard the operation
+		if err != nil {
+			s.Mempool.logger.Warn("sender: error simulating operation", "op", op.Digest(), "error", err)
+			s.Mempool.DiscardOps(ctx, []*TrackedOperation{op})
+			continue
+		}
+
+		// If the endorser lied to us, we should discard the operation
+		// TODO: We should ban the endorser too
+		if !paid {
+			if lied {
+				s.Mempool.logger.Warn("sender: endorser lied", "op", op.Digest(), "endorser", op.Endorser)
 			} else {
-				discard = append(discard, op)
+				s.Mempool.logger.Info("sender: stale operation", "op", op.Digest())
 			}
-
-			op.EndorserResult = result
+			s.Mempool.DiscardOps(ctx, []*TrackedOperation{op})
+			continue
 		}
 
-		s.Mempool.DiscardOps(ctx, discard)
-		discard = nil
+		// Try sending the transaction
+		to := op.Entrypoint
+		_, err = s.Wallet.SignTx(ethtypes.NewTx(&ethtypes.DynamicFeeTx{
+			To:   &to,
+			Data: op.Calldata,
+			Gas:  op.GasLimit.Uint64(),
+		}), s.ChainID)
 
-		for _, op := range execute {
-			to := op.Entrypoint
-			data := op.Calldata
-			tx, err := s.Wallet.SignTx(ethtypes.NewTx(&ethtypes.DynamicFeeTx{
-				To:   &to,
-				Data: data,
-			}), s.ChainID)
-			if err != nil {
-			}
-
-			_, wait, err := s.Wallet.SendTransaction(ctx, tx)
-			if err != nil {
-			}
-
-			receipt, err := wait(ctx)
-			if err != nil {
-			}
-
-			spew.Dump(receipt)
+		if err != nil {
+			s.Mempool.logger.Warn("sender: error signing transaction", "op", op.Digest(), "error", err)
+			s.Mempool.DiscardOps(ctx, []*TrackedOperation{op})
+			continue
 		}
 
-		execute = nil
+		// TODO: Wait for the transaction receipt
+
+		s.Mempool.ReleaseOps(ctx, []*TrackedOperation{op}, ReadyAtChangeZero)
 	}
 }
 
@@ -136,17 +134,31 @@ func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (pa
 		return false, false, fmt.Errorf("unable to call simulateOperation: %w", err)
 	}
 
-	// if result.lied is true and the constraints are all satisfied, then we should ban the endorser
-	// if result.paid is false, then we should drop the transaction
-
-	// TODO: only return lied if the constraints are all satisfied
-	if result.Readiness {
-		return false, true, nil
-	}
-
+	// The operation is healthy, ready to be executed
 	if result.Paid {
 		return true, false, nil
 	}
 
-	return false, false, nil
+	// The endorser is telling us that the operation was not ready
+	// to be executed, so it didn't lie to us
+	if !result.Readiness {
+		return false, false, nil
+	}
+
+	// The only chance for the endorser left is that
+	// he is returning a non-met contraint
+	constraintsOk, err := endorser.CheckDependencyConstraints2(ctx, result.Dependencies, s.Provider)
+	if err != nil {
+		return false, false, fmt.Errorf("unable to check dependency constraints: %w", err)
+	}
+
+	// So constraints are not met, so it didn't lie to us
+	if !constraintsOk {
+		return false, false, nil
+	}
+
+	// The endorser is telling us that the operation was ready
+	// to be executed, constraints are met, but we didn't get paid
+	// this means the endorser lied to us.
+	return false, true, nil
 }
