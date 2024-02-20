@@ -110,17 +110,17 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	})
 
 	host.HandleMessageType(proto.MessageType_NEW_OPERATION, func(message any) {
-		protoOperation, ok := message.(*proto.Operation)
-		if !ok {
+		protoOperation, err := UglyCast[*proto.Operation](message)
+		if err != nil {
 			// TODO: Mark peer as bad
-			logger.Warn("invalid operation message - parse proto")
+			logger.Warn("invalid operation message - parse proto: %v", err)
 			return
 		}
 
 		operation, err := types.NewOperationFromProto(protoOperation)
 		if err != nil {
 			// TODO: Mark peer as bad
-			logger.Warn("invalid operation message - parse operation")
+			logger.Warn("invalid operation message - parse operation: %v", err)
 			return
 		}
 
