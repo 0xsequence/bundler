@@ -205,7 +205,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *RPC) SendOperation(ctx context.Context, pop *proto.Operation) (bool, error) {
-	op, err := types.NewOperation().FromProto(pop)
+	op, err := types.NewOperationFromProto(pop)
 	if err != nil {
 		return false, err
 	}
