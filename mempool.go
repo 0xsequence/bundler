@@ -11,7 +11,6 @@ import (
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethrpc"
-	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/httplog/v2"
 )
 
@@ -38,7 +37,7 @@ type Mempool struct {
 	olock      sync.Mutex
 	Operations []*TrackedOperation
 
-	digests map[common.Hash]struct{}
+	digests map[string]struct{}
 }
 
 func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, provider *ethrpc.Provider) (*Mempool, error) {
@@ -53,7 +52,7 @@ func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, provider *eth
 		FreshOperations: &[]*types.Operation{},
 		Operations:      []*TrackedOperation{},
 
-		digests: map[common.Hash]struct{}{},
+		digests: map[string]struct{}{},
 	}
 
 	return mp, nil
@@ -234,7 +233,7 @@ func (mp *Mempool) HandleFreshOps(ctx context.Context) error {
 		// then we add it to the mempool
 
 		mp.olock.Lock()
-		mp.logger.Info("operation added to mempool", "op", op)
+		mp.logger.Info("operation added to mempool", "op", op.Digest())
 		mp.Operations = append(mp.Operations, &TrackedOperation{
 			Operation: *op,
 
@@ -268,7 +267,7 @@ func (mp *Mempool) Inspect(ctx context.Context) *proto.MempoolView {
 
 	seen := make([]string, 0, len(mp.digests))
 	for k := range mp.digests {
-		seen = append(seen, common.Bytes2Hex(k[:]))
+		seen = append(seen, k)
 	}
 
 	return &proto.MempoolView{

@@ -1,14 +1,13 @@
 package types
 
 import (
-	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"math/big"
 
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
-	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
-	"github.com/0xsequence/ethkit/go-ethereum/crypto"
+	"github.com/0xsequence/ethkit/go-ethereum/log"
 )
 
 type Operation struct {
@@ -114,53 +113,20 @@ func (o *Operation) FromProto(op *proto.Operation) (*Operation, error) {
 	return o, nil
 }
 
-// TODO: Change this
-func (op *Operation) Digest() common.Hash {
+func (op *Operation) Digest() string {
 	o := op.ToProto()
 
-	var gasLimit [8]byte
-	var endorserGasLimit [8]byte
-
-	binary.LittleEndian.PutUint64(gasLimit[:], o.GasLimit)
-	binary.LittleEndian.PutUint64(endorserGasLimit[:], o.EndorserGasLimit)
-
-	maxFeePerGas, ok := new(big.Int).SetString(o.MaxFeePerGas, 0)
-	if !ok {
-		maxFeePerGas = big.NewInt(0)
+	// Convert to json
+	jsonData, err := json.Marshal(o)
+	if err != nil {
+		return ""
 	}
 
-	priorityFeePerGas, ok := new(big.Int).SetString(o.PriorityFeePerGas, 0)
-	if !ok {
-		priorityFeePerGas = big.NewInt(0)
+	// return base58.Encode(mhash)
+	res, err := Cid(jsonData)
+	if err != nil {
+		log.Warn("failed to create CID", "error", err)
 	}
 
-	baseFeeScalingFactor, ok := new(big.Int).SetString(o.BaseFeeScalingFactor, 0)
-	if !ok {
-		baseFeeScalingFactor = big.NewInt(0)
-	}
-
-	baseFeeNormalizationFactor, ok := new(big.Int).SetString(o.BaseFeeNormalizationFactor, 0)
-	if !ok {
-		baseFeeNormalizationFactor = big.NewInt(0)
-	}
-
-	hasUntrustedContext := []byte{0}
-	if o.HasUntrustedContext {
-		hasUntrustedContext = []byte{1}
-	}
-
-	return crypto.Keccak256Hash(
-		common.HexToAddress(o.Entrypoint).Bytes(),
-		hexutil.MustDecode(o.CallData),
-		gasLimit[:],
-		common.HexToAddress(o.FeeToken).Bytes(),
-		common.HexToAddress(o.Endorser).Bytes(),
-		hexutil.MustDecode(o.EndorserCallData),
-		endorserGasLimit[:],
-		maxFeePerGas.Bytes(),
-		priorityFeePerGas.Bytes(),
-		baseFeeScalingFactor.Bytes(),
-		baseFeeNormalizationFactor.Bytes(),
-		hasUntrustedContext,
-	)
+	return res
 }
