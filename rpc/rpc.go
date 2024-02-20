@@ -220,7 +220,7 @@ func (s *RPC) SendOperation(ctx context.Context, pop *proto.Operation) (bool, er
 	messageType := proto.MessageType_NEW_OPERATION
 	s.Host.Broadcast(proto.Message{
 		Type:    &messageType,
-		Message: op,
+		Message: op.ToProto(),
 	})
 
 	return true, nil
