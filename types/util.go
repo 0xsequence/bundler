@@ -2,9 +2,12 @@ package types
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math/big"
+	"mime/multipart"
+	"net/http"
 
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 
@@ -58,14 +61,72 @@ func Cid(data []byte) (string, error) {
 	}
 
 	// Calculate the CID for the DAG
-	hash, err := mh.Sum(buf.Bytes(), mh.SHA2_256, -1)
+	hash, err := mh.Sum(data, mh.SHA2_256, -1)
 	if err != nil {
 		return "", err
 	}
 
 	// Create a CID version 1 (with multibase encoding base58btc)
-	c := cid.NewCidV1(cid.DagProtobuf, hash)
+	c := cid.NewCidV1(cid.Raw, hash)
 
 	// Print the CID as a string
 	return c.String(), nil
+}
+
+func ReportToIPFS(ipfsurl string, data []byte) (string, error) {
+	if ipfsurl[len(ipfsurl)-1] != '/' {
+		ipfsurl += "/"
+	}
+
+	url := ipfsurl + "api/v0/add?cid-version=1"
+
+	// Prepare the file to upload
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", "data")
+	if err != nil {
+		return "", err
+	}
+
+	_, err = io.Copy(part, bytes.NewReader(data))
+	if err != nil {
+		return "", err
+	}
+
+	err = writer.Close()
+	if err != nil {
+		return "", err
+	}
+
+	// Create the request
+	req, err := http.NewRequest("POST", url, body)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	// Perform the request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	// Read the response
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	var res struct {
+		Hash string `json:"Hash"`
+	}
+
+	err = json.Unmarshal(respBody, &res)
+	if err != nil {
+		return "", err
+	}
+
+	return res.Hash, nil
 }

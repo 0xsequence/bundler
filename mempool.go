@@ -26,7 +26,8 @@ type TrackedOperation struct {
 }
 
 type Mempool struct {
-	logger *httplog.Logger
+	logger  *httplog.Logger
+	ipfsurl string
 
 	Provider *ethrpc.Provider
 	MaxSize  uint
@@ -42,7 +43,9 @@ type Mempool struct {
 
 func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, provider *ethrpc.Provider) (*Mempool, error) {
 	mp := &Mempool{
-		logger:   logger,
+		logger:  logger,
+		ipfsurl: cfg.IpfsUrl,
+
 		Provider: provider,
 		MaxSize:  cfg.Size,
 
@@ -234,6 +237,7 @@ func (mp *Mempool) HandleFreshOps(ctx context.Context) error {
 
 		mp.olock.Lock()
 		mp.logger.Info("operation added to mempool", "op", op.Digest())
+		mp.ReportToIPFS(op)
 		mp.Operations = append(mp.Operations, &TrackedOperation{
 			Operation: *op,
 
@@ -247,6 +251,20 @@ func (mp *Mempool) HandleFreshOps(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (mp *Mempool) ReportToIPFS(op *types.Operation) {
+	// Fire a go-routine to report the operation to IPFS
+	if mp.ipfsurl == "" {
+		return
+	}
+
+	go func() {
+		err := op.ReportToIPFS(mp.ipfsurl)
+		if err != nil {
+			mp.logger.Warn("error reporting operation to IPFS", "op", op.Digest(), "err", err)
+		}
+	}()
 }
 
 func (mp *Mempool) Inspect(ctx context.Context) *proto.MempoolView {

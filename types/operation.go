@@ -114,19 +114,40 @@ func (o *Operation) FromProto(op *proto.Operation) (*Operation, error) {
 }
 
 func (op *Operation) Digest() string {
-	o := op.ToProto()
-
 	// Convert to json
-	jsonData, err := json.Marshal(o)
+	jsonData, err := json.Marshal(op.ToProto())
 	if err != nil {
 		return ""
 	}
 
-	// return base58.Encode(mhash)
 	res, err := Cid(jsonData)
 	if err != nil {
 		log.Warn("failed to create CID", "error", err)
 	}
 
 	return res
+}
+
+func (op *Operation) ReportToIPFS(url string) error {
+	// Convert to json
+	jsonData, err := json.Marshal(op.ToProto())
+	if err != nil {
+		return err
+	}
+
+	cid, err := Cid(jsonData)
+	if err != nil {
+		return err
+	}
+
+	res, err := ReportToIPFS(url, jsonData)
+	if err != nil {
+		return err
+	}
+
+	if res != cid {
+		return fmt.Errorf("CID mismatch %s != %s", res, cid)
+	}
+
+	return nil
 }

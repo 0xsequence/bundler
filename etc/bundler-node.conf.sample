@@ -16,6 +16,7 @@ boot_nodes = [
   validator_contract = "0x3B206b315c2C4130E0602858af1812BE87795Cb0"
 
 [mempool]
+  ipfs_url = "http://localhost:5001"
   max_size = 1000
 
 [senders]

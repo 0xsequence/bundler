@@ -43,7 +43,8 @@ type NetworkConfig struct {
 }
 
 type MempoolConfig struct {
-	Size uint `toml:"max_size"`
+	Size    uint   `toml:"max_size"`
+	IpfsUrl string `toml:"ipfs_url"`
 
 	MaxEndorserGasLimit uint `toml:"max_endorser_gas_limit"`
 }
