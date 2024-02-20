@@ -6,7 +6,7 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/0xsequence/bundler/proto"
+	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethcontract"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi"
@@ -251,48 +251,21 @@ func useEndorserAbi() *abi.ABI {
 	return parsedEndorserABI
 }
 
-func IsOperationReady(ctx context.Context, provider *ethrpc.Provider, op *proto.Operation) (*EndorserResult, error) {
-	endorserAddr := common.HexToAddress(op.Endorser)
-	if endorserAddr == (common.Address{}) {
-		return nil, fmt.Errorf("invalid endorser address")
-	}
-
+func IsOperationReady(ctx context.Context, provider *ethrpc.Provider, op *types.Operation) (*EndorserResult, error) {
 	ab := useEndorserAbi()
-	endorser := ethcontract.NewContractCaller(endorserAddr, *ab, provider)
-
-	entrypointAddr := common.HexToAddress(op.Entrypoint)
-	calldataBytes := common.FromHex(op.CallData)
-	endorserCalldataBytes := common.FromHex(op.EndorserCallData)
-	gasLimitBigInt := new(big.Int).SetUint64(op.GasLimit)
-	maxFeePerGasBigInt, ok := new(big.Int).SetString(op.MaxFeePerGas, 10)
-	if !ok {
-		return nil, fmt.Errorf("invalid max fee per gas")
-	}
-	priorityFeePerGas, ok := new(big.Int).SetString(op.PriorityFeePerGas, 10)
-	if !ok {
-		return nil, fmt.Errorf("invalid priority fee per gas")
-	}
-	feeToken := common.HexToAddress(op.FeeToken)
-	baseFeeScalingFactor, ok := new(big.Int).SetString(op.BaseFeeScalingFactor, 10)
-	if !ok {
-		return nil, fmt.Errorf("invalid base fee scaling factor")
-	}
-	baseFeeNormalizationFactor, ok := new(big.Int).SetString(op.BaseFeeNormalizationFactor, 10)
-	if !ok {
-		return nil, fmt.Errorf("invalid base fee normalization factor")
-	}
+	endorser := ethcontract.NewContractCaller(op.Endorser, *ab, provider)
 
 	calldata, err := endorser.Encode(
 		"isOperationReady",
-		entrypointAddr,
-		calldataBytes,
-		endorserCalldataBytes,
-		gasLimitBigInt,
-		maxFeePerGasBigInt,
-		priorityFeePerGas,
-		feeToken,
-		baseFeeScalingFactor,
-		baseFeeNormalizationFactor,
+		op.Entrypoint,
+		op.Calldata,
+		op.EndorserCallData,
+		op.GasLimit,
+		op.MaxFeePerGas,
+		op.PriorityFeePerGas,
+		op.FeeToken,
+		op.BaseFeeScalingFactor,
+		op.BaseFeeNormalizationFactor,
 		op.HasUntrustedContext,
 	)
 
@@ -306,7 +279,7 @@ func IsOperationReady(ctx context.Context, provider *ethrpc.Provider, op *proto.
 	}
 
 	endorserCall := &Call{
-		To:   endorserAddr,
+		To:   op.Endorser,
 		Data: "0x" + common.Bytes2Hex(calldata),
 	}
 
@@ -340,10 +313,12 @@ func IsOperationReady(ctx context.Context, provider *ethrpc.Provider, op *proto.
 	}
 
 	// First element must be a bool
-	endorserResult.Readiness, ok = dec1[0].(bool)
+	ready, ok := dec1[0].(bool)
 	if !ok {
 		return nil, fmt.Errorf("invalid readiness")
 	}
+
+	endorserResult.Readiness = ready
 
 	// Second element must be a struct
 	dec2, ok := dec1[1].(struct {

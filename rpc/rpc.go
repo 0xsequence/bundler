@@ -13,6 +13,7 @@ import (
 	"github.com/0xsequence/bundler/contracts/gen/operationvalidator"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
+	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/chi/v5"
@@ -210,8 +211,13 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("."))
 }
 
-func (s *RPC) SendOperation(ctx context.Context, op *proto.Operation) (bool, error) {
-	err := s.mempool.AddOperation(op)
+func (s *RPC) SendOperation(ctx context.Context, pop *proto.Operation) (bool, error) {
+	op, err := types.NewOperation().FromProto(pop)
+	if err != nil {
+		return false, err
+	}
+
+	err = s.mempool.AddOperation(op)
 	if err != nil {
 		return false, err
 	}

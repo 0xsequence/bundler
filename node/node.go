@@ -13,6 +13,7 @@ import (
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/rpc"
+	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-chi/httplog/v2"
@@ -109,10 +110,20 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	})
 
 	host.HandleMessageType(proto.MessageType_NEW_OPERATION, func(message any) {
-		operation, ok := message.(*proto.Operation)
+		protoOperation, ok := message.(*proto.Operation)
 		if !ok {
+			// TODO: Mark peer as bad
+			logger.Warn("invalid operation message - parse proto")
 			return
 		}
+
+		operation, err := types.NewOperation().FromProto(protoOperation)
+		if err != nil {
+			// TODO: Mark peer as bad
+			logger.Warn("invalid operation message - parse operation")
+			return
+		}
+
 		mempool.AddOperation(operation)
 	})
 

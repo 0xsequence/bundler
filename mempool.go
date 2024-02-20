@@ -9,13 +9,14 @@ import (
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/proto"
+	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/httplog/v2"
 )
 
 type TrackedOperation struct {
-	proto.Operation
+	types.Operation
 
 	ReservedSince *time.Time `json:"reserved_since,omitempty"`
 	CreatedAt     time.Time  `json:"created_at"`
@@ -32,7 +33,7 @@ type Mempool struct {
 	MaxSize  uint
 
 	flock           sync.Mutex
-	FreshOperations *[]*proto.Operation
+	FreshOperations *[]*types.Operation
 
 	olock      sync.Mutex
 	Operations []*TrackedOperation
@@ -49,7 +50,7 @@ func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, provider *eth
 		flock: sync.Mutex{},
 		olock: sync.Mutex{},
 
-		FreshOperations: &[]*proto.Operation{},
+		FreshOperations: &[]*types.Operation{},
 		Operations:      []*TrackedOperation{},
 
 		digests: map[common.Hash]struct{}{},
@@ -62,7 +63,7 @@ func (mp *Mempool) Size() int {
 	return len(mp.Operations) + len(*mp.FreshOperations)
 }
 
-func (mp *Mempool) AddOperation(op *proto.Operation) error {
+func (mp *Mempool) AddOperation(op *types.Operation) error {
 	if op == nil {
 		return fmt.Errorf("mempool: operation is nil")
 	}
@@ -196,7 +197,7 @@ func (mp *Mempool) HandleFreshOps(ctx context.Context) error {
 
 	mp.flock.Lock()
 	freshOps := mp.FreshOperations
-	mp.FreshOperations = &[]*proto.Operation{}
+	mp.FreshOperations = &[]*types.Operation{}
 	mp.flock.Unlock()
 
 	for _, op := range *freshOps {
@@ -262,7 +263,7 @@ func (mp *Mempool) Inspect(ctx context.Context) *proto.MempoolView {
 		}
 	}
 
-	fops := make([]*proto.Operation, 0, len(*mp.FreshOperations))
+	fops := make([]*types.Operation, 0, len(*mp.FreshOperations))
 	fops = append(fops, *mp.FreshOperations...)
 
 	seen := make([]string, 0, len(mp.digests))

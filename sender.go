@@ -8,13 +8,11 @@ import (
 
 	"github.com/0xsequence/bundler/contracts/gen/operationvalidator"
 	"github.com/0xsequence/bundler/endorser"
-	"github.com/0xsequence/bundler/proto"
+	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/ethwallet"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi/bind"
-	"github.com/0xsequence/ethkit/go-ethereum/common"
-	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
-	"github.com/0xsequence/ethkit/go-ethereum/core/types"
+	ethtypes "github.com/0xsequence/ethkit/go-ethereum/core/types"
 	"github.com/davecgh/go-spew/spew"
 )
 
@@ -83,10 +81,9 @@ func (s *Sender) Run(ctx context.Context) {
 		discard = nil
 
 		for _, op := range execute {
-			to := common.HexToAddress(op.Entrypoint)
-			data := common.Hex2Bytes(op.CallData)
-
-			tx, err := s.Wallet.SignTx(types.NewTx(&types.DynamicFeeTx{
+			to := op.Entrypoint
+			data := op.Calldata
+			tx, err := s.Wallet.SignTx(ethtypes.NewTx(&ethtypes.DynamicFeeTx{
 				To:   &to,
 				Data: data,
 			}), s.ChainID)
@@ -108,41 +105,34 @@ func (s *Sender) Run(ctx context.Context) {
 	}
 }
 
-func (s *Sender) simulateOperation(ctx context.Context, op *proto.Operation) (paid bool, lied bool, err error) {
-	gasLimit := new(big.Int).SetUint64(op.GasLimit)
-
-	maxFeePerGas, ok := new(big.Int).SetString(op.MaxFeePerGas, 0)
-	if !ok {
-		return false, false, fmt.Errorf("maxFeePerGas \"%v\" is not a number", op.MaxFeePerGas)
-	}
-
-	maxPriorityFeePerGas, ok := new(big.Int).SetString(op.PriorityFeePerGas, 0)
-	if !ok {
-		return false, false, fmt.Errorf("maxPriorityFeePerGas \"%v\" is not a number", op.PriorityFeePerGas)
-	}
-
-	baseFeeScalingFactor, ok := new(big.Int).SetString(op.BaseFeeScalingFactor, 0)
-	if !ok {
-		return false, false, fmt.Errorf("baseFeeScalingFactor \"%v\" is not a number", op.BaseFeeScalingFactor)
-	}
-
-	baseFeeNormalizationFactor, ok := new(big.Int).SetString(op.BaseFeeNormalizationFactor, 0)
-	if !ok {
-		return false, false, fmt.Errorf("baseFeeNormalizationFactor \"%v\" is not a number", op.BaseFeeNormalizationFactor)
-	}
-
+func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (paid bool, lied bool, err error) {
 	// TODO: compute this properly later
 	var callDataGasUsage int64
-	for _, b := range hexutil.MustDecode(op.CallData) {
+	for _, b := range op.Calldata {
 		switch b {
 		case 0:
-		callDataGasUsage += 4
+			callDataGasUsage += 4
 		default:
-		callDataGasUsage += 16
+			callDataGasUsage += 16
 		}
 	}
 
-	result, err := s.simulator.SimulateOperation(&bind.CallOpts{Context: ctx}, common.HexToAddress(op.Entrypoint), hexutil.MustDecode(op.CallData), hexutil.MustDecode(op.EndorserCallData), gasLimit, maxFeePerGas, maxPriorityFeePerGas, common.HexToAddress(op.FeeToken), baseFeeScalingFactor, baseFeeNormalizationFactor, op.HasUntrustedContext, common.HexToAddress(op.Endorser), big.NewInt(callDataGasUsage))
+	result, err := s.simulator.SimulateOperation(
+		&bind.CallOpts{Context: ctx},
+		op.Entrypoint,
+		op.Calldata,
+		op.EndorserCallData,
+		op.GasLimit,
+		op.MaxFeePerGas,
+		op.PriorityFeePerGas,
+		op.FeeToken,
+		op.BaseFeeScalingFactor,
+		op.BaseFeeNormalizationFactor,
+		op.HasUntrustedContext,
+		op.Endorser,
+		big.NewInt(callDataGasUsage),
+	)
+
 	if err != nil {
 		return false, false, fmt.Errorf("unable to call simulateOperation: %w", err)
 	}
