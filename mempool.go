@@ -83,7 +83,7 @@ func (mp *Mempool) AddOperation(op *types.Operation) error {
 		return fmt.Errorf("mempool: max size reached")
 	}
 
-	mp.logger.Info("mempool: adding operation to fresh", "op", op)
+	mp.logger.Info("mempool: adding operation to fresh", "op", op.Digest())
 
 	nlist := append(*mp.FreshOperations, op)
 	mp.FreshOperations = &nlist

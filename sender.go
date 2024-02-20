@@ -6,7 +6,7 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/0xsequence/bundler/contracts/gen/operationvalidator"
+	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethrpc"
@@ -26,10 +26,10 @@ type Sender struct {
 	Provider *ethrpc.Provider
 	ChainID  *big.Int
 
-	executor *operationvalidator.OperationValidator
+	executor *abivalidator.OperationValidator
 }
 
-func NewSender(id uint32, wallet *ethwallet.Wallet, mempool *Mempool, provider *ethrpc.Provider, executor *operationvalidator.OperationValidator) *Sender {
+func NewSender(id uint32, wallet *ethwallet.Wallet, mempool *Mempool, provider *ethrpc.Provider, executor *abivalidator.OperationValidator) *Sender {
 	chainID, err := provider.ChainID(context.TODO())
 	if err != nil {
 		panic(err)

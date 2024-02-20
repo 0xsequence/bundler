@@ -10,7 +10,7 @@ import (
 
 	"github.com/0xsequence/bundler"
 	"github.com/0xsequence/bundler/config"
-	"github.com/0xsequence/bundler/contracts/gen/operationvalidator"
+	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/types"
@@ -31,7 +31,7 @@ type RPC struct {
 	mempool  *bundler.Mempool
 	pruner   *bundler.Pruner
 	senders  []*bundler.Sender
-	executor *operationvalidator.OperationValidator
+	executor *abivalidator.OperationValidator
 
 	running   int32
 	startTime time.Time
@@ -53,7 +53,7 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	executor, err := operationvalidator.NewOperationValidator(validatorContract, provider)
+	executor, err := abivalidator.NewOperationValidator(validatorContract, provider)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to validator contract")
 	}

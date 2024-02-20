@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
 )
@@ -17,11 +18,11 @@ type DependencyState struct {
 	Slots   [][32]byte `json:"slots,omitempty"`
 }
 
-func (d *Dependency) HasChanged(x, y *DependencyState) (bool, error) {
-	if err := d.Validate(x); err != nil {
+func HasChanged(d *abiendorser.EndorserDependency, x, y *DependencyState) (bool, error) {
+	if err := Validate(d, x); err != nil {
 		return false, fmt.Errorf("x is not a valid state for dependency on %v: %w", d.Addr, err)
 	}
-	if err := d.Validate(y); err != nil {
+	if err := Validate(d, y); err != nil {
 		return false, fmt.Errorf("y is not a valid state for dependency on %v: %w", d.Addr, err)
 	}
 
@@ -46,7 +47,7 @@ func (d *Dependency) HasChanged(x, y *DependencyState) (bool, error) {
 	return false, nil
 }
 
-func (d *Dependency) Validate(state *DependencyState) error {
+func Validate(d *abiendorser.EndorserDependency, state *DependencyState) error {
 	if (state.Balance != nil) != d.Balance {
 		return fmt.Errorf("balance existence does not match dependency")
 	}
@@ -67,9 +68,9 @@ func (d *Dependency) Validate(state *DependencyState) error {
 }
 
 type EndorserResult struct {
-	Readiness        bool             `json:"readiness"`
-	GlobalDependency GlobalDependency `json:"global_dependency"`
-	Dependencies     []Dependency     `json:"dependencies"`
+	Readiness        bool                                 `json:"readiness"`
+	GlobalDependency abiendorser.EndorserGlobalDependency `json:"global_dependency"`
+	Dependencies     []abiendorser.EndorserDependency     `json:"dependencies"`
 }
 
 type EndorserResultState struct {
@@ -133,7 +134,7 @@ func (r *EndorserResult) HasChanged(x, y *EndorserResultState) (bool, error) {
 	}
 
 	for i, dependency := range r.Dependencies {
-		hasChanged, err := dependency.HasChanged(&x.Dependencies[i], &y.Dependencies[i])
+		hasChanged, err := HasChanged(&dependency, &x.Dependencies[i], &y.Dependencies[i])
 		if err != nil {
 			return false, err
 		}
@@ -152,7 +153,7 @@ func (r *EndorserResult) Validate(state *EndorserResultState) error {
 	}
 
 	for i, dependency := range r.Dependencies {
-		if err := dependency.Validate(&state.Dependencies[i]); err != nil {
+		if err := Validate(&dependency, &state.Dependencies[i]); err != nil {
 			return fmt.Errorf("dependency state %v does not match dependency: %w", i, err)
 		}
 	}
