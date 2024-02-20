@@ -4,16 +4,11 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/0xsequence/ethkit/go-ethereum/common"
+	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
 )
 
-func FromHex(str string) ([]byte, error) {
-	res := common.Hex2Bytes(str)
-	if len(res) == 0 && len(str) > 3 {
-		return nil, fmt.Errorf("invalid hex string: %s", str)
-	}
-
-	return res, nil
+func FromHex(hex string) ([]byte, error) {
+	return hexutil.Decode(hex)
 }
 
 func HexToBigInt(str string) (*big.Int, error) {
