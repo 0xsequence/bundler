@@ -28,11 +28,10 @@ type RPC struct {
 	Host   *p2p.Host
 	HTTP   *http.Server
 
-	mempool   *bundler.Mempool
-	pruner    *bundler.Pruner
-	senders   []*bundler.Sender
-	executor  *operationvalidator.OperationValidator
-	simulator *operationvalidator.OperationValidatorSimulator
+	mempool  *bundler.Mempool
+	pruner   *bundler.Pruner
+	senders  []*bundler.Sender
+	executor *operationvalidator.OperationValidator
 
 	running   int32
 	startTime time.Time
@@ -59,11 +58,6 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		return nil, fmt.Errorf("unable to connect to validator contract")
 	}
 
-	simulator, err := operationvalidator.NewOperationValidatorSimulator(validatorContract, provider)
-	if err != nil {
-		return nil, fmt.Errorf("unable to connect to validator contract")
-	}
-
 	senders := make([]*bundler.Sender, 0, cfg.SendersConfig.NumSenders)
 	for i := 0; i < int(cfg.SendersConfig.NumSenders); i++ {
 		wallet, err := SetupWallet(cfg.Mnemonic, uint32(1+i), provider)
@@ -71,17 +65,16 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 			return nil, fmt.Errorf("unable to create wallet for sender %v from hd node: %w", i, err)
 		}
 		logger.Info(fmt.Sprintf("sender %v: %v", i, wallet.Address()))
-		senders = append(senders, bundler.NewSender(uint32(i), wallet, mempool, provider, executor, simulator))
+		senders = append(senders, bundler.NewSender(uint32(i), wallet, mempool, provider, executor))
 	}
 
 	pruner := bundler.NewPruner(mempool, provider, logger)
 
 	s := &RPC{
-		mempool:   mempool,
-		senders:   senders,
-		executor:  executor,
-		simulator: simulator,
-		pruner:    pruner,
+		mempool:  mempool,
+		senders:  senders,
+		executor: executor,
+		pruner:   pruner,
 
 		Config:    cfg,
 		Log:       logger,

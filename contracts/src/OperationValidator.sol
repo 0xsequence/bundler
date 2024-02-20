@@ -11,7 +11,9 @@ contract OperationValidator {
 
   struct SimulationResult {
     bool paid;
-    bool lied;
+    bool readiness;
+    Endorser.GlobalDependency globalDependency;
+    Endorser.Dependency[] dependencies;
   }
 
   function fetchPaymentBal(address _feeToken) internal view returns (uint256) {
@@ -57,7 +59,11 @@ contract OperationValidator {
     // if the endorser considers the operation ready
     // if so, he lied to us
     if (!result.paid) {
-      (result.lied, , ) = Endorser(_endorser).isOperationReady(
+      (
+        result.readiness,
+        result.globalDependency,
+        result.dependencies
+      ) = Endorser(_endorser).isOperationReady(
         _entrypoint,
         _data,
         _endorserCallData,

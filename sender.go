@@ -26,13 +26,13 @@ type Sender struct {
 	Provider *ethrpc.Provider
 	ChainID  *big.Int
 
-	executor  *operationvalidator.OperationValidator
-	simulator *operationvalidator.OperationValidatorSimulator
+	executor *operationvalidator.OperationValidator
 }
 
-func NewSender(id uint32, wallet *ethwallet.Wallet, mempool *Mempool, provider *ethrpc.Provider, executor *operationvalidator.OperationValidator, simulator *operationvalidator.OperationValidatorSimulator) *Sender {
+func NewSender(id uint32, wallet *ethwallet.Wallet, mempool *Mempool, provider *ethrpc.Provider, executor *operationvalidator.OperationValidator) *Sender {
 	chainID, err := provider.ChainID(context.TODO())
 	if err != nil {
+		panic(err)
 	}
 
 	return &Sender{
@@ -42,8 +42,7 @@ func NewSender(id uint32, wallet *ethwallet.Wallet, mempool *Mempool, provider *
 		Provider: provider,
 		ChainID:  chainID,
 
-		executor:  executor,
-		simulator: simulator,
+		executor: executor,
 	}
 }
 
@@ -117,7 +116,7 @@ func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (pa
 		}
 	}
 
-	result, err := s.simulator.SimulateOperation(
+	result, err := s.executor.SimulateOperation(
 		&bind.CallOpts{Context: ctx},
 		op.Entrypoint,
 		op.Calldata,
@@ -141,7 +140,7 @@ func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (pa
 	// if result.paid is false, then we should drop the transaction
 
 	// TODO: only return lied if the constraints are all satisfied
-	if result.Lied {
+	if result.Readiness {
 		return false, true, nil
 	}
 

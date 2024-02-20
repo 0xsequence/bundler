@@ -1,10 +1,10 @@
 .PHONY: all
 
 all:
-	cp src/OperationValidator.sol src/OperationValidatorSimulator.sol
-	patch src/OperationValidatorSimulator.sol simulateOperation.patch
-	forge build --via-ir
+	forge build --via-ir --evm-version paris --optimize --optimizer-runs 1
 	mkdir -p gen/operationvalidator
+	rm -r gen/operationvalidator/*
+	node patch-simulate.js
 	jq .abi < out/OperationValidator.sol/OperationValidator.json | abigen -abi - --pkg operationvalidator --type OperationValidator --out gen/operationvalidator/operationvalidator.go
-	jq .abi < out/OperationValidatorSimulator.sol/OperationValidatorSimulator.json | abigen -abi - --pkg operationvalidator --type OperationValidatorSimulator --out gen/operationvalidator/operationvalidatorsimulator.go
-	fd '\.go' | xargs sd ethereum/go-ethereum 0xsequence/ethkit/go-ethereum
+	find . -type f -name "*.go" -exec sed -i 's|ethereum/go-ethereum|0xsequence/ethkit/go-ethereum|g' {} +
+
