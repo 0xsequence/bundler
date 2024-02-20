@@ -7,6 +7,7 @@ import (
 
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
+	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
 	"github.com/0xsequence/ethkit/go-ethereum/log"
 	"github.com/0xsequence/go-sequence/lib/prototyp"
 )
@@ -53,6 +54,11 @@ func NewOperationFromProto(op *proto.Operation) (*Operation, error) {
 	}
 	entrypoint := op.Entrypoint.ToAddress()
 
+	calldata, err := hexutil.Decode(op.CallData.String())
+	if err != nil {
+		return nil, fmt.Errorf("invalid calldata hex string: %w", err)
+	}
+
 	if op.GasLimit.Int().Sign() <= 0 {
 		return nil, fmt.Errorf("invalid gas limit %v", op.GasLimit)
 	}
@@ -67,17 +73,22 @@ func NewOperationFromProto(op *proto.Operation) (*Operation, error) {
 	}
 	endorser := op.Endorser.ToAddress()
 
+	endorserCalldata, err := hexutil.Decode(op.EndorserCallData.String())
+	if err != nil {
+		return nil, fmt.Errorf("invalid endorser calldata hex string: %w", err)
+	}
+
 	if op.EndorserGasLimit.Int().Sign() <= 0 {
 		return nil, fmt.Errorf("invalid endorser gas limit %v", op.EndorserGasLimit)
 	}
 
 	return &Operation{
 		Entrypoint:                 entrypoint,
-		Calldata:                   op.CallData.Bytes(),
+		Calldata:                   calldata,
 		GasLimit:                   op.GasLimit.Int(),
 		FeeToken:                   feeToken,
 		Endorser:                   endorser,
-		EndorserCallData:           op.EndorserCallData.Bytes(),
+		EndorserCallData:           endorserCalldata,
 		EndorserGasLimit:           op.EndorserGasLimit.Int(),
 		MaxFeePerGas:               op.MaxFeePerGas.Int(),
 		PriorityFeePerGas:          op.PriorityFeePerGas.Int(),
