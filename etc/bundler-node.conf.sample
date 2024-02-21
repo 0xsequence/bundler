@@ -11,16 +11,16 @@ boot_nodes = [
   "/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
 ]
 
+[senders]
+  num_senders = 1
+
 [network]
+  ipfs_url = "http://localhost:5001"
   rpc_url = "https://nodes.sequence.app/arbitrum-nova"
   validator_contract = "0x285F9cfE4a3cD38e876F7F3677471a59f49Ad0bC"
 
 [mempool]
-  ipfs_url = "http://localhost:5001"
   max_size = 1000
-
-[senders]
-  num_senders = 3
 
 [logging]
   service       = "bundler"
