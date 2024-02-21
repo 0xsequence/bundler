@@ -84,7 +84,7 @@ func (s *Sender) Run(ctx context.Context) {
 
 		// Try sending the transaction
 		to := op.Entrypoint
-		_, err = s.Wallet.SignTx(ethtypes.NewTx(&ethtypes.DynamicFeeTx{
+		signedTx, err := s.Wallet.SignTx(ethtypes.NewTx(&ethtypes.DynamicFeeTx{
 			To:   &to,
 			Data: op.Calldata,
 			Gas:  op.GasLimit.Uint64(),
@@ -96,7 +96,20 @@ func (s *Sender) Run(ctx context.Context) {
 			continue
 		}
 
-		// TODO: Wait for the transaction receipt
+		_, wait, err := s.Wallet.SendTransaction(ctx, signedTx)
+		if err != nil {
+		}
+
+		receipt, err := wait(ctx)
+		if err != nil {
+		}
+
+		wasPaid, err := s.wasPaid(receipt)
+		if err != nil {
+		}
+		if !wasPaid {
+			// TODO: ban the endorser
+		}
 
 		s.Mempool.ReleaseOps(ctx, []*TrackedOperation{op}, ReadyAtChangeZero)
 	}
@@ -161,4 +174,9 @@ func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (pa
 	// to be executed, constraints are met, but we didn't get paid
 	// this means the endorser lied to us.
 	return false, true, nil
+}
+
+func (s *Sender) wasPaid(receipt *ethtypes.Receipt) (bool, error) {
+	// TODO: check payment from receipt logs
+	return true, nil
 }
