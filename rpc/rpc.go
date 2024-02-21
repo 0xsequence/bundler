@@ -210,7 +210,7 @@ func (s *RPC) SendOperation(ctx context.Context, pop *proto.Operation) (bool, er
 		return false, err
 	}
 
-	err = s.mempool.AddOperation(op)
+	err = s.mempool.AddOperationSync(ctx, op)
 	if err != nil {
 		return false, err
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"strings"
 
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/bundler/types"
@@ -62,14 +61,6 @@ func IsOperationReady(ctx context.Context, provider *ethrpc.Provider, op *types.
 	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall, nil, nil)
 	_, err = provider.Do(ctx, rpcCall.Into(&res))
 	if err != nil {
-		if strings.Contains(err.Error(), "execution reverted") {
-			// TODO: Add the reason, as it may be useful
-			// for someone adding a new op using an RPC call
-			// return &EndorserResult{
-			// 	Readiness: false,
-			// }, nil
-		}
-
 		return nil, err
 	}
 

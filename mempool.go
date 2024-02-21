@@ -74,16 +74,39 @@ func (mp *Mempool) Size() int {
 	return len(mp.Operations) + len(*mp.FreshOperations)
 }
 
+func (mp *Mempool) mustBeUniqueOp(op *types.Operation) error {
+	digest := op.Digest()
+	if _, ok := mp.digests[digest]; ok {
+		return fmt.Errorf("mempool: duplicate operation")
+	}
+
+	mp.digests[digest] = struct{}{}
+	return nil
+}
+
+func (mp *Mempool) AddOperationSync(ctx context.Context, op *types.Operation) error {
+	if op == nil {
+		return fmt.Errorf("mempool: operation is nil")
+	}
+
+	err := mp.mustBeUniqueOp(op)
+	if err != nil {
+		return err
+	}
+
+	// NOTICE: Adding operations in sync does not respect the max size
+	return mp.tryPromoteOperation(ctx, op)
+}
+
 func (mp *Mempool) AddOperation(op *types.Operation) error {
 	if op == nil {
 		return fmt.Errorf("mempool: operation is nil")
 	}
 
-	digest := op.Digest()
-	if _, ok := mp.digests[digest]; ok {
-		return fmt.Errorf("mempool: duplicate operation")
+	err := mp.mustBeUniqueOp(op)
+	if err != nil {
+		return err
 	}
-	mp.digests[digest] = struct{}{}
 
 	mp.flock.Lock()
 	defer mp.flock.Unlock()
@@ -172,9 +195,6 @@ func (mp *Mempool) DiscardOps(ctx context.Context, ops []*TrackedOperation) {
 		}
 
 		kops = append(kops, op)
-
-		// Remove them from the digest map too
-		delete(mp.digests, op.Digest())
 	}
 
 	mp.Operations = kops
@@ -224,56 +244,62 @@ func (mp *Mempool) HandleFreshOps(ctx context.Context) error {
 	mp.flock.Unlock()
 
 	for _, op := range *freshOps {
-		res, err := endorser.IsOperationReady(ctx, mp.Provider, op)
+		err := mp.tryPromoteOperation(ctx, op)
 		if err != nil {
-			mp.logger.Warn("dropping operation", "op", op.Digest(), "reason", "endorser error", "err", err)
-			continue
+			mp.logger.Warn("error adding operation to mempool", "op", op.Digest(), "err", err)
 		}
-
-		if !res.Readiness {
-			mp.logger.Info("dropping operation", "op", op.Digest(), "reason", "not ready")
-			continue
-		}
-
-		// Check the constraints
-		okc, err := endorser.CheckDependencyConstraints(ctx, res.Dependencies, mp.Provider)
-		if err != nil {
-			mp.logger.Warn("dropping operation", "op", op.Digest(), "reason", "constraint error", "err", err)
-			continue
-		}
-
-		if !okc {
-			mp.logger.Info("dropping operation", "op", op.Digest(), "reason", "constraint not met")
-			continue
-		}
-
-		state, err := res.State(ctx, mp.Provider)
-		if err != nil {
-			mp.logger.Warn("dropping operation", "op", op.Digest(), "reason", "unable to fetch state")
-			continue
-		}
-
-		// If the operation is ready
-		// then we add it to the mempool
-
-		mp.olock.Lock()
-		mp.logger.Info("operation added to mempool", "op", op.Digest())
-		mp.ReportToIPFS(op)
-		mp.Operations = append(mp.Operations, &TrackedOperation{
-			Operation: *op,
-
-			CreatedAt: time.Now(),
-			ReadyAt:   time.Now(),
-
-			EndorserResult:      res,
-			EndorserResultState: state,
-		})
-		mp.olock.Unlock()
 	}
 
 	mp.olock.Lock()
 	mp.SortOperations()
 	mp.olock.Unlock()
+
+	return nil
+}
+
+func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation) error {
+	res, err := endorser.IsOperationReady(ctx, mp.Provider, op)
+	if err != nil {
+		return fmt.Errorf("IsOperationReady failed: %w", err)
+	}
+
+	if !res.Readiness {
+		return fmt.Errorf("operation not ready")
+	}
+
+	// Check the constraints
+	okc, err := endorser.CheckDependencyConstraints(ctx, res.Dependencies, mp.Provider)
+	if err != nil {
+		return fmt.Errorf("CheckDependencyConstraints failed: %w", err)
+	}
+
+	if !okc {
+		return fmt.Errorf("operation constraints not met")
+	}
+
+	state, err := res.State(ctx, mp.Provider)
+	if err != nil {
+		return fmt.Errorf("EndorserResultState failed: %w", err)
+	}
+
+	// If the operation is ready
+	// then we add it to the mempool
+
+	mp.logger.Info("operation added to mempool", "op", op.Digest())
+	mp.ReportToIPFS(op)
+
+	mp.olock.Lock()
+	defer mp.olock.Unlock()
+
+	mp.Operations = append(mp.Operations, &TrackedOperation{
+		Operation: *op,
+
+		CreatedAt: time.Now(),
+		ReadyAt:   time.Now(),
+
+		EndorserResult:      res,
+		EndorserResultState: state,
+	})
 
 	return nil
 }
