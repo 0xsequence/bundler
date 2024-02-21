@@ -215,14 +215,6 @@ func (s *RPC) SendOperation(ctx context.Context, pop *proto.Operation) (bool, er
 		return false, err
 	}
 
-	// TODO: Do not broadcast until we validate it
-
-	messageType := proto.MessageType_NEW_OPERATION
-	s.Host.Broadcast(proto.Message{
-		Type:    &messageType,
-		Message: op.ToProto(),
-	})
-
 	return true, nil
 }
 

@@ -83,7 +83,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 
 	// Mempool
-	mempool, err := bundler.NewMempool(&cfg.MempoolConfig, logger, provider)
+	mempool, err := bundler.NewMempool(&cfg.MempoolConfig, logger, provider, host)
 	if err != nil {
 		return nil, err
 	}

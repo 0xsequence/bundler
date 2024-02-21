@@ -70,10 +70,10 @@ func (s *Pruner) Run(ctx context.Context) {
 
 			if changed {
 				// We need to re-validate the operation
+				// NOTICE that the endorser may revert instead of returning false
 				res, err := endorser.IsOperationReady(ctx, s.Provider, &op.Operation)
 				if err != nil {
-					s.logger.Error("pruner: error validating operation", "error", err)
-					failedOps = append(failedOps, op)
+					discartOps = append(discartOps, op)
 					continue
 				}
 

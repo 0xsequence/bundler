@@ -9,6 +9,7 @@ import (
 
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/endorser"
+	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethrpc"
@@ -38,6 +39,7 @@ type Mempool struct {
 	logger  *httplog.Logger
 	ipfsurl string
 
+	Host     *p2p.Host
 	Provider *ethrpc.Provider
 	MaxSize  uint
 
@@ -50,11 +52,12 @@ type Mempool struct {
 	digests map[string]struct{}
 }
 
-func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, provider *ethrpc.Provider) (*Mempool, error) {
+func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, provider *ethrpc.Provider, host *p2p.Host) (*Mempool, error) {
 	mp := &Mempool{
 		logger:  logger,
 		ipfsurl: cfg.IpfsUrl,
 
+		Host:     host,
 		Provider: provider,
 		MaxSize:  cfg.Size,
 
@@ -300,6 +303,20 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 		EndorserResult:      res,
 		EndorserResultState: state,
 	})
+
+	// Broadcast the operation to the network
+	// ONLY now, since we are sure it's ready
+	if mp.Host != nil {
+		fmt.Println("Broadcasting operation to the network")
+		messageType := proto.MessageType_NEW_OPERATION
+		err = mp.Host.Broadcast(proto.Message{
+			Type:    &messageType,
+			Message: op.ToProto(),
+		})
+		if err != nil {
+			mp.logger.Warn("error broadcasting operation to the network", "op", op.Digest(), "err", err)
+		}
+	}
 
 	return nil
 }
