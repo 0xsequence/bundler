@@ -12,6 +12,7 @@ import (
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/ethwallet"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi/bind"
+	"github.com/0xsequence/ethkit/go-ethereum/common"
 
 	ethtypes "github.com/0xsequence/ethkit/go-ethereum/core/types"
 )
@@ -82,22 +83,41 @@ func (s *Sender) Run(ctx context.Context) {
 			continue
 		}
 
-		// Try sending the transaction
-		snonce, err := s.Wallet.GetNonce(ctx)
+		var calldataGas int64
+		for _, b := range op.Calldata {
+			switch b {
+			case 0:
+				calldataGas += 4
+			default:
+				calldataGas += 16
+			}
+		}
+
+		nonce, err := s.Wallet.GetNonce(ctx)
 		if err != nil {
-			s.Mempool.logger.Warn("sender: error fetching nonce", "op", op.Digest(), "error", err)
+			s.Mempool.logger.Warn("sender: error signing transaction", "op", op.Digest(), "error", err)
 			s.Mempool.ReleaseOps(ctx, []*TrackedOperation{op}, ReadyAtChangeNone)
 			continue
 		}
 
-		to := op.Entrypoint
-		signedTx, err := s.Wallet.SignTx(ethtypes.NewTx(&ethtypes.LegacyTx{
-			To:       &to,
-			Data:     op.Calldata,
-			Gas:      op.GasLimit.Uint64() + 50000,
-			GasPrice: op.MaxFeePerGas,
-			Nonce:    snonce,
-		}), s.ChainID)
+		signedTx, err := s.executor.SafeExecute(
+			&bind.TransactOpts{
+				Signer: func(a common.Address, t *ethtypes.Transaction) (*ethtypes.Transaction, error) {
+					return s.Wallet.SignTx(t, s.ChainID)
+				},
+				Nonce:  new(big.Int).SetUint64(nonce),
+				NoSend: true,
+			},
+			op.Entrypoint,
+			op.Calldata,
+			op.GasLimit,
+			op.MaxFeePerGas,
+			op.PriorityFeePerGas,
+			op.FeeToken,
+			op.BaseFeeScalingFactor,
+			op.BaseFeeNormalizationFactor,
+			big.NewInt(calldataGas),
+		)
 
 		if err != nil {
 			s.Mempool.logger.Warn("sender: error signing transaction", "op", op.Digest(), "error", err)
@@ -105,6 +125,7 @@ func (s *Sender) Run(ctx context.Context) {
 			continue
 		}
 
+		// Try sending the transaction
 		_, wait, err := s.Wallet.SendTransaction(ctx, signedTx)
 		if err != nil {
 			s.Mempool.logger.Warn("sender: error sending transaction", "op", op.Digest(), "error", err)
@@ -117,17 +138,6 @@ func (s *Sender) Run(ctx context.Context) {
 			s.Mempool.logger.Warn("sender: error waiting for receipt", "op", op.Digest(), "error", err)
 			s.Mempool.ReleaseOps(ctx, []*TrackedOperation{op}, ReadyAtChangeNone)
 			continue
-		}
-
-		wasPaid, err := s.wasPaid(receipt)
-		if err != nil {
-			s.Mempool.logger.Warn("sender: error fetching paid status", "op", op.Digest(), "error", err)
-			s.Mempool.ReleaseOps(ctx, []*TrackedOperation{op}, ReadyAtChangeNone)
-			continue
-		}
-		if !wasPaid {
-			s.Mempool.logger.Warn("sender: operation not paid", "op", op.Digest())
-			// TODO: ban the endorser
 		}
 
 		s.Mempool.logger.Info("sender: operation executed", "op", op.Digest(), "tx", receipt.TxHash.String())
@@ -194,9 +204,4 @@ func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (pa
 	// to be executed, constraints are met, but we didn't get paid
 	// this means the endorser lied to us.
 	return false, true, nil
-}
-
-func (s *Sender) wasPaid(receipt *ethtypes.Receipt) (bool, error) {
-	// TODO: check payment from receipt logs
-	return true, nil
 }
