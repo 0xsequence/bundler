@@ -83,34 +83,54 @@ func (s *Sender) Run(ctx context.Context) {
 		}
 
 		// Try sending the transaction
+		snonce, err := s.Wallet.GetNonce(ctx)
+		if err != nil {
+			s.Mempool.logger.Warn("sender: error fetching nonce", "op", op.Digest(), "error", err)
+			s.Mempool.ReleaseOps(ctx, []*TrackedOperation{op}, ReadyAtChangeNone)
+			continue
+		}
+
 		to := op.Entrypoint
-		signedTx, err := s.Wallet.SignTx(ethtypes.NewTx(&ethtypes.DynamicFeeTx{
-			To:   &to,
-			Data: op.Calldata,
-			Gas:  op.GasLimit.Uint64(),
+		signedTx, err := s.Wallet.SignTx(ethtypes.NewTx(&ethtypes.LegacyTx{
+			To:       &to,
+			Data:     op.Calldata,
+			Gas:      op.GasLimit.Uint64() + 50000,
+			GasPrice: op.MaxFeePerGas,
+			Nonce:    snonce,
 		}), s.ChainID)
 
 		if err != nil {
 			s.Mempool.logger.Warn("sender: error signing transaction", "op", op.Digest(), "error", err)
-			s.Mempool.DiscardOps(ctx, []*TrackedOperation{op})
+			s.Mempool.ReleaseOps(ctx, []*TrackedOperation{op}, ReadyAtChangeNone)
 			continue
 		}
 
 		_, wait, err := s.Wallet.SendTransaction(ctx, signedTx)
 		if err != nil {
+			s.Mempool.logger.Warn("sender: error sending transaction", "op", op.Digest(), "error", err)
+			s.Mempool.ReleaseOps(ctx, []*TrackedOperation{op}, ReadyAtChangeNone)
+			continue
 		}
 
 		receipt, err := wait(ctx)
 		if err != nil {
+			s.Mempool.logger.Warn("sender: error waiting for receipt", "op", op.Digest(), "error", err)
+			s.Mempool.ReleaseOps(ctx, []*TrackedOperation{op}, ReadyAtChangeNone)
+			continue
 		}
 
 		wasPaid, err := s.wasPaid(receipt)
 		if err != nil {
+			s.Mempool.logger.Warn("sender: error fetching paid status", "op", op.Digest(), "error", err)
+			s.Mempool.ReleaseOps(ctx, []*TrackedOperation{op}, ReadyAtChangeNone)
+			continue
 		}
 		if !wasPaid {
+			s.Mempool.logger.Warn("sender: operation not paid", "op", op.Digest())
 			// TODO: ban the endorser
 		}
 
+		s.Mempool.logger.Info("sender: operation executed", "op", op.Digest())
 		s.Mempool.ReleaseOps(ctx, []*TrackedOperation{op}, ReadyAtChangeZero)
 	}
 }
