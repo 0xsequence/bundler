@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"math/rand"
 	"time"
 
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
@@ -60,8 +61,11 @@ func (s *Sender) Run(ctx context.Context) {
 			continue
 		}
 
-		op := ops[0]
+		// Random delay between 0 and 1 second
+		// it reduces the chances to collide with other senders
+		time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
 
+		op := ops[0]
 		paid, lied, err := s.simulateOperation(ctx, &op.Operation)
 
 		// If we got an error, we should discard the operation
