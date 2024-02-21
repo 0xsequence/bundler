@@ -130,7 +130,7 @@ func (s *Sender) Run(ctx context.Context) {
 			// TODO: ban the endorser
 		}
 
-		s.Mempool.logger.Info("sender: operation executed", "op", op.Digest())
+		s.Mempool.logger.Info("sender: operation executed", "op", op.Digest(), "tx", receipt.TxHash.String())
 		s.Mempool.ReleaseOps(ctx, []*TrackedOperation{op}, ReadyAtChangeZero)
 	}
 }
