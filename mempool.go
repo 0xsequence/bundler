@@ -226,30 +226,30 @@ func (mp *Mempool) HandleFreshOps(ctx context.Context) error {
 	for _, op := range *freshOps {
 		res, err := endorser.IsOperationReady(ctx, mp.Provider, op)
 		if err != nil {
-			mp.logger.Error("dropping operation", "op", op, "reason", "endorser error", "err", err)
+			mp.logger.Warn("dropping operation", "op", op.Digest(), "reason", "endorser error", "err", err)
 			continue
 		}
 
 		if !res.Readiness {
-			mp.logger.Debug("dropping operation", "op", op, "reason", "not ready")
+			mp.logger.Info("dropping operation", "op", op.Digest(), "reason", "not ready")
 			continue
 		}
 
 		// Check the constraints
 		okc, err := endorser.CheckDependencyConstraints(ctx, res.Dependencies, mp.Provider)
 		if err != nil {
-			mp.logger.Error("dropping operation", "op", op, "reason", "constraint error", "err", err)
+			mp.logger.Warn("dropping operation", "op", op.Digest(), "reason", "constraint error", "err", err)
 			continue
 		}
 
 		if !okc {
-			mp.logger.Debug("dropping operation", "op", op, "reason", "constraint not met")
+			mp.logger.Info("dropping operation", "op", op.Digest(), "reason", "constraint not met")
 			continue
 		}
 
 		state, err := res.State(ctx, mp.Provider)
 		if err != nil {
-			mp.logger.Error("dropping operation", "op", op, "reason", "unable to fetch state")
+			mp.logger.Warn("dropping operation", "op", op.Digest(), "reason", "unable to fetch state")
 			continue
 		}
 

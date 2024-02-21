@@ -65,9 +65,9 @@ func IsOperationReady(ctx context.Context, provider *ethrpc.Provider, op *types.
 		if strings.Contains(err.Error(), "execution reverted") {
 			// TODO: Add the reason, as it may be useful
 			// for someone adding a new op using an RPC call
-			return &EndorserResult{
-				Readiness: false,
-			}, nil
+			// return &EndorserResult{
+			// 	Readiness: false,
+			// }, nil
 		}
 
 		return nil, err
