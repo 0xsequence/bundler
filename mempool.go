@@ -35,6 +35,11 @@ type TrackedOperation struct {
 	EndorserResultState *endorser.EndorserResultState `json:"endorser_result_state,omitempty"`
 }
 
+type KnownOperations struct {
+	lock    sync.Mutex
+	digests map[string]time.Time
+}
+
 type Mempool struct {
 	logger  *httplog.Logger
 	ipfsurl string
@@ -49,7 +54,7 @@ type Mempool struct {
 	olock      sync.Mutex
 	Operations []*TrackedOperation
 
-	digests map[string]struct{}
+	known *KnownOperations
 }
 
 func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, provider *ethrpc.Provider, host *p2p.Host) (*Mempool, error) {
@@ -67,7 +72,10 @@ func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, provider *eth
 		FreshOperations: &[]*types.Operation{},
 		Operations:      []*TrackedOperation{},
 
-		digests: map[string]struct{}{},
+		known: &KnownOperations{
+			lock:    sync.Mutex{},
+			digests: map[string]time.Time{},
+		},
 	}
 
 	return mp, nil
@@ -79,11 +87,18 @@ func (mp *Mempool) Size() int {
 
 func (mp *Mempool) mustBeUniqueOp(op *types.Operation) error {
 	digest := op.Digest()
-	if _, ok := mp.digests[digest]; ok {
+
+	mp.known.lock.Lock()
+	defer mp.known.lock.Unlock()
+
+	if _, ok := mp.known.digests[digest]; ok {
 		return fmt.Errorf("mempool: duplicate operation")
 	}
 
-	mp.digests[digest] = struct{}{}
+	// Time zero means that it was not marked
+	// for removal.
+	mp.known.digests[digest] = time.Time{}
+
 	return nil
 }
 
@@ -196,6 +211,13 @@ func (mp *Mempool) DiscardOps(ctx context.Context, ops []*TrackedOperation) {
 		if discard {
 			continue
 		}
+
+		// Mark the operation for deletion by setting
+		// the time to the current time
+		digest := op.Digest()
+		mp.known.lock.Lock()
+		mp.known.digests[digest] = time.Now()
+		mp.known.lock.Unlock()
 
 		kops = append(kops, op)
 	}
@@ -351,15 +373,18 @@ func (mp *Mempool) Inspect(ctx context.Context) *proto.MempoolView {
 	fops := make([]*types.Operation, 0, len(*mp.FreshOperations))
 	fops = append(fops, *mp.FreshOperations...)
 
-	seen := make([]string, 0, len(mp.digests))
-	for k := range mp.digests {
+	mp.known.lock.Lock()
+	defer mp.known.lock.Unlock()
+
+	seen := make([]string, 0, len(mp.known.digests))
+	for k := range mp.known.digests {
 		seen = append(seen, k)
 	}
 
 	return &proto.MempoolView{
 		FreshOperationsSize: len(*mp.FreshOperations),
 		OperationsSize:      len(mp.Operations),
-		SeenSize:            len(mp.digests),
+		SeenSize:            len(mp.known.digests),
 		LockSize:            lockCount,
 
 		Seen:            seen,
