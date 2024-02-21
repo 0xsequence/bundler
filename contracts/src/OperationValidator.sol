@@ -24,6 +24,37 @@ contract OperationValidator {
     }
   }
 
+  function _executeAndMeasureNoSideEffects(
+    address _entrypoint,
+    bytes calldata _data,
+    uint256 _gasLimit,
+    uint256 _maxFeePerGas,
+    uint256 _maxPriorityFeePerGas,
+    address _feeToken,
+    uint256 _calldataGas
+  ) external returns (bool) {
+    require(msg.sender == address(this), "only self");
+
+    uint256 preBal = fetchPaymentBal(_feeToken);
+    
+    uint256 preGas = gasleft();
+    // Ignore the return value, we don't trust any of it
+    _entrypoint.call{ gas: _gasLimit }(_data);
+
+    uint256 postGas = gasleft();
+    uint256 postBal = fetchPaymentBal(_feeToken);
+
+    uint256 gasUsed = preGas - postGas + _calldataGas;
+    uint256 gasPrice = Math.min(block.basefee + _maxPriorityFeePerGas, _maxFeePerGas);
+    uint256 expectPayment = gasUsed * gasPrice;
+
+    if (postBal - preBal < expectPayment) {
+      revert();
+    }
+
+    return true;
+  }
+
   function simulateOperation(
     address _entrypoint,
     bytes calldata _data,
@@ -38,43 +69,52 @@ contract OperationValidator {
     address _endorser,
     uint256 _calldataGas
   ) external returns (SimulationResult memory result) {
-    uint256 preBal = fetchPaymentBal(_feeToken);
-    
-    uint256 preGas = gasleft();
-    // Ignore the return value, we don't trust any of it
-    _entrypoint.call{ gas: _gasLimit }(_data);
-
-    {
-      uint256 postGas = gasleft();
-      uint256 postBal = fetchPaymentBal(_feeToken);
-
-      uint256 gasUsed = preGas - postGas + _calldataGas;
-      uint256 gasPrice = Math.min(block.basefee + _maxPriorityFeePerGas, _maxFeePerGas);
-      uint256 expectPayment = gasUsed * gasPrice;
-
-      result.paid = postBal - preBal >= expectPayment;
+    // Try to execute the operation and measure the gas used
+    // if it does not fail, then we can just return
+    try OperationValidator(address(this))._executeAndMeasureNoSideEffects(
+      _entrypoint,
+      _data,
+      _gasLimit,
+      _maxFeePerGas,
+      _maxPriorityFeePerGas,
+      _feeToken,
+      _calldataGas
+    ) returns (
+      bool success
+    ) {
+      result.paid = success;
+      return result;
+    } catch {
+      result.paid = false;
     }
 
     // We didn't got paid, we need to know
     // if the endorser considers the operation ready
-    // if so, he lied to us
-    if (!result.paid) {
-      (
-        result.readiness,
-        result.globalDependency,
-        result.dependencies
-      ) = Endorser(_endorser).isOperationReady(
-        _entrypoint,
-        _data,
-        _endorserCallData,
-        _gasLimit,
-        _maxFeePerGas,
-        _maxPriorityFeePerGas,
-        _feeToken,
-        _baseFeeScalingFactor,
-        _baseFeeNormalizationFactor,
-        _hasUntrustedContext
-      ); 
+    // if so, he lied to us. We need to use try-catch
+    // as the endorser may revert instead of returning false.
+    try Endorser(_endorser).isOperationReady(
+      _entrypoint,
+      _data,
+      _endorserCallData,
+      _gasLimit,
+      _maxFeePerGas,
+      _maxPriorityFeePerGas,
+      _feeToken,
+      _baseFeeScalingFactor,
+      _baseFeeNormalizationFactor,
+      _hasUntrustedContext
+    ) returns (
+      bool readiness,
+      Endorser.GlobalDependency memory globalDependency,
+      Endorser.Dependency[] memory dependencies
+    ) {
+      result.readiness = readiness;
+      result.globalDependency = globalDependency;
+      result.dependencies = dependencies;
+      return result;
+    } catch {
+      result.readiness = false;
+      return result;
     }
   }
 
