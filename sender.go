@@ -140,17 +140,6 @@ func (s *Sender) Run(ctx context.Context) {
 			continue
 		}
 
-		wasPaid, err := s.wasPaid(receipt)
-		if err != nil {
-			s.Mempool.logger.Warn("sender: error fetching paid status", "op", op.Digest(), "error", err)
-			s.Mempool.ReleaseOps(ctx, []*TrackedOperation{op}, ReadyAtChangeNone)
-			continue
-		}
-		if !wasPaid {
-			s.Mempool.logger.Warn("sender: operation not paid", "op", op.Digest())
-			// TODO: ban the endorser
-		}
-
 		s.Mempool.logger.Info("sender: operation executed", "op", op.Digest(), "tx", receipt.TxHash.String())
 		s.Mempool.ReleaseOps(ctx, []*TrackedOperation{op}, ReadyAtChangeZero)
 	}
@@ -215,9 +204,4 @@ func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (pa
 	// to be executed, constraints are met, but we didn't get paid
 	// this means the endorser lied to us.
 	return false, true, nil
-}
-
-func (s *Sender) wasPaid(receipt *ethtypes.Receipt) (bool, error) {
-	// TODO: check payment from receipt logs
-	return true, nil
 }
