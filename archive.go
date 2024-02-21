@@ -13,8 +13,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-const ArchiveInterval = 5 * time.Second
-const OpTimeToArchive = 5 * time.Second
+const ArchiveInterval = 5 * time.Minute
+const OpTimeToArchive = 5 * time.Minute
 
 type ArchiveSnapshot struct {
 	Timestamp uint64 `json:"time"`
