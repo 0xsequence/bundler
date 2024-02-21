@@ -2,14 +2,13 @@ package p2p
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/0xsequence/bundler/proto"
-	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-func (n *Host) HandleMessageType(messageType proto.MessageType, handler func(message any)) {
+func (n *Host) HandleMessageType(messageType proto.MessageType, handler func(from peer.ID, message []byte)) {
 	n.handlers[messageType] = handler
 }
 
@@ -77,15 +76,20 @@ func (n *Host) pubsubEventHandler() error {
 
 			// TODO: consider using pubsubpb with protobuf for message data
 
-			fmt.Println("From:", msg.GetFrom().String())
-			fmt.Println("ReceivedFrom:", msg.ReceivedFrom.String())
-			fmt.Println("Key:", hexutil.Encode(msg.Key))
+			// fmt.Println("From:", msg.GetFrom().String())
+			// fmt.Println("ReceivedFrom:", msg.ReceivedFrom.String())
+			// fmt.Println("Key:", hexutil.Encode(msg.Key))
 
-			address, err := PeerIDToETHAddress(msg.GetFrom())
-			if err != nil {
-				panic(err)
+			// address, err := PeerIDToETHAddress(msg.GetFrom())
+			// if err != nil {
+			// 	panic(err)
+			// }
+			// fmt.Println("ETH ADDRESS OF PEER", address.String())
+
+			// Filter out messages from self
+			if msg.GetFrom() == n.host.ID() {
+				continue
 			}
-			fmt.Println("ETH ADDRESS OF PEER", address.String())
 
 			var message proto.Message
 			err = json.Unmarshal(msg.Data, &message)
@@ -94,10 +98,21 @@ func (n *Host) pubsubEventHandler() error {
 				continue
 			}
 
+			n.logger.Info("received pubsub message", "from", msg.GetFrom().String(), "type", message.Type)
+
 			if message.Type != nil {
 				handler := n.handlers[*message.Type]
 				if handler != nil {
-					handler(message.Message)
+					// TODO: Can't we just not use json.Marshal and directly use msg.Data?
+					data, err := json.Marshal(message.Message)
+					if err != nil {
+						n.logger.Error("unable to marshal message", "err", err)
+						continue
+					}
+
+					handler(msg.GetFrom(), data)
+				} else {
+					n.logger.Info("no handler found for message type", "type", *message.Type)
 				}
 			}
 		}

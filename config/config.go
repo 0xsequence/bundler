@@ -37,14 +37,14 @@ type LoggingConfig struct {
 }
 
 type NetworkConfig struct {
-	RpcUrl string `toml:"rpc_url"`
+	RpcUrl  string `toml:"rpc_url"`
+	IpfsUrl string `toml:"ipfs_url"`
 
 	ValidatorContract string `toml:"validator_contract"`
 }
 
 type MempoolConfig struct {
-	Size    uint   `toml:"max_size"`
-	IpfsUrl string `toml:"ipfs_url"`
+	Size uint `toml:"max_size"`
 
 	MaxEndorserGasLimit uint `toml:"max_endorser_gas_limit"`
 }

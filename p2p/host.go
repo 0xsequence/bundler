@@ -34,7 +34,7 @@ type Host struct {
 	host     host.Host
 	pubsub   *pubsub.PubSub
 	topic    *pubsub.Topic
-	handlers map[proto.MessageType]func(message any)
+	handlers map[proto.MessageType]func(from peer.ID, message []byte)
 
 	ctx     context.Context
 	ctxStop context.CancelFunc
@@ -128,7 +128,7 @@ func NewHost(cfg *config.Config, logger *slog.Logger, wallet *ethwallet.Wallet) 
 		cfg:      cfg,
 		logger:   logger,
 		host:     h,
-		handlers: map[proto.MessageType]func(message any){},
+		handlers: map[proto.MessageType]func(from peer.ID, message []byte){},
 	}
 
 	return nd, nil

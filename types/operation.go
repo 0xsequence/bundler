@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/0xsequence/bundler/ipfs"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
@@ -105,7 +106,7 @@ func (op *Operation) Digest() string {
 		return ""
 	}
 
-	res, err := Cid(jsonData)
+	res, err := ipfs.Cid(jsonData)
 	if err != nil {
 		log.Warn("failed to create CID", "error", err)
 	}
@@ -113,19 +114,19 @@ func (op *Operation) Digest() string {
 	return res
 }
 
-func (op *Operation) ReportToIPFS(url string) error {
+func (op *Operation) ReportToIPFS(ip *ipfs.Client) error {
 	// Convert to json
 	jsonData, err := json.Marshal(op.ToProto())
 	if err != nil {
 		return err
 	}
 
-	cid, err := Cid(jsonData)
+	cid, err := ipfs.Cid(jsonData)
 	if err != nil {
 		return err
 	}
 
-	res, err := ReportToIPFS(url, jsonData)
+	res, err := ip.ReportToIPFS(jsonData)
 	if err != nil {
 		return err
 	}

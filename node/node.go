@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/0xsequence/bundler"
 	"github.com/0xsequence/bundler/config"
+	"github.com/0xsequence/bundler/ipfs"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/rpc"
@@ -17,6 +19,7 @@ import (
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-chi/httplog/v2"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -26,6 +29,7 @@ type Node struct {
 	Host    *p2p.Host
 	RPC     *rpc.RPC
 	Mempool *bundler.Mempool
+	Archive *bundler.Archive
 
 	ctx       context.Context
 	ctxStopFn context.CancelFunc
@@ -82,11 +86,17 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		return nil, err
 	}
 
+	// IPFS Client
+	ipfs := ipfs.NewClient(cfg.NetworkConfig.IpfsUrl)
+
 	// Mempool
-	mempool, err := bundler.NewMempool(&cfg.MempoolConfig, logger, provider, host)
+	mempool, err := bundler.NewMempool(&cfg.MempoolConfig, logger, provider, host, ipfs)
 	if err != nil {
 		return nil, err
 	}
+
+	// Archive
+	archive := bundler.NewArchive(host, logger, ipfs, mempool)
 
 	// RPC
 	rpc, err := rpc.NewRPC(cfg, logger, host, mempool, provider)
@@ -103,24 +113,27 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		Host:    host,
 		RPC:     rpc,
 		Mempool: mempool,
+		Archive: archive,
 	}
 
-	host.HandleMessageType(proto.MessageType_DEBUG, func(message any) {
+	host.HandleMessageType(proto.MessageType_DEBUG, func(_ peer.ID, message []byte) {
 		spew.Dump(message)
 	})
 
-	host.HandleMessageType(proto.MessageType_NEW_OPERATION, func(message any) {
-		protoOperation, err := UglyCast[*proto.Operation](message)
+	host.HandleMessageType(proto.MessageType_NEW_OPERATION, func(_ peer.ID, message []byte) {
+		var protoOperation proto.Operation
+		err := json.Unmarshal(message, &protoOperation)
 		if err != nil {
 			// TODO: Mark peer as bad
-			logger.Warn("invalid operation message - parse proto: %v", err)
+			spew.Dump(err)
+			logger.Warn("invalid operation message - parse proto", "err", err)
 			return
 		}
 
-		operation, err := types.NewOperationFromProto(protoOperation)
+		operation, err := types.NewOperationFromProto(&protoOperation)
 		if err != nil {
 			// TODO: Mark peer as bad
-			logger.Warn("invalid operation message - parse operation: %v", err)
+			logger.Warn("invalid operation message - parse operation", "err", err)
 			return
 		}
 
@@ -163,6 +176,13 @@ func (s *Node) Run() error {
 	g.Go(func() error {
 		oplog.Info("-> mempool: run")
 		s.Mempool.StartProcessor(ctx)
+		return nil
+	})
+
+	// Archive
+	g.Go(func() error {
+		oplog.Info("-> archive: run")
+		s.Archive.Run(ctx)
 		return nil
 	})
 

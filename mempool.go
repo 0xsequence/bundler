@@ -9,6 +9,7 @@ import (
 
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/endorser"
+	"github.com/0xsequence/bundler/ipfs"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/types"
@@ -41,8 +42,8 @@ type KnownOperations struct {
 }
 
 type Mempool struct {
-	logger  *httplog.Logger
-	ipfsurl string
+	logger *httplog.Logger
+	ipfs   *ipfs.Client
 
 	Host     *p2p.Host
 	Provider *ethrpc.Provider
@@ -57,10 +58,10 @@ type Mempool struct {
 	known *KnownOperations
 }
 
-func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, provider *ethrpc.Provider, host *p2p.Host) (*Mempool, error) {
+func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, provider *ethrpc.Provider, host *p2p.Host, ipfs *ipfs.Client) (*Mempool, error) {
 	mp := &Mempool{
-		logger:  logger,
-		ipfsurl: cfg.IpfsUrl,
+		logger: logger,
+		ipfs:   ipfs,
 
 		Host:     host,
 		Provider: provider,
@@ -329,7 +330,6 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 	// Broadcast the operation to the network
 	// ONLY now, since we are sure it's ready
 	if mp.Host != nil {
-		fmt.Println("Broadcasting operation to the network")
 		messageType := proto.MessageType_NEW_OPERATION
 		err = mp.Host.Broadcast(proto.Message{
 			Type:    &messageType,
@@ -345,16 +345,33 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 
 func (mp *Mempool) ReportToIPFS(op *types.Operation) {
 	// Fire a go-routine to report the operation to IPFS
-	if mp.ipfsurl == "" {
+	if mp.ipfs == nil {
 		return
 	}
 
 	go func() {
-		err := op.ReportToIPFS(mp.ipfsurl)
+		err := op.ReportToIPFS(mp.ipfs)
 		if err != nil {
 			mp.logger.Warn("error reporting operation to IPFS", "op", op.Digest(), "err", err)
 		}
 	}()
+}
+
+func (mp *Mempool) ForgetOps(age time.Duration) []string {
+	mp.known.lock.Lock()
+	defer mp.known.lock.Unlock()
+
+	forgotten := make([]string, 0, len(mp.known.digests))
+	nt := time.Time{}
+
+	for k, v := range mp.known.digests {
+		if v != nt && time.Since(v) > age {
+			forgotten = append(forgotten, k)
+			delete(mp.known.digests, k)
+		}
+	}
+
+	return forgotten
 }
 
 func (mp *Mempool) Inspect(ctx context.Context) *proto.MempoolView {
