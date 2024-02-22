@@ -108,10 +108,9 @@ func (mp *Mempool) AddOperationSync(ctx context.Context, op *types.Operation) er
 		return fmt.Errorf("mempool: operation is nil")
 	}
 
-	err := mp.mustBeUniqueOp(op)
-	if err != nil {
-		return err
-	}
+	// We save the op but we don't fail
+	// if it already exists
+	mp.mustBeUniqueOp(op)
 
 	// NOTICE: Adding operations in sync does not respect the max size
 	return mp.tryPromoteOperation(ctx, op)

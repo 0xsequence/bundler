@@ -99,7 +99,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	archive := bundler.NewArchive(host, logger, ipfs, mempool)
 
 	// RPC
-	rpc, err := rpc.NewRPC(cfg, logger, host, mempool, provider)
+	rpc, err := rpc.NewRPC(cfg, logger, host, mempool, archive, provider)
 	if err != nil {
 		return nil, err
 	}

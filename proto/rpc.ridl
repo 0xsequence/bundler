@@ -95,6 +95,11 @@ struct MempoolView
   - freshOperations: any
   - operations: any
 
+struct Operations
+  - mempool: []string
+  - archive: string
+    + go.tag.json = archive,omitempty
+
 error 1000 NotFound "Not found" HTTP 404
 error 2000 Unauthorized "Unauthorized access" HTTP 401
 error 3000 PermissionDenied "Permission denied" HTTP 403
@@ -106,6 +111,7 @@ service Bundler
   - Peers() => (peers: []string, priorityPeers: []string)
   - Mempool() => (mempool: MempoolView)
   - SendOperation(operation: Operation) => (status: bool)
+  - Operations() => (operations: Operations)
 
 service Debug
   - Broadcast(message: any) => (status: bool)

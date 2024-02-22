@@ -3,6 +3,7 @@ package bundler
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"sync"
 	"time"
 
@@ -144,4 +145,25 @@ func (a *Archive) DoArchive(ctx context.Context, ops []string) error {
 	})
 
 	return err
+}
+
+func (a *Archive) Operations(ctx context.Context) *proto.Operations {
+	a.Mempool.known.lock.Lock()
+	ops := make([]string, len(a.Mempool.known.digests))
+
+	var i int
+	for k := range a.Mempool.known.digests {
+		ops[i] = k
+		i++
+	}
+
+	a.Mempool.known.lock.Unlock()
+
+	// Sort the operations
+	sort.Strings(ops)
+
+	return &proto.Operations{
+		Mempool: ops,
+		Archive: a.PrevArchive,
+	}
 }

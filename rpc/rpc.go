@@ -30,6 +30,7 @@ type RPC struct {
 
 	mempool  *bundler.Mempool
 	pruner   *bundler.Pruner
+	archive  *bundler.Archive
 	senders  []*bundler.Sender
 	executor *abivalidator.OperationValidator
 
@@ -37,7 +38,7 @@ type RPC struct {
 	startTime time.Time
 }
 
-func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool *bundler.Mempool, provider *ethrpc.Provider) (*RPC, error) {
+func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool *bundler.Mempool, archive *bundler.Archive, provider *ethrpc.Provider) (*RPC, error) {
 	if !common.IsHexAddress(cfg.NetworkConfig.ValidatorContract) {
 		return nil, fmt.Errorf("\"%v\" is not a valid operation validator contract", cfg.NetworkConfig.ValidatorContract)
 	}
@@ -71,6 +72,7 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 	pruner := bundler.NewPruner(mempool, provider, logger)
 
 	s := &RPC{
+		archive:  archive,
 		mempool:  mempool,
 		senders:  senders,
 		executor: executor,
@@ -210,6 +212,11 @@ func (s *RPC) SendOperation(ctx context.Context, pop *proto.Operation) (bool, er
 		return false, err
 	}
 
+	// Always PIN these operations to IPFS
+	// as they are being sent by the user, and
+	// it is useful for debugging
+	go s.mempool.ReportToIPFS(op)
+
 	err = s.mempool.AddOperationSync(ctx, op)
 	if err != nil {
 		return false, err
@@ -220,6 +227,10 @@ func (s *RPC) SendOperation(ctx context.Context, pop *proto.Operation) (bool, er
 
 func (s RPC) Mempool(ctx context.Context) (*proto.MempoolView, error) {
 	return s.mempool.Inspect(ctx), nil
+}
+
+func (s RPC) Operations(ctx context.Context) (*proto.Operations, error) {
+	return s.archive.Operations(ctx), nil
 }
 
 func stubHandler(respBody string) http.HandlerFunc {
