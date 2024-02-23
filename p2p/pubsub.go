@@ -5,11 +5,14 @@ import (
 
 	"github.com/0xsequence/bundler/proto"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
-	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-func (n *Host) HandleMessageType(messageType proto.MessageType, handler func(from peer.ID, message []byte)) {
-	n.handlers[messageType] = handler
+func (n *Host) HandleMessageType(messageType proto.MessageType, handler MsgHandler) {
+	if n.handlers[messageType] == nil {
+		n.handlers[messageType] = []MsgHandler{handler}
+	} else {
+		n.handlers[messageType] = append(n.handlers[messageType], handler)
+	}
 }
 
 func (n *Host) setupPubsub() error {
@@ -101,8 +104,8 @@ func (n *Host) pubsubEventHandler() error {
 			n.logger.Info("received pubsub message", "from", msg.GetFrom().String(), "type", message.Type)
 
 			if message.Type != nil {
-				handler := n.handlers[*message.Type]
-				if handler != nil {
+				handlers := n.handlers[*message.Type]
+				if handlers != nil {
 					// TODO: Can't we just not use json.Marshal and directly use msg.Data?
 					data, err := json.Marshal(message.Message)
 					if err != nil {
@@ -110,7 +113,10 @@ func (n *Host) pubsubEventHandler() error {
 						continue
 					}
 
-					handler(msg.GetFrom(), data)
+					from := msg.GetFrom()
+					for _, handler := range handlers {
+						handler(from, data)
+					}
 				} else {
 					n.logger.Info("no handler found for message type", "type", *message.Type)
 				}

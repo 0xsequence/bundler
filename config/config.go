@@ -44,7 +44,8 @@ type NetworkConfig struct {
 }
 
 type MempoolConfig struct {
-	Size uint `toml:"max_size"`
+	Size        uint `toml:"max_size"`
+	IngressSize uint `toml:"max_ingress_size"`
 
 	MaxEndorserGasLimit uint `toml:"max_endorser_gas_limit"`
 }

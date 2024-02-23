@@ -90,7 +90,7 @@ func (s *Pruner) Run(ctx context.Context) {
 		}
 
 		if len(releaseOps) != 0 {
-			s.logger.Info("pruner: releasing operations", "operations", len(releaseOps))
+			s.logger.Debug("pruner: releasing operations", "operations", len(releaseOps))
 		}
 
 		if len(discartOps) != 0 {

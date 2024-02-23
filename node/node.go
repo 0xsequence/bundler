@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
@@ -13,13 +12,9 @@ import (
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/ipfs"
 	"github.com/0xsequence/bundler/p2p"
-	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/rpc"
-	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethrpc"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/go-chi/httplog/v2"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -30,6 +25,7 @@ type Node struct {
 	RPC     *rpc.RPC
 	Mempool *bundler.Mempool
 	Archive *bundler.Archive
+	Ingress *bundler.Ingress
 
 	ctx       context.Context
 	ctxStopFn context.CancelFunc
@@ -95,6 +91,9 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		return nil, err
 	}
 
+	// Ingress
+	ingress := bundler.NewIngress(&cfg.MempoolConfig, logger, mempool, host)
+
 	// Archive
 	archive := bundler.NewArchive(host, logger, ipfs, mempool)
 
@@ -114,31 +113,8 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		RPC:     rpc,
 		Mempool: mempool,
 		Archive: archive,
+		Ingress: ingress,
 	}
-
-	host.HandleMessageType(proto.MessageType_DEBUG, func(_ peer.ID, message []byte) {
-		spew.Dump(message)
-	})
-
-	host.HandleMessageType(proto.MessageType_NEW_OPERATION, func(_ peer.ID, message []byte) {
-		var protoOperation proto.Operation
-		err := json.Unmarshal(message, &protoOperation)
-		if err != nil {
-			// TODO: Mark peer as bad
-			spew.Dump(err)
-			logger.Warn("invalid operation message - parse proto", "err", err)
-			return
-		}
-
-		operation, err := types.NewOperationFromProto(&protoOperation)
-		if err != nil {
-			// TODO: Mark peer as bad
-			logger.Warn("invalid operation message - parse operation", "err", err)
-			return
-		}
-
-		mempool.AddOperation(operation)
-	})
 
 	return server, nil
 }
@@ -172,10 +148,10 @@ func (s *Node) Run() error {
 		return s.Host.Run(ctx)
 	})
 
-	// Mempoool processor
+	// Ingress processor
 	g.Go(func() error {
-		oplog.Info("-> mempool: run")
-		s.Mempool.StartProcessor(ctx)
+		oplog.Info("-> ingress: run")
+		s.Ingress.Run(ctx)
 		return nil
 	})
 

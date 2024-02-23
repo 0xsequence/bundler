@@ -28,13 +28,15 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
+type MsgHandler func(from peer.ID, message []byte)
+
 type Host struct {
 	cfg      *config.Config
 	logger   *slog.Logger
 	host     host.Host
 	pubsub   *pubsub.PubSub
 	topic    *pubsub.Topic
-	handlers map[proto.MessageType]func(from peer.ID, message []byte)
+	handlers map[proto.MessageType][]MsgHandler
 
 	ctx     context.Context
 	ctxStop context.CancelFunc
@@ -128,7 +130,7 @@ func NewHost(cfg *config.Config, logger *slog.Logger, wallet *ethwallet.Wallet) 
 		cfg:      cfg,
 		logger:   logger,
 		host:     h,
-		handlers: map[proto.MessageType]func(from peer.ID, message []byte){},
+		handlers: map[proto.MessageType][]MsgHandler{},
 	}
 
 	return nd, nil

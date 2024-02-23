@@ -37,7 +37,7 @@ type TrackedOperation struct {
 }
 
 type KnownOperations struct {
-	lock    sync.Mutex
+	lock    sync.RWMutex
 	digests map[string]time.Time
 }
 
@@ -49,10 +49,7 @@ type Mempool struct {
 	Provider *ethrpc.Provider
 	MaxSize  uint
 
-	flock           sync.Mutex
-	FreshOperations *[]*types.Operation
-
-	olock      sync.Mutex
+	lock       sync.Mutex
 	Operations []*TrackedOperation
 
 	known *KnownOperations
@@ -67,14 +64,10 @@ func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, provider *eth
 		Provider: provider,
 		MaxSize:  cfg.Size,
 
-		flock: sync.Mutex{},
-		olock: sync.Mutex{},
-
-		FreshOperations: &[]*types.Operation{},
-		Operations:      []*TrackedOperation{},
+		Operations: []*TrackedOperation{},
 
 		known: &KnownOperations{
-			lock:    sync.Mutex{},
+			lock:    sync.RWMutex{},
 			digests: map[string]time.Time{},
 		},
 	}
@@ -83,7 +76,15 @@ func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, provider *eth
 }
 
 func (mp *Mempool) Size() int {
-	return len(mp.Operations) + len(*mp.FreshOperations)
+	return len(mp.Operations)
+}
+
+func (mp *Mempool) IsKnownOp(op *types.Operation) bool {
+	mp.known.lock.RLock()
+	defer mp.known.lock.RUnlock()
+
+	_, ok := mp.known.digests[op.Digest()]
+	return ok
 }
 
 func (mp *Mempool) mustBeUniqueOp(op *types.Operation) error {
@@ -103,47 +104,25 @@ func (mp *Mempool) mustBeUniqueOp(op *types.Operation) error {
 	return nil
 }
 
-func (mp *Mempool) AddOperationSync(ctx context.Context, op *types.Operation) error {
+func (mp *Mempool) AddOperation(ctx context.Context, op *types.Operation, forceInclude bool) error {
 	if op == nil {
 		return fmt.Errorf("mempool: operation is nil")
 	}
 
 	// We save the op but we don't fail
 	// if it already exists
-	mp.mustBeUniqueOp(op)
+	err := mp.mustBeUniqueOp(op)
+	if err != nil && !forceInclude {
+		return err
+	}
 
 	// NOTICE: Adding operations in sync does not respect the max size
 	return mp.tryPromoteOperation(ctx, op)
 }
 
-func (mp *Mempool) AddOperation(op *types.Operation) error {
-	if op == nil {
-		return fmt.Errorf("mempool: operation is nil")
-	}
-
-	err := mp.mustBeUniqueOp(op)
-	if err != nil {
-		return err
-	}
-
-	mp.flock.Lock()
-	defer mp.flock.Unlock()
-
-	if mp.Size() >= int(mp.MaxSize) {
-		return fmt.Errorf("mempool: max size reached")
-	}
-
-	mp.logger.Info("mempool: adding operation to fresh", "op", op.Digest())
-
-	nlist := append(*mp.FreshOperations, op)
-	mp.FreshOperations = &nlist
-
-	return nil
-}
-
 func (mp *Mempool) ReserveOps(ctx context.Context, selectFn func([]*TrackedOperation) []*TrackedOperation) []*TrackedOperation {
-	mp.olock.Lock()
-	defer mp.olock.Unlock()
+	mp.lock.Lock()
+	defer mp.lock.Unlock()
 
 	// Filter out the operations that are already reserved
 	// and the ones that are not ready
@@ -166,8 +145,8 @@ func (mp *Mempool) ReserveOps(ctx context.Context, selectFn func([]*TrackedOpera
 }
 
 func (mp *Mempool) ReleaseOps(ctx context.Context, ops []*TrackedOperation, updateReadyAt ReadyAtChange) {
-	mp.olock.Lock()
-	defer mp.olock.Unlock()
+	mp.lock.Lock()
+	defer mp.lock.Unlock()
 
 	for _, op := range mp.Operations {
 		for _, rop := range ops {
@@ -194,8 +173,8 @@ func (mp *Mempool) SortOperations() {
 }
 
 func (mp *Mempool) DiscardOps(ctx context.Context, ops []*TrackedOperation) {
-	mp.olock.Lock()
-	defer mp.olock.Unlock()
+	mp.lock.Lock()
+	defer mp.lock.Unlock()
 
 	var kops []*TrackedOperation
 	for _, op := range mp.Operations {
@@ -223,63 +202,6 @@ func (mp *Mempool) DiscardOps(ctx context.Context, ops []*TrackedOperation) {
 	}
 
 	mp.Operations = kops
-}
-
-func (mp *Mempool) StartProcessor(ctx context.Context) {
-	// Run every 500 ms
-	go func() {
-		ticker := time.NewTicker(time.Duration(500 * time.Millisecond))
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				err := mp.HandleFreshOps(ctx)
-				if err != nil {
-					mp.logger.Error("mempool: error handling fresh operations", "err", err)
-				}
-			case <-ctx.Done():
-				// Context cancelled, stop the ticker
-				return
-			}
-		}
-	}()
-}
-
-func (mp *Mempool) HandleFreshOps(ctx context.Context) error {
-	// Take each operation from the fresh mempool, pass them through the
-	// endorser. If they are not ready, then we drop them.
-
-	// TODO: Parallelize this
-
-	if len(*mp.FreshOperations) == 0 {
-		return nil
-	}
-
-	// Create a local copy of the fresh operations
-	// and clear the fresh operations list. This is going
-	// to take a while and we don't want to block new operations.
-
-	// NOTICE that the mempool could grow over the limit while we are
-	// processing the fresh operations. This is fine for now.
-
-	mp.flock.Lock()
-	freshOps := mp.FreshOperations
-	mp.FreshOperations = &[]*types.Operation{}
-	mp.flock.Unlock()
-
-	for _, op := range *freshOps {
-		err := mp.tryPromoteOperation(ctx, op)
-		if err != nil {
-			mp.logger.Warn("error adding operation to mempool", "op", op.Digest(), "err", err)
-		}
-	}
-
-	mp.olock.Lock()
-	mp.SortOperations()
-	mp.olock.Unlock()
-
-	return nil
 }
 
 func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation) error {
@@ -313,8 +235,8 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 	mp.logger.Info("operation added to mempool", "op", op.Digest())
 	mp.ReportToIPFS(op)
 
-	mp.olock.Lock()
-	defer mp.olock.Unlock()
+	mp.lock.Lock()
+	defer mp.lock.Unlock()
 
 	mp.Operations = append(mp.Operations, &TrackedOperation{
 		Operation: *op,
@@ -374,8 +296,8 @@ func (mp *Mempool) ForgetOps(age time.Duration) []string {
 }
 
 func (mp *Mempool) Inspect(ctx context.Context) *proto.MempoolView {
-	mp.olock.Lock()
-	defer mp.olock.Unlock()
+	mp.lock.Lock()
+	defer mp.lock.Unlock()
 
 	lockCount := 0
 	ops := make([]*TrackedOperation, 0, len(mp.Operations))
@@ -386,9 +308,6 @@ func (mp *Mempool) Inspect(ctx context.Context) *proto.MempoolView {
 		}
 	}
 
-	fops := make([]*types.Operation, 0, len(*mp.FreshOperations))
-	fops = append(fops, *mp.FreshOperations...)
-
 	mp.known.lock.Lock()
 	defer mp.known.lock.Unlock()
 
@@ -398,13 +317,11 @@ func (mp *Mempool) Inspect(ctx context.Context) *proto.MempoolView {
 	}
 
 	return &proto.MempoolView{
-		FreshOperationsSize: len(*mp.FreshOperations),
-		OperationsSize:      len(mp.Operations),
-		SeenSize:            len(mp.known.digests),
-		LockSize:            lockCount,
+		Size:     len(mp.Operations),
+		SeenSize: len(mp.known.digests),
+		LockSize: lockCount,
 
-		Seen:            seen,
-		Operations:      ops,
-		FreshOperations: fops,
+		Seen:       seen,
+		Operations: ops,
 	}
 }

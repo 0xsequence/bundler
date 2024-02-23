@@ -217,7 +217,7 @@ func (s *RPC) SendOperation(ctx context.Context, pop *proto.Operation) (bool, er
 	// it is useful for debugging
 	go s.mempool.ReportToIPFS(op)
 
-	err = s.mempool.AddOperationSync(ctx, op)
+	err = s.mempool.AddOperation(ctx, op, true)
 	if err != nil {
 		return false, err
 	}

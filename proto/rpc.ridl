@@ -87,12 +87,10 @@ struct Message
   - message: any
 
 struct MempoolView
-  - freshOperationsSize: int
-  - operationsSize: int
+  - size: int
   - seenSize: int
   - lockSize: int
   - seen: []string
-  - freshOperations: any
   - operations: any
 
 struct Operations
