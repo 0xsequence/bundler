@@ -19,9 +19,10 @@ type Config struct {
 
 	Logging LoggingConfig `toml:"logging"`
 
-	NetworkConfig NetworkConfig `toml:"network"`
-	MempoolConfig MempoolConfig `toml:"mempool"`
-	SendersConfig SendersConfig `toml:"senders"`
+	NetworkConfig   NetworkConfig   `toml:"network"`
+	MempoolConfig   MempoolConfig   `toml:"mempool"`
+	SendersConfig   SendersConfig   `toml:"senders"`
+	CollectorConfig CollectorConfig `toml:"collector"`
 
 	BootNodeAddrs []multiaddr.Multiaddr `toml:"-"`
 }
@@ -52,6 +53,24 @@ type MempoolConfig struct {
 
 type SendersConfig struct {
 	NumSenders uint `toml:"num_senders"`
+}
+
+type CollectorConfig struct {
+	MinPriorityFee int64   `toml:"min_priority_fee"`
+	PriorityFeeMul float64 `toml:"priority_fee_mul"`
+
+	References []PriceReference `toml:"references"`
+}
+
+type PriceReference struct {
+	Token string `toml:"token"`
+
+	UniswapV2 *UniswapV2Reference `toml:"uniswap_v2"`
+}
+
+type UniswapV2Reference struct {
+	Pool      string `toml:"pool"`
+	BaseToken string `toml:"base_token"`
 }
 
 func NewFromFile(file string, env string, cfg *Config) error {

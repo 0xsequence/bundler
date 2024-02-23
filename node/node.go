@@ -19,13 +19,15 @@ import (
 )
 
 type Node struct {
-	Config  *config.Config
-	Logger  *httplog.Logger
-	Host    *p2p.Host
-	RPC     *rpc.RPC
-	Mempool *bundler.Mempool
-	Archive *bundler.Archive
-	Ingress *bundler.Ingress
+	Config *config.Config
+	Logger *httplog.Logger
+	Host   *p2p.Host
+	RPC    *rpc.RPC
+
+	Mempool   *bundler.Mempool
+	Archive   *bundler.Archive
+	Ingress   *bundler.Ingress
+	Collector *bundler.Collector
 
 	ctx       context.Context
 	ctxStopFn context.CancelFunc
@@ -97,6 +99,12 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	// Archive
 	archive := bundler.NewArchive(host, logger, ipfs, mempool)
 
+	// Collector
+	collector, err := bundler.NewCollector(&cfg.CollectorConfig, logger, provider)
+	if err != nil {
+		return nil, err
+	}
+
 	// RPC
 	rpc, err := rpc.NewRPC(cfg, logger, host, mempool, archive, provider)
 	if err != nil {
@@ -107,13 +115,14 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	// Server
 	//
 	server := &Node{
-		Config:  cfg,
-		Logger:  logger,
-		Host:    host,
-		RPC:     rpc,
-		Mempool: mempool,
-		Archive: archive,
-		Ingress: ingress,
+		Config:    cfg,
+		Logger:    logger,
+		Host:      host,
+		RPC:       rpc,
+		Mempool:   mempool,
+		Archive:   archive,
+		Ingress:   ingress,
+		Collector: collector,
 	}
 
 	return server, nil
@@ -161,6 +170,27 @@ func (s *Node) Run() error {
 		s.Archive.Run(ctx)
 		return nil
 	})
+
+	// Collector
+	g.Go(func() error {
+		oplog.Info("-> collector: run")
+		s.Collector.Run(ctx)
+		return nil
+	})
+
+	// Collector feeds
+	feeds := s.Collector.Feeds()
+	for _, feed := range feeds {
+		f := *feed
+		g.Go(func() error {
+			oplog.Info("-> collector: feed: run", "feed", f.Name())
+			err := f.Start(ctx)
+			if err != nil {
+				oplog.Error("-> collector: feed: error", "feed", f.Name(), "error", err)
+			}
+			return err
+		})
+	}
 
 	// Once run context is done, trigger a server-stop.
 	go func() {
