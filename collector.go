@@ -8,12 +8,15 @@ import (
 
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/pricefeed"
+	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/httplog/v2"
 )
 
 type Collector struct {
+	cfg *config.CollectorConfig
+
 	listening      bool
 	lastBaseFee    *big.Int
 	minPriorityFee *big.Int
@@ -48,6 +51,7 @@ func NewCollector(cfg *config.CollectorConfig, logger *httplog.Logger, provider 
 	}
 
 	return &Collector{
+		cfg:      cfg,
 		feeds:    feeds,
 		logger:   logger,
 		Provider: provider,
@@ -122,4 +126,46 @@ func (c *Collector) FetchMinPriorityFee(ctx context.Context) {
 
 	c.minPriorityFee = lowest
 	c.logger.Debug("collector: lowest priority fee found", "fee", lowest.String())
+}
+
+func (c *Collector) MinFeePerGas(feeToken common.Address) (*big.Int, error) {
+	if c.lastBaseFee == nil || c.minPriorityFee == nil {
+		return nil, fmt.Errorf("collector: base fee or min priority fee not fetched")
+	}
+
+	minFeePerGas := new(big.Int).Add(c.lastBaseFee, c.minPriorityFee)
+
+	if feeToken != (common.Address{}) {
+		feed, ok := c.feeds[feeToken]
+		if !ok {
+			return nil, fmt.Errorf("collector: unsupported fee token: %s", feeToken.Hex())
+		}
+
+		var err error
+		minFeePerGas, err = (*feed).FromNative(minFeePerGas)
+		if err != nil {
+			return nil, fmt.Errorf("collector: error converting fee to native token: %w", err)
+		}
+	}
+
+	if c.cfg.PriorityFeeMul != 0 {
+		scalar := new(big.Float).SetFloat64(c.cfg.PriorityFeeMul)
+		applied := new(big.Float).Mul(new(big.Float).SetInt(minFeePerGas), scalar)
+		minFeePerGas, _ = applied.Int(nil)
+	}
+
+	return minFeePerGas, nil
+}
+
+func (c *Collector) MeetsPayment(op *types.Operation) (bool, error) {
+	minFeePerGas, err := c.MinFeePerGas(op.FeeToken)
+	if err != nil {
+		return false, err
+	}
+
+	if op.MaxFeePerGas.Cmp(minFeePerGas) < 0 {
+		return false, fmt.Errorf("collector: operation payment too low: %s < %s", op.MaxFeePerGas.String(), minFeePerGas.String())
+	}
+
+	return true, nil
 }

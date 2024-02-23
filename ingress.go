@@ -23,11 +23,12 @@ type Ingress struct {
 
 	logger *httplog.Logger
 
-	Host    *p2p.Host
-	Mempool *Mempool
+	Host      *p2p.Host
+	Mempool   *Mempool
+	Collector *Collector
 }
 
-func NewIngress(cfg *config.MempoolConfig, logger *httplog.Logger, m *Mempool, h *p2p.Host) *Ingress {
+func NewIngress(cfg *config.MempoolConfig, logger *httplog.Logger, mempool *Mempool, collector *Collector, host *p2p.Host) *Ingress {
 	return &Ingress{
 		lock:      sync.Mutex{},
 		buffer:    make(chan *types.Operation, cfg.IngressSize),
@@ -35,8 +36,9 @@ func NewIngress(cfg *config.MempoolConfig, logger *httplog.Logger, m *Mempool, h
 
 		logger: logger,
 
-		Host:    h,
-		Mempool: m,
+		Host:      host,
+		Mempool:   mempool,
+		Collector: collector,
 	}
 }
 
@@ -73,7 +75,19 @@ func (i *Ingress) Add(op *types.Operation) error {
 	// If on the mempool known list, we should ignore it
 	if i.Mempool.IsKnownOp(op) {
 		return nil
+	}
 
+	// Pass it trough the collector, since
+	// it can quickly reject it if it doesn't
+	// pay enough fees
+	mp, err := i.Collector.MeetsPayment(op)
+	if err != nil {
+		return err
+	}
+
+	if !mp {
+		i.logger.Info("ingress: rejected by collector", "op", op.Digest())
+		return nil
 	}
 
 	i.lock.Lock()

@@ -21,24 +21,28 @@ import (
 type Sender struct {
 	ID uint32
 
-	Wallet   *ethwallet.Wallet
-	Mempool  *Mempool
+	Wallet    *ethwallet.Wallet
+	Mempool   *Mempool
+	Collector *Collector
+
 	Provider *ethrpc.Provider
 	ChainID  *big.Int
 
 	executor *abivalidator.OperationValidator
 }
 
-func NewSender(id uint32, wallet *ethwallet.Wallet, mempool *Mempool, provider *ethrpc.Provider, executor *abivalidator.OperationValidator) *Sender {
+func NewSender(id uint32, wallet *ethwallet.Wallet, mempool *Mempool, provider *ethrpc.Provider, executor *abivalidator.OperationValidator, collector *Collector) *Sender {
 	chainID, err := provider.ChainID(context.TODO())
 	if err != nil {
 		panic(err)
 	}
 
 	return &Sender{
-		ID:       id,
-		Wallet:   wallet,
-		Mempool:  mempool,
+		ID:        id,
+		Wallet:    wallet,
+		Mempool:   mempool,
+		Collector: collector,
+
 		Provider: provider,
 		ChainID:  chainID,
 
@@ -104,13 +108,16 @@ func (s *Sender) Run(ctx context.Context) {
 			continue
 		}
 
+		priorityFeePerGas := s.Collector.MinPriorityFee()
+
 		signedTx, err := s.executor.SafeExecute(
 			&bind.TransactOpts{
 				Signer: func(a common.Address, t *ethtypes.Transaction) (*ethtypes.Transaction, error) {
 					return s.Wallet.SignTx(t, s.ChainID)
 				},
-				Nonce:  new(big.Int).SetUint64(nonce),
-				NoSend: true,
+				Nonce:     new(big.Int).SetUint64(nonce),
+				GasTipCap: priorityFeePerGas,
+				NoSend:    true,
 			},
 			op.Entrypoint,
 			op.Calldata,

@@ -45,9 +45,11 @@ type Mempool struct {
 	logger *httplog.Logger
 	ipfs   *ipfs.Client
 
-	Host     *p2p.Host
-	Provider *ethrpc.Provider
-	MaxSize  uint
+	Host      *p2p.Host
+	Provider  *ethrpc.Provider
+	Collector *Collector
+
+	MaxSize uint
 
 	lock       sync.Mutex
 	Operations []*TrackedOperation
@@ -55,14 +57,16 @@ type Mempool struct {
 	known *KnownOperations
 }
 
-func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, provider *ethrpc.Provider, host *p2p.Host, ipfs *ipfs.Client) (*Mempool, error) {
+func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, provider *ethrpc.Provider, host *p2p.Host, collector *Collector, ipfs *ipfs.Client) (*Mempool, error) {
 	mp := &Mempool{
 		logger: logger,
 		ipfs:   ipfs,
 
-		Host:     host,
-		Provider: provider,
-		MaxSize:  cfg.Size,
+		Host:      host,
+		Provider:  provider,
+		Collector: collector,
+
+		MaxSize: cfg.Size,
 
 		Operations: []*TrackedOperation{},
 
@@ -227,6 +231,16 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 	state, err := res.State(ctx, mp.Provider)
 	if err != nil {
 		return fmt.Errorf("EndorserResultState failed: %w", err)
+	}
+
+	// Check the collector (fees)
+	pok, err := mp.Collector.MeetsPayment(op)
+	if err != nil {
+		return fmt.Errorf("MeetsPayment failed: %w", err)
+	}
+
+	if !pok {
+		return fmt.Errorf("operation does not meet payment")
 	}
 
 	// If the operation is ready

@@ -28,17 +28,18 @@ type RPC struct {
 	Host   *p2p.Host
 	HTTP   *http.Server
 
-	mempool  *bundler.Mempool
-	pruner   *bundler.Pruner
-	archive  *bundler.Archive
-	senders  []*bundler.Sender
-	executor *abivalidator.OperationValidator
+	mempool   *bundler.Mempool
+	pruner    *bundler.Pruner
+	archive   *bundler.Archive
+	collector *bundler.Collector
+	senders   []*bundler.Sender
+	executor  *abivalidator.OperationValidator
 
 	running   int32
 	startTime time.Time
 }
 
-func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool *bundler.Mempool, archive *bundler.Archive, provider *ethrpc.Provider) (*RPC, error) {
+func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool *bundler.Mempool, archive *bundler.Archive, provider *ethrpc.Provider, collector *bundler.Collector) (*RPC, error) {
 	if !common.IsHexAddress(cfg.NetworkConfig.ValidatorContract) {
 		return nil, fmt.Errorf("\"%v\" is not a valid operation validator contract", cfg.NetworkConfig.ValidatorContract)
 	}
@@ -66,17 +67,18 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 			return nil, fmt.Errorf("unable to create wallet for sender %v from hd node: %w", i, err)
 		}
 		logger.Info(fmt.Sprintf("sender %v: %v", i, wallet.Address()))
-		senders = append(senders, bundler.NewSender(uint32(i), wallet, mempool, provider, executor))
+		senders = append(senders, bundler.NewSender(uint32(i), wallet, mempool, provider, executor, collector))
 	}
 
 	pruner := bundler.NewPruner(mempool, provider, logger)
 
 	s := &RPC{
-		archive:  archive,
-		mempool:  mempool,
-		senders:  senders,
-		executor: executor,
-		pruner:   pruner,
+		archive:   archive,
+		mempool:   mempool,
+		senders:   senders,
+		collector: collector,
+		executor:  executor,
+		pruner:    pruner,
 
 		Config:    cfg,
 		Log:       logger,

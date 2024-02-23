@@ -87,26 +87,26 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	// IPFS Client
 	ipfs := ipfs.NewClient(cfg.NetworkConfig.IpfsUrl)
 
-	// Mempool
-	mempool, err := bundler.NewMempool(&cfg.MempoolConfig, logger, provider, host, ipfs)
-	if err != nil {
-		return nil, err
-	}
-
-	// Ingress
-	ingress := bundler.NewIngress(&cfg.MempoolConfig, logger, mempool, host)
-
-	// Archive
-	archive := bundler.NewArchive(host, logger, ipfs, mempool)
-
 	// Collector
 	collector, err := bundler.NewCollector(&cfg.CollectorConfig, logger, provider)
 	if err != nil {
 		return nil, err
 	}
 
+	// Mempool
+	mempool, err := bundler.NewMempool(&cfg.MempoolConfig, logger, provider, host, collector, ipfs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Ingress
+	ingress := bundler.NewIngress(&cfg.MempoolConfig, logger, mempool, collector, host)
+
+	// Archive
+	archive := bundler.NewArchive(host, logger, ipfs, mempool)
+
 	// RPC
-	rpc, err := rpc.NewRPC(cfg, logger, host, mempool, archive, provider)
+	rpc, err := rpc.NewRPC(cfg, logger, host, mempool, archive, provider, collector)
 	if err != nil {
 		return nil, err
 	}
