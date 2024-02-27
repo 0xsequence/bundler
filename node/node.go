@@ -10,6 +10,7 @@ import (
 
 	"github.com/0xsequence/bundler"
 	"github.com/0xsequence/bundler/config"
+	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/ipfs"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/rpc"
@@ -71,6 +72,9 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		return nil, err
 	}
 
+	// Endorser
+	endorser := endorser.NewEndorser(provider)
+
 	// wallet
 	wallet, err := rpc.SetupWallet(cfg.Mnemonic, 0, provider)
 	if err != nil {
@@ -94,7 +98,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 
 	// Mempool
-	mempool, err := bundler.NewMempool(&cfg.MempoolConfig, logger, provider, host, collector, ipfs)
+	mempool, err := bundler.NewMempool(&cfg.MempoolConfig, logger, endorser, host, collector, ipfs)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +110,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	archive := bundler.NewArchive(host, logger, ipfs, mempool)
 
 	// RPC
-	rpc, err := rpc.NewRPC(cfg, logger, host, mempool, archive, provider, collector)
+	rpc, err := rpc.NewRPC(cfg, logger, host, mempool, archive, provider, collector, endorser)
 	if err != nil {
 		return nil, err
 	}

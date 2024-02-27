@@ -10,7 +10,6 @@ import (
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/types"
-	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/ethwallet"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi/bind"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
@@ -25,26 +24,20 @@ type Sender struct {
 	Mempool   *Mempool
 	Collector *Collector
 
-	Provider *ethrpc.Provider
+	Endorser endorser.Interface
 	ChainID  *big.Int
 
 	executor *abivalidator.OperationValidator
 }
 
-func NewSender(id uint32, wallet *ethwallet.Wallet, mempool *Mempool, provider *ethrpc.Provider, executor *abivalidator.OperationValidator, collector *Collector) *Sender {
-	chainID, err := provider.ChainID(context.TODO())
-	if err != nil {
-		panic(err)
-	}
-
+func NewSender(id uint32, wallet *ethwallet.Wallet, mempool *Mempool, endorser endorser.Interface, executor *abivalidator.OperationValidator, collector *Collector, chainID *big.Int) *Sender {
 	return &Sender{
 		ID:        id,
 		Wallet:    wallet,
 		Mempool:   mempool,
 		Collector: collector,
 
-		Provider: provider,
-		ChainID:  chainID,
+		ChainID: chainID,
 
 		executor: executor,
 	}
@@ -188,7 +181,8 @@ func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (pa
 
 	// The only chance for the endorser left is that
 	// he is returning a non-met contraint
-	constraintsOk, err := endorser.CheckDependencyConstraints2(ctx, result.Dependencies, s.Provider)
+
+	constraintsOk, err := s.Endorser.ConstraintsMet(ctx, endorser.FromExecutorResult(&result))
 	if err != nil {
 		return false, false, fmt.Errorf("unable to check dependency constraints: %w", err)
 	}

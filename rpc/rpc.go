@@ -11,6 +11,7 @@ import (
 	"github.com/0xsequence/bundler"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
+	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/types"
@@ -39,7 +40,7 @@ type RPC struct {
 	startTime time.Time
 }
 
-func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool *bundler.Mempool, archive *bundler.Archive, provider *ethrpc.Provider, collector *bundler.Collector) (*RPC, error) {
+func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool *bundler.Mempool, archive *bundler.Archive, provider *ethrpc.Provider, collector *bundler.Collector, endorser endorser.Interface) (*RPC, error) {
 	if !common.IsHexAddress(cfg.NetworkConfig.ValidatorContract) {
 		return nil, fmt.Errorf("\"%v\" is not a valid operation validator contract", cfg.NetworkConfig.ValidatorContract)
 	}
@@ -60,6 +61,12 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		return nil, fmt.Errorf("unable to connect to validator contract")
 	}
 
+	// Get the chain ID
+	chainID, err := provider.ChainID(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("unable to get chain ID: %w", err)
+	}
+
 	senders := make([]*bundler.Sender, 0, cfg.SendersConfig.NumSenders)
 	for i := 0; i < int(cfg.SendersConfig.NumSenders); i++ {
 		wallet, err := SetupWallet(cfg.Mnemonic, uint32(1+i), provider)
@@ -67,10 +74,10 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 			return nil, fmt.Errorf("unable to create wallet for sender %v from hd node: %w", i, err)
 		}
 		logger.Info(fmt.Sprintf("sender %v: %v", i, wallet.Address()))
-		senders = append(senders, bundler.NewSender(uint32(i), wallet, mempool, provider, executor, collector))
+		senders = append(senders, bundler.NewSender(uint32(i), wallet, mempool, endorser, executor, collector, chainID))
 	}
 
-	pruner := bundler.NewPruner(mempool, provider, logger)
+	pruner := bundler.NewPruner(mempool, endorser, logger)
 
 	s := &RPC{
 		archive:   archive,

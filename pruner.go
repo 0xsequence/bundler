@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/0xsequence/bundler/endorser"
-	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/go-chi/httplog/v2"
 )
 
@@ -14,16 +13,16 @@ const PrunerBatchSize = 1
 type Pruner struct {
 	logger *httplog.Logger
 
-	Mempool  *Mempool
-	Provider *ethrpc.Provider
+	Mempool  MempoolInterface
+	Endorser endorser.Interface
 }
 
-func NewPruner(mempool *Mempool, provider *ethrpc.Provider, logger *httplog.Logger) *Pruner {
+func NewPruner(mempool MempoolInterface, endorser endorser.Interface, logger *httplog.Logger) *Pruner {
 	return &Pruner{
 		logger: logger,
 
 		Mempool:  mempool,
-		Provider: provider,
+		Endorser: endorser,
 	}
 }
 
@@ -54,7 +53,7 @@ func (s *Pruner) Run(ctx context.Context) {
 
 		// TODO: Batch this
 		for _, op := range ops {
-			nextState, err := op.EndorserResult.State(ctx, s.Provider)
+			nextState, err := s.Endorser.DependencyState(ctx, op.EndorserResult)
 			if err != nil {
 				s.logger.Error("pruner: error getting state", "error", err)
 				failedOps = append(failedOps, op)
@@ -71,7 +70,7 @@ func (s *Pruner) Run(ctx context.Context) {
 			if changed {
 				// We need to re-validate the operation
 				// NOTICE that the endorser may revert instead of returning false
-				res, err := endorser.IsOperationReady(ctx, s.Provider, &op.Operation)
+				res, err := s.Endorser.IsOperationReady(ctx, &op.Operation)
 				if err != nil {
 					discartOps = append(discartOps, op)
 					continue
@@ -89,25 +88,25 @@ func (s *Pruner) Run(ctx context.Context) {
 			}
 		}
 
+		// Release the operations
+
 		if len(releaseOps) != 0 {
 			s.logger.Debug("pruner: releasing operations", "operations", len(releaseOps))
+			s.Mempool.ReleaseOps(ctx, releaseOps, ReadyAtChangeNow)
 		}
 
 		if len(discartOps) != 0 {
 			s.logger.Info("pruner: discarding operations", "operations", len(discartOps))
+			s.Mempool.DiscardOps(ctx, discartOps)
 		}
-
-		if len(failedOps) != 0 {
-			s.logger.Warn("pruner: failed operations", "operations", len(failedOps))
-		}
-
-		// Release the operations
-		s.Mempool.ReleaseOps(ctx, releaseOps, ReadyAtChangeNow)
-		s.Mempool.DiscardOps(ctx, discartOps)
 
 		// TODO: Handle error operations, ideally
 		// we only allow an operation to fail a few times
-		s.Mempool.DiscardOps(ctx, failedOps)
+
+		if len(failedOps) != 0 {
+			s.logger.Warn("pruner: failed operations", "operations", len(failedOps))
+			s.Mempool.DiscardOps(ctx, failedOps)
+		}
 
 		// Sleep 1 second
 		time.Sleep(time.Second)

@@ -15,7 +15,7 @@ func SetupWallet(mnemonic string, accountIndex uint32, provider *ethrpc.Provider
 
 	_, err = wallet.SelfDeriveAccountIndex(accountIndex)
 	if err != nil {
-		return nil, fmt.Errorf("unable to derive account %v: %w", accountIndex)
+		return nil, fmt.Errorf("unable to derive account %v: %w", accountIndex, err)
 	}
 
 	wallet.SetProvider(provider)

@@ -11,6 +11,7 @@ import (
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
+	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
 )
 
 var parsedEndorserABI *abi.ABI
@@ -25,9 +26,23 @@ func useEndorserAbi() *abi.ABI {
 	return parsedEndorserABI
 }
 
-func IsOperationReady(ctx context.Context, provider *ethrpc.Provider, op *types.Operation) (*EndorserResult, error) {
-	ab := useEndorserAbi()
-	endorser := ethcontract.NewContractCaller(op.Endorser, *ab, provider)
+type Endorser struct {
+	parsedEndorserABI *abi.ABI
+
+	Provider *ethrpc.Provider
+}
+
+var _ Interface = (*Endorser)(nil)
+
+func NewEndorser(provider *ethrpc.Provider) *Endorser {
+	return &Endorser{
+		parsedEndorserABI: useEndorserAbi(),
+		Provider:          provider,
+	}
+}
+
+func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*EndorserResult, error) {
+	endorser := ethcontract.NewContractCaller(op.Endorser, *e.parsedEndorserABI, e.Provider)
 
 	calldata, err := endorser.Encode(
 		"isOperationReady",
@@ -59,7 +74,7 @@ func IsOperationReady(ctx context.Context, provider *ethrpc.Provider, op *types.
 
 	var res string
 	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall, nil, nil)
-	_, err = provider.Do(ctx, rpcCall.Into(&res))
+	_, err = e.Provider.Do(ctx, rpcCall.Into(&res))
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +83,7 @@ func IsOperationReady(ctx context.Context, provider *ethrpc.Provider, op *types.
 
 	endorserResult := &EndorserResult{}
 
-	dec1, err := ab.Methods["isOperationReady"].Outputs.Unpack(resBytes)
+	dec1, err := e.parsedEndorserABI.Methods["isOperationReady"].Outputs.Unpack(resBytes)
 	if err != nil {
 		return nil, fmt.Errorf("unable to unpack result: %w", err)
 	}
@@ -160,4 +175,86 @@ func IsOperationReady(ctx context.Context, provider *ethrpc.Provider, op *types.
 	}
 
 	return endorserResult, nil
+}
+
+func (e *Endorser) DependencyState(ctx context.Context, result *EndorserResult) (*EndorserResultState, error) {
+	state := EndorserResultState{}
+
+	for _, dependency := range result.Dependencies {
+		state_ := DependencyState{}
+
+		if dependency.Balance {
+			var err error
+			state_.Balance, err = e.Provider.BalanceAt(ctx, dependency.Addr, nil)
+			if err != nil {
+				return nil, fmt.Errorf("unable to read balance for %v: %w", dependency.Addr, err)
+			}
+		}
+
+		if dependency.Code {
+			code, err := e.Provider.CodeAt(ctx, dependency.Addr, nil)
+			if err != nil {
+				return nil, fmt.Errorf("unable to read code for %v: %w", dependency.Addr, err)
+			}
+			if code == nil {
+				code = []byte{}
+			}
+			state_.Code = code
+		}
+
+		if dependency.Nonce {
+			nonce, err := e.Provider.NonceAt(ctx, dependency.Addr, nil)
+			if err != nil {
+				return nil, fmt.Errorf("unable to read nonce for %v: %w", dependency.Addr, err)
+			}
+			state_.Nonce = &nonce
+		}
+
+		state_.Slots = make([][32]byte, 0, len(dependency.Slots))
+		for _, slot := range dependency.Slots {
+			value, err := e.Provider.StorageAt(ctx, dependency.Addr, slot, nil)
+			if err != nil {
+				return nil, fmt.Errorf("unable to read storage for %v at %v: %w", dependency.Addr, hexutil.Encode(slot[:]), err)
+			}
+			state_.Slots = append(state_.Slots, [32]byte(value))
+		}
+
+		state.Dependencies = append(state.Dependencies, state_)
+	}
+
+	return &state, nil
+}
+
+func (e *Endorser) ConstraintsMet(ctx context.Context, result *EndorserResult) (bool, error) {
+	for _, dependency := range result.Dependencies {
+		for _, constraint := range dependency.Constraints {
+			ok, err := CheckConstraint(ctx, e.Provider, dependency.Addr, constraint.Slot, constraint.MinValue, constraint.MaxValue)
+			if err != nil {
+				return false, err
+			}
+
+			if !ok {
+				return false, nil
+			}
+		}
+	}
+
+	return true, nil
+}
+
+func CheckConstraint(ctx context.Context, provider *ethrpc.Provider, addr common.Address, slot [32]byte, minValue, maxValue [32]byte) (bool, error) {
+	value, err := provider.StorageAt(ctx, addr, slot, nil)
+	if err != nil {
+		return false, fmt.Errorf("unable to read storage for %v at %v: %w", addr, hexutil.Encode(slot[:]), err)
+	}
+
+	bnMin := new(big.Int).SetBytes(minValue[:])
+	bnMax := new(big.Int).SetBytes(maxValue[:])
+	bnValue := new(big.Int).SetBytes(value[:])
+
+	if bnValue.Cmp(bnMin) < 0 || bnValue.Cmp(bnMax) > 0 {
+		return false, nil
+	}
+
+	return true, nil
 }
