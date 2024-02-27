@@ -155,7 +155,7 @@ func newType(t string, internalType string, components []abi.ArgumentMarshaling)
 	return type_
 }
 
-func HasChanged(d *abiendorser.EndorserDependency, x, y *DependencyState) (bool, error) {
+func HasChanged(d *abiendorser.EndorserDependency, x, y *AddrDependencyState) (bool, error) {
 	if err := Validate(d, x); err != nil {
 		return false, fmt.Errorf("x is not a valid state for dependency on %v: %w", d.Addr, err)
 	}
@@ -184,7 +184,7 @@ func HasChanged(d *abiendorser.EndorserDependency, x, y *DependencyState) (bool,
 	return false, nil
 }
 
-func Validate(d *abiendorser.EndorserDependency, state *DependencyState) error {
+func Validate(d *abiendorser.EndorserDependency, state *AddrDependencyState) error {
 	if (state.Balance != nil) != d.Balance {
 		return fmt.Errorf("balance existence does not match dependency")
 	}
@@ -205,6 +205,8 @@ func Validate(d *abiendorser.EndorserDependency, state *DependencyState) error {
 }
 
 func (r *EndorserResult) HasChanged(x, y *EndorserResultState) (bool, error) {
+	// TODO: Check global dependencies
+
 	if err := r.Validate(x); err != nil {
 		return false, fmt.Errorf("x is not a valid state for endorser result: %w", err)
 	}
@@ -212,8 +214,11 @@ func (r *EndorserResult) HasChanged(x, y *EndorserResultState) (bool, error) {
 		return false, fmt.Errorf("y is not a valid state for endorser result: %w", err)
 	}
 
-	for i, dependency := range r.Dependencies {
-		hasChanged, err := HasChanged(&dependency, &x.Dependencies[i], &y.Dependencies[i])
+	for _, dependency := range r.Dependencies {
+		xd := x.AddrDependencies[dependency.Addr]
+		yd := y.AddrDependencies[dependency.Addr]
+
+		hasChanged, err := HasChanged(&dependency, xd, yd)
 		if err != nil {
 			return false, err
 		}
@@ -227,13 +232,13 @@ func (r *EndorserResult) HasChanged(x, y *EndorserResultState) (bool, error) {
 }
 
 func (r *EndorserResult) Validate(state *EndorserResultState) error {
-	if len(state.Dependencies) != len(r.Dependencies) {
+	if len(state.AddrDependencies) != len(r.Dependencies) {
 		return fmt.Errorf("number of dependencies does not match endorser result")
 	}
 
-	for i, dependency := range r.Dependencies {
-		if err := Validate(&dependency, &state.Dependencies[i]); err != nil {
-			return fmt.Errorf("dependency state %v does not match dependency: %w", i, err)
+	for _, dependency := range r.Dependencies {
+		if err := Validate(&dependency, state.AddrDependencies[dependency.Addr]); err != nil {
+			return fmt.Errorf("dependency state %s does not match dependency: %w", dependency.Addr, err)
 		}
 	}
 

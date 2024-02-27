@@ -12,7 +12,8 @@ import (
 const PrunerBatchSize = 1
 
 type Pruner struct {
-	logger *httplog.Logger
+	GracePeriod time.Duration
+	logger      *httplog.Logger
 
 	Mempool  mempool.Interface
 	Endorser endorser.Interface
@@ -20,7 +21,8 @@ type Pruner struct {
 
 func NewPruner(mempool mempool.Interface, endorser endorser.Interface, logger *httplog.Logger) *Pruner {
 	return &Pruner{
-		logger: logger,
+		GracePeriod: 5 * time.Second,
+		logger:      logger,
 
 		Mempool:  mempool,
 		Endorser: endorser,
@@ -41,7 +43,7 @@ func (s *Pruner) Run(ctx context.Context) {
 
 			oldops := make([]*mempool.TrackedOperation, 0, len(ops))
 			for _, op := range ops {
-				if time.Since(op.ReadyAt) > 5*time.Second {
+				if time.Since(op.ReadyAt) > s.GracePeriod {
 					oldops = append(oldops, op)
 				}
 			}

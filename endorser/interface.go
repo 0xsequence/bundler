@@ -6,13 +6,27 @@ import (
 
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/bundler/types"
+	"github.com/0xsequence/ethkit/go-ethereum/common"
 )
 
-type DependencyState struct {
-	Balance *big.Int   `json:"balance,omitempty"`
-	Code    []byte     `json:"code,omitempty"`
-	Nonce   *uint64    `json:"nonce,omitempty"`
-	Slots   [][32]byte `json:"slots,omitempty"`
+type GlobalDependencyState struct {
+	Basefee     *big.Int
+	Blobbasefee *big.Int
+	Chainid     *big.Int
+	Coinbase    common.Address
+	Difficulty  *big.Int
+	GasLimit    *big.Int
+	Number      *big.Int
+	Timestamp   *big.Int
+	TxOrigin    common.Address
+	TxGasPrice  *big.Int
+}
+
+type AddrDependencyState struct {
+	Balance *big.Int
+	Code    []byte
+	Nonce   *uint64
+	Slots   [][32]byte
 }
 
 type GlobalDependency = abiendorser.EndorserGlobalDependency
@@ -26,7 +40,8 @@ type EndorserResult struct {
 }
 
 type EndorserResultState struct {
-	Dependencies []DependencyState `json:"dependencies"`
+	GlobalDependency *GlobalDependencyState
+	AddrDependencies map[common.Address]*AddrDependencyState
 }
 
 type Interface interface {

@@ -180,8 +180,10 @@ func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*
 func (e *Endorser) DependencyState(ctx context.Context, result *EndorserResult) (*EndorserResultState, error) {
 	state := EndorserResultState{}
 
+	state.AddrDependencies = make(map[common.Address]*AddrDependencyState, len(result.Dependencies))
+
 	for _, dependency := range result.Dependencies {
-		state_ := DependencyState{}
+		state_ := AddrDependencyState{}
 
 		if dependency.Balance {
 			var err error
@@ -219,7 +221,7 @@ func (e *Endorser) DependencyState(ctx context.Context, result *EndorserResult) 
 			state_.Slots = append(state_.Slots, [32]byte(value))
 		}
 
-		state.Dependencies = append(state.Dependencies, state_)
+		state.AddrDependencies[dependency.Addr] = &state_
 	}
 
 	return &state, nil
