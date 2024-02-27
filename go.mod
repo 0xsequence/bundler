@@ -1,6 +1,6 @@
 module github.com/0xsequence/bundler
 
-go 1.21.6
+go 1.21
 
 require (
 	github.com/0xsequence/ethkit v1.22.6
