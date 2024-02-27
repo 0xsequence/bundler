@@ -23,6 +23,7 @@ type Config struct {
 	MempoolConfig   MempoolConfig   `toml:"mempool"`
 	SendersConfig   SendersConfig   `toml:"senders"`
 	CollectorConfig CollectorConfig `toml:"collector"`
+	PrunerConfig    PrunerConfig    `toml:"pruner"`
 
 	BootNodeAddrs []multiaddr.Multiaddr `toml:"-"`
 }

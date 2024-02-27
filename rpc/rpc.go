@@ -82,7 +82,7 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		senders = append(senders, bundler.NewSender(slogger, uint32(i), wallet, mempool, endorser, executor, collector, chainID))
 	}
 
-	pruner := bundler.NewPruner(mempool, endorser, logger)
+	pruner := bundler.NewPruner(cfg.PrunerConfig, mempool, endorser, logger)
 
 	s := &RPC{
 		archive:   archive,
