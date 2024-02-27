@@ -83,3 +83,32 @@ jobs:
           else
             echo "No uncommitted changes detected."
           fi
+
+  forge-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+
+      - uses: gacts/install-geth-tools@v1
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Build contracts
+        run: cd contracts && make all
+
+      - name: Check for uncommitted changes
+        run: |
+          if git status --porcelain | grep '.'; then
+            echo "Uncommitted changes detected."
+            exit 1
+          else
+            echo "No uncommitted changes detected."
+          fi
