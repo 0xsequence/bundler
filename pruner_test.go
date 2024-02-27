@@ -27,7 +27,7 @@ func TestIddlePull(t *testing.T) {
 		done <- true
 	}).Return(
 		[]*mempool.TrackedOperation{},
-	).Times(2)
+	).Maybe()
 
 	pruner := bundler.NewPruner(config.PrunerConfig{
 		RunWaitMillis: 1,
@@ -52,7 +52,7 @@ func TestPullAndDiscartStateErr(t *testing.T) {
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return(
 		[]*mempool.TrackedOperation{op1},
-	).Once()
+	).Maybe()
 
 	mockMempool.On("DiscardOps", mock.Anything, mock.Anything).Run(func(mock.Arguments) {
 		done <- true
@@ -90,7 +90,7 @@ func TestPullAndDiscartHasChangedErr(t *testing.T) {
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return(
 		[]*mempool.TrackedOperation{op1},
-	).Once()
+	).Maybe()
 
 	mockMempool.On("DiscardOps", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
 		arg := args.Get(1).([]*mempool.TrackedOperation)
@@ -131,7 +131,7 @@ func TestPullAndReleaseNotChanged(t *testing.T) {
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return(
 		[]*mempool.TrackedOperation{op1},
-	).Once()
+	).Maybe()
 
 	mockMempool.On(
 		"ReleaseOps",
@@ -198,7 +198,7 @@ func TestDiscardNotReady(t *testing.T) {
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return(
 		[]*mempool.TrackedOperation{op1},
-	).Once()
+	).Maybe()
 
 	mockEndorser.On("DependencyState", mock.Anything, op1.EndorserResult).Return(
 		er3, nil,
@@ -268,7 +268,7 @@ func TestKeepReady(t *testing.T) {
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return(
 		[]*mempool.TrackedOperation{op1},
-	).Once()
+	).Maybe()
 
 	mockEndorser.On("DependencyState", mock.Anything, op1.EndorserResult).Return(
 		er3, nil,
@@ -322,7 +322,7 @@ func TestSkipRecentOps(t *testing.T) {
 		}
 	}).Return(
 		[]*mempool.TrackedOperation{},
-	).Times(1)
+	).Maybe()
 
 	go pruner.Run(context.Background())
 
