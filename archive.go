@@ -40,7 +40,7 @@ type ArchiveMessage struct {
 type Archive struct {
 	lock sync.Mutex
 
-	ipfs *ipfs.Client
+	ipfs ipfs.Interface
 
 	Host   *p2p.Host
 	Logger *httplog.Logger
@@ -51,7 +51,7 @@ type Archive struct {
 	Mempool mempool.Interface
 }
 
-func NewArchive(host *p2p.Host, logger *httplog.Logger, ipfs *ipfs.Client, mempool mempool.Interface) *Archive {
+func NewArchive(host *p2p.Host, logger *httplog.Logger, ipfs ipfs.Interface, mempool mempool.Interface) *Archive {
 	return &Archive{
 		lock: sync.Mutex{},
 		ipfs: ipfs,
@@ -128,7 +128,7 @@ func (a *Archive) DoArchive(ctx context.Context, ops []string) error {
 		return err
 	}
 
-	cid, err := a.ipfs.ReportToIPFS(body)
+	cid, err := a.ipfs.Report(body)
 	if err != nil {
 		return err
 	}

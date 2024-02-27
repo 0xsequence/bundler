@@ -19,7 +19,7 @@ import (
 
 type Mempool struct {
 	logger *httplog.Logger
-	ipfs   *ipfs.Client
+	ipfs   ipfs.Interface
 
 	Host      *p2p.Host
 	Collector *collector.Collector
@@ -35,7 +35,7 @@ type Mempool struct {
 
 var _ Interface = &Mempool{}
 
-func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, endorser endorser.Interface, host *p2p.Host, collector *collector.Collector, ipfs *ipfs.Client) (*Mempool, error) {
+func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, endorser endorser.Interface, host *p2p.Host, collector *collector.Collector, ipfs ipfs.Interface) (*Mempool, error) {
 	mp := &Mempool{
 		logger: logger,
 		ipfs:   ipfs,

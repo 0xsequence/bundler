@@ -38,13 +38,13 @@ type RPC struct {
 	collector *collector.Collector
 	senders   []*bundler.Sender
 	executor  *abivalidator.OperationValidator
-	ipfs      *ipfs.Client
+	ipfs      ipfs.Interface
 
 	running   int32
 	startTime time.Time
 }
 
-func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool mempool.Interface, archive *bundler.Archive, provider *ethrpc.Provider, collector *collector.Collector, endorser endorser.Interface, ipfs *ipfs.Client) (*RPC, error) {
+func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool mempool.Interface, archive *bundler.Archive, provider *ethrpc.Provider, collector *collector.Collector, endorser endorser.Interface, ipfs ipfs.Interface) (*RPC, error) {
 	if !common.IsHexAddress(cfg.NetworkConfig.ValidatorContract) {
 		return nil, fmt.Errorf("\"%v\" is not a valid operation validator contract", cfg.NetworkConfig.ValidatorContract)
 	}

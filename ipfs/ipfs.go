@@ -15,6 +15,8 @@ import (
 
 type Client string
 
+var _ Interface = Client("")
+
 func NewClient(url string) *Client {
 	if url == "" {
 		return nil
@@ -24,12 +26,12 @@ func NewClient(url string) *Client {
 	return &c
 }
 
-func (ipfs *Client) ReportToIPFS(data []byte) (string, error) {
-	if ipfs == nil || *ipfs == "" {
+func (ipfs Client) Report(data []byte) (string, error) {
+	if ipfs == "" {
 		return "", fmt.Errorf("ipfs url not set")
 	}
 
-	ipfsurl := string(*ipfs)
+	ipfsurl := string(ipfs)
 	if ipfsurl[len(ipfsurl)-1] != '/' {
 		ipfsurl += "/"
 	}

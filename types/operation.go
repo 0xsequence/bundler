@@ -114,7 +114,7 @@ func (op *Operation) Digest() string {
 	return res
 }
 
-func (op *Operation) ReportToIPFS(ip *ipfs.Client) error {
+func (op *Operation) ReportToIPFS(ip ipfs.Interface) error {
 	// Convert to json
 	jsonData, err := json.Marshal(op.ToProto())
 	if err != nil {
@@ -126,7 +126,7 @@ func (op *Operation) ReportToIPFS(ip *ipfs.Client) error {
 		return err
 	}
 
-	res, err := ip.ReportToIPFS(jsonData)
+	res, err := ip.Report(jsonData)
 	if err != nil {
 		return err
 	}
