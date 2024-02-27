@@ -32,13 +32,16 @@ func TestIddlePull(t *testing.T) {
 	pruner := bundler.NewPruner(config.PrunerConfig{
 		RunWaitMillis: 1,
 	}, mockMempool, nil, nil)
-	go pruner.Run(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	go pruner.Run(ctx)
 
 	<-done
 	<-done
 
 	mockMempool.AssertCalled(t, "ReserveOps", mock.Anything, mock.Anything)
 	mockMempool.AssertNumberOfCalls(t, "ReserveOps", 2)
+
+	cancel()
 }
 
 func TestPullAndDiscartStateErr(t *testing.T) {
@@ -65,9 +68,12 @@ func TestPullAndDiscartStateErr(t *testing.T) {
 	pruner := bundler.NewPruner(config.PrunerConfig{
 		RunWaitMillis: 1,
 	}, mockMempool, mockEndorser, logger)
-	go pruner.Run(context.Background())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go pruner.Run(ctx)
 
 	<-done
+	cancel()
 }
 
 func TestPullAndDiscartHasChangedErr(t *testing.T) {
@@ -106,9 +112,12 @@ func TestPullAndDiscartHasChangedErr(t *testing.T) {
 	pruner := bundler.NewPruner(config.PrunerConfig{
 		RunWaitMillis: 1,
 	}, mockMempool, mockEndorser, logger)
-	go pruner.Run(context.Background())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go pruner.Run(ctx)
 
 	<-done
+	cancel()
 }
 
 func TestPullAndReleaseNotChanged(t *testing.T) {
@@ -152,9 +161,12 @@ func TestPullAndReleaseNotChanged(t *testing.T) {
 	pruner := bundler.NewPruner(config.PrunerConfig{
 		RunWaitMillis: 1,
 	}, mockMempool, mockEndorser, logger)
-	go pruner.Run(context.Background())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go pruner.Run(ctx)
 
 	<-done
+	cancel()
 }
 
 func TestDiscardNotReady(t *testing.T) {
@@ -222,9 +234,12 @@ func TestDiscardNotReady(t *testing.T) {
 	pruner := bundler.NewPruner(config.PrunerConfig{
 		RunWaitMillis: 1,
 	}, mockMempool, mockEndorser, logger)
-	go pruner.Run(context.Background())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go pruner.Run(ctx)
 
 	<-done
+	cancel()
 }
 
 func TestKeepReady(t *testing.T) {
@@ -297,9 +312,12 @@ func TestKeepReady(t *testing.T) {
 	pruner := bundler.NewPruner(config.PrunerConfig{
 		RunWaitMillis: 1,
 	}, mockMempool, mockEndorser, logger)
-	go pruner.Run(context.Background())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go pruner.Run(ctx)
 
 	<-done
+	cancel()
 }
 
 func TestSkipRecentOps(t *testing.T) {
@@ -324,7 +342,9 @@ func TestSkipRecentOps(t *testing.T) {
 		[]*mempool.TrackedOperation{},
 	).Maybe()
 
-	go pruner.Run(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	go pruner.Run(ctx)
 
 	<-done
+	cancel()
 }
