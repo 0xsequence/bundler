@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/0xsequence/bundler"
+	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/mempool"
@@ -28,7 +29,9 @@ func TestIddlePull(t *testing.T) {
 		[]*mempool.TrackedOperation{},
 	).Times(2)
 
-	pruner := bundler.NewPruner(mockMempool, nil, nil)
+	pruner := bundler.NewPruner(config.PrunerConfig{
+		RunWaitMillis: 1,
+	}, mockMempool, nil, nil)
 	go pruner.Run(context.Background())
 
 	<-done
@@ -59,7 +62,9 @@ func TestPullAndDiscartStateErr(t *testing.T) {
 		nil, fmt.Errorf("error"),
 	).Once()
 
-	pruner := bundler.NewPruner(mockMempool, mockEndorser, logger)
+	pruner := bundler.NewPruner(config.PrunerConfig{
+		RunWaitMillis: 1,
+	}, mockMempool, mockEndorser, logger)
 	go pruner.Run(context.Background())
 
 	<-done
@@ -98,7 +103,9 @@ func TestPullAndDiscartHasChangedErr(t *testing.T) {
 		nil, fmt.Errorf("error"),
 	).Once()
 
-	pruner := bundler.NewPruner(mockMempool, mockEndorser, logger)
+	pruner := bundler.NewPruner(config.PrunerConfig{
+		RunWaitMillis: 1,
+	}, mockMempool, mockEndorser, logger)
 	go pruner.Run(context.Background())
 
 	<-done
@@ -142,7 +149,9 @@ func TestPullAndReleaseNotChanged(t *testing.T) {
 		er2, nil,
 	).Once()
 
-	pruner := bundler.NewPruner(mockMempool, mockEndorser, logger)
+	pruner := bundler.NewPruner(config.PrunerConfig{
+		RunWaitMillis: 1,
+	}, mockMempool, mockEndorser, logger)
 	go pruner.Run(context.Background())
 
 	<-done
@@ -210,7 +219,9 @@ func TestDiscardNotReady(t *testing.T) {
 		}
 	}).Return().Once()
 
-	pruner := bundler.NewPruner(mockMempool, mockEndorser, logger)
+	pruner := bundler.NewPruner(config.PrunerConfig{
+		RunWaitMillis: 1,
+	}, mockMempool, mockEndorser, logger)
 	go pruner.Run(context.Background())
 
 	<-done
@@ -283,7 +294,9 @@ func TestKeepReady(t *testing.T) {
 		}
 	}).Return().Once()
 
-	pruner := bundler.NewPruner(mockMempool, mockEndorser, logger)
+	pruner := bundler.NewPruner(config.PrunerConfig{
+		RunWaitMillis: 1,
+	}, mockMempool, mockEndorser, logger)
 	go pruner.Run(context.Background())
 
 	<-done
@@ -293,7 +306,9 @@ func TestSkipRecentOps(t *testing.T) {
 	mockMempool := &mocks.MockMempool{}
 
 	done := make(chan bool)
-	pruner := bundler.NewPruner(mockMempool, nil, nil)
+	pruner := bundler.NewPruner(config.PrunerConfig{
+		RunWaitMillis: 1,
+	}, mockMempool, nil, nil)
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
 		clb := args.Get(1).(func([]*mempool.TrackedOperation) []*mempool.TrackedOperation)

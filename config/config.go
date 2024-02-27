@@ -51,6 +51,11 @@ type MempoolConfig struct {
 	MaxEndorserGasLimit uint `toml:"max_endorser_gas_limit"`
 }
 
+type PrunerConfig struct {
+	GracePeriodSeconds int `toml:"grace_period"`
+	RunWaitMillis      int `toml:"run_wait_millis"`
+}
+
 type SendersConfig struct {
 	NumSenders uint `toml:"num_senders"`
 }

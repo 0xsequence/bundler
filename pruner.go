@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/go-chi/httplog/v2"
@@ -13,16 +14,38 @@ const PrunerBatchSize = 1
 
 type Pruner struct {
 	GracePeriod time.Duration
+	RunWait     time.Duration
 	logger      *httplog.Logger
 
 	Mempool  mempool.Interface
 	Endorser endorser.Interface
 }
 
-func NewPruner(mempool mempool.Interface, endorser endorser.Interface, logger *httplog.Logger) *Pruner {
+func NewPruner(cfg config.PrunerConfig, mempool mempool.Interface, endorser endorser.Interface, logger *httplog.Logger) *Pruner {
+	var gracePeriod time.Duration
+	if cfg.GracePeriodSeconds == 0 {
+		gracePeriod = 5 * time.Second
+	} else {
+		gracePeriod = time.Duration(cfg.GracePeriodSeconds) * time.Second
+	}
+
+	var runWait time.Duration
+	if cfg.RunWaitMillis == 0 {
+		runWait = 1 * time.Second
+	} else {
+		runWait = time.Duration(cfg.RunWaitMillis) * time.Millisecond
+	}
+
+	if logger != nil {
+		logger.Info("pruner: grace period", "seconds", gracePeriod.Seconds())
+		logger.Info("pruner: run wait", "milliseconds", runWait.Milliseconds())
+	}
+
 	return &Pruner{
-		GracePeriod: 5 * time.Second,
-		logger:      logger,
+		GracePeriod: gracePeriod,
+		RunWait:     runWait,
+
+		logger: logger,
 
 		Mempool:  mempool,
 		Endorser: endorser,
@@ -111,7 +134,6 @@ func (s *Pruner) Run(ctx context.Context) {
 			s.Mempool.DiscardOps(ctx, failedOps)
 		}
 
-		// Sleep 1 second
-		time.Sleep(time.Second)
+		time.Sleep(s.RunWait)
 	}
 }

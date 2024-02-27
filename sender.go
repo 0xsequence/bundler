@@ -90,16 +90,6 @@ func (s *Sender) Run(ctx context.Context) {
 			continue
 		}
 
-		var calldataGas int64
-		for _, b := range op.Calldata {
-			switch b {
-			case 0:
-				calldataGas += 4
-			default:
-				calldataGas += 16
-			}
-		}
-
 		nonce, err := s.Wallet.GetNonce(ctx)
 		if err != nil {
 			s.logger.Warn("sender: error signing transaction", "op", op.Digest(), "error", err)
