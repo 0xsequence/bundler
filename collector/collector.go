@@ -28,6 +28,8 @@ type Collector struct {
 	Provider *ethrpc.Provider
 }
 
+var _ Interface = &Collector{}
+
 func NewCollector(cfg *config.CollectorConfig, logger *httplog.Logger, provider *ethrpc.Provider) (*Collector, error) {
 	feeds := make(map[common.Address]*pricefeed.Feed)
 

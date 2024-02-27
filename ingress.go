@@ -25,12 +25,12 @@ type Ingress struct {
 
 	logger *httplog.Logger
 
-	Host      *p2p.Host
+	Host      p2p.Interface
 	Mempool   mempool.Interface
-	Collector *collector.Collector
+	Collector collector.Interface
 }
 
-func NewIngress(cfg *config.MempoolConfig, logger *httplog.Logger, mempool mempool.Interface, collector *collector.Collector, host *p2p.Host) *Ingress {
+func NewIngress(cfg *config.MempoolConfig, logger *httplog.Logger, mempool mempool.Interface, collector collector.Interface, host p2p.Interface) *Ingress {
 	return &Ingress{
 		lock:      sync.Mutex{},
 		buffer:    make(chan *types.Operation, cfg.IngressSize),
@@ -44,7 +44,11 @@ func NewIngress(cfg *config.MempoolConfig, logger *httplog.Logger, mempool mempo
 	}
 }
 
-func (i *Ingress) RegisterHanler() {
+func (i *Ingress) InBuffer() int {
+	return len(i.buffer)
+}
+
+func (i *Ingress) registerHanler() {
 	if i.handlerRegistered {
 		return
 	}
@@ -110,12 +114,12 @@ func (i *Ingress) Add(op *types.Operation) error {
 }
 
 func (i *Ingress) Run(ctx context.Context) {
-	i.RegisterHanler()
+	i.registerHanler()
 
 	for {
 		select {
 		case op := <-i.buffer:
-			err := i.Mempool.AddOperation(ctx, op, true)
+			err := i.Mempool.AddOperation(ctx, op, false)
 			if err != nil {
 				i.logger.Warn("ingress: failed to promote operation", "error", err, "op", op.Digest())
 			}

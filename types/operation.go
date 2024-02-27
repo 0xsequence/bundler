@@ -94,7 +94,7 @@ func NewOperationFromProto(op *proto.Operation) (*Operation, error) {
 		MaxFeePerGas:               op.MaxFeePerGas.Int(),
 		PriorityFeePerGas:          op.PriorityFeePerGas.Int(),
 		BaseFeeScalingFactor:       op.BaseFeeScalingFactor.Int(),
-		BaseFeeNormalizationFactor: op.BaseFeeScalingFactor.Int(),
+		BaseFeeNormalizationFactor: op.BaseFeeNormalizationFactor.Int(),
 		HasUntrustedContext:        op.HasUntrustedContext,
 	}, nil
 }

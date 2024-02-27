@@ -1,9 +1,3 @@
-// type Interface interface {
-// 	IsOperationReady(ctx context.Context, op *types.Operation) (*EndorserResult, error)
-// 	DependencyState(ctx context.Context, result *EndorserResult) (*EndorserResultState, error)
-// 	ConstraintsMet(ctx context.Context, result *EndorserResult) (bool, error)
-// }
-
 package mocks
 
 import (

@@ -28,8 +28,6 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
-type MsgHandler func(from peer.ID, message []byte)
-
 type Host struct {
 	cfg      *config.Config
 	logger   *slog.Logger
@@ -43,6 +41,8 @@ type Host struct {
 	running int32
 	// mu      sync.RWMutex
 }
+
+var _ Interface = &Host{}
 
 func NewHost(cfg *config.Config, logger *slog.Logger, wallet *ethwallet.Wallet) (*Host, error) {
 
