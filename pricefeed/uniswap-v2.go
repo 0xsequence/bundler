@@ -134,7 +134,7 @@ func (f *UniswapV2Feed) Start(ctx context.Context) error {
 		f.mutex.Unlock()
 
 		r, _ := f.FromNative(big.NewInt(1))
-		f.logger.Info("uniswap-v2: fetched token rate", "rate", r.String())
+		f.logger.Debug("uniswap-v2: fetched token rate", "rate", r.String())
 
 		time.Sleep(5 * time.Second)
 	}

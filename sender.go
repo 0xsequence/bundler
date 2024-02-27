@@ -157,17 +157,6 @@ func (s *Sender) Run(ctx context.Context) {
 }
 
 func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (paid bool, lied bool, err error) {
-	// TODO: compute this properly later
-	var callDataGasUsage int64
-	for _, b := range op.Calldata {
-		switch b {
-		case 0:
-			callDataGasUsage += 4
-		default:
-			callDataGasUsage += 16
-		}
-	}
-
 	result, err := s.executor.SimulateOperation(
 		&bind.CallOpts{Context: ctx},
 		op.Entrypoint,
@@ -181,7 +170,7 @@ func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (pa
 		op.BaseFeeNormalizationFactor,
 		op.HasUntrustedContext,
 		op.Endorser,
-		big.NewInt(callDataGasUsage),
+		big.NewInt(0),
 	)
 
 	if err != nil {
