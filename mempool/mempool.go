@@ -1,4 +1,4 @@
-package bundler
+package mempool
 
 import (
 	"context"
@@ -7,47 +7,23 @@ import (
 	"sync"
 	"time"
 
+	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/ipfs"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/types"
-	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/go-chi/httplog/v2"
 )
-
-type ReadyAtChange int
-
-const (
-	ReadyAtChangeNone ReadyAtChange = iota
-	ReadyAtChangeNow
-	ReadyAtChangeZero
-)
-
-type TrackedOperation struct {
-	types.Operation
-
-	ReservedSince *time.Time `json:"reserved_since,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
-	ReadyAt       time.Time  `json:"ready_at"`
-
-	EndorserResult      *endorser.EndorserResult      `json:"endorser_result,omitempty"`
-	EndorserResultState *endorser.EndorserResultState `json:"endorser_result_state,omitempty"`
-}
-
-type KnownOperations struct {
-	lock    sync.RWMutex
-	digests map[string]time.Time
-}
 
 type Mempool struct {
 	logger *httplog.Logger
 	ipfs   *ipfs.Client
 
 	Host      *p2p.Host
-	Provider  *ethrpc.Provider
-	Collector *Collector
+	Collector *collector.Collector
+	Endorser  endorser.Interface
 
 	MaxSize uint
 
@@ -57,13 +33,15 @@ type Mempool struct {
 	known *KnownOperations
 }
 
-func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, provider *ethrpc.Provider, host *p2p.Host, collector *Collector, ipfs *ipfs.Client) (*Mempool, error) {
+var _ Interface = &Mempool{}
+
+func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, endorser endorser.Interface, host *p2p.Host, collector *collector.Collector, ipfs *ipfs.Client) (*Mempool, error) {
 	mp := &Mempool{
 		logger: logger,
 		ipfs:   ipfs,
 
 		Host:      host,
-		Provider:  provider,
+		Endorser:  endorser,
 		Collector: collector,
 
 		MaxSize: cfg.Size,
@@ -209,7 +187,7 @@ func (mp *Mempool) DiscardOps(ctx context.Context, ops []*TrackedOperation) {
 }
 
 func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation) error {
-	res, err := endorser.IsOperationReady(ctx, mp.Provider, op)
+	res, err := mp.Endorser.IsOperationReady(ctx, op)
 	if err != nil {
 		return fmt.Errorf("IsOperationReady failed: %w", err)
 	}
@@ -219,7 +197,7 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 	}
 
 	// Check the constraints
-	okc, err := endorser.CheckDependencyConstraints(ctx, res.Dependencies, mp.Provider)
+	okc, err := mp.Endorser.ConstraintsMet(ctx, res)
 	if err != nil {
 		return fmt.Errorf("CheckDependencyConstraints failed: %w", err)
 	}
@@ -228,7 +206,7 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 		return fmt.Errorf("operation constraints not met")
 	}
 
-	state, err := res.State(ctx, mp.Provider)
+	state, err := mp.Endorser.DependencyState(ctx, res)
 	if err != nil {
 		return fmt.Errorf("EndorserResultState failed: %w", err)
 	}
@@ -309,7 +287,19 @@ func (mp *Mempool) ForgetOps(age time.Duration) []string {
 	return forgotten
 }
 
-func (mp *Mempool) Inspect(ctx context.Context) *proto.MempoolView {
+func (mp *Mempool) KnownOperations() []string {
+	mp.known.lock.RLock()
+	defer mp.known.lock.RUnlock()
+
+	ops := make([]string, 0, len(mp.known.digests))
+	for k := range mp.known.digests {
+		ops = append(ops, k)
+	}
+
+	return ops
+}
+
+func (mp *Mempool) Inspect() *proto.MempoolView {
 	mp.lock.Lock()
 	defer mp.lock.Unlock()
 

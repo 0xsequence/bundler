@@ -9,9 +9,12 @@ import (
 	"time"
 
 	"github.com/0xsequence/bundler"
+	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
 	"github.com/0xsequence/bundler/endorser"
+	"github.com/0xsequence/bundler/ipfs"
+	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/types"
@@ -29,18 +32,19 @@ type RPC struct {
 	Host   *p2p.Host
 	HTTP   *http.Server
 
-	mempool   *bundler.Mempool
+	mempool   mempool.Interface
 	pruner    *bundler.Pruner
 	archive   *bundler.Archive
-	collector *bundler.Collector
+	collector *collector.Collector
 	senders   []*bundler.Sender
 	executor  *abivalidator.OperationValidator
+	ipfs      *ipfs.Client
 
 	running   int32
 	startTime time.Time
 }
 
-func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool *bundler.Mempool, archive *bundler.Archive, provider *ethrpc.Provider, collector *bundler.Collector, endorser endorser.Interface) (*RPC, error) {
+func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool mempool.Interface, archive *bundler.Archive, provider *ethrpc.Provider, collector *collector.Collector, endorser endorser.Interface, ipfs *ipfs.Client) (*RPC, error) {
 	if !common.IsHexAddress(cfg.NetworkConfig.ValidatorContract) {
 		return nil, fmt.Errorf("\"%v\" is not a valid operation validator contract", cfg.NetworkConfig.ValidatorContract)
 	}
@@ -74,7 +78,8 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 			return nil, fmt.Errorf("unable to create wallet for sender %v from hd node: %w", i, err)
 		}
 		logger.Info(fmt.Sprintf("sender %v: %v", i, wallet.Address()))
-		senders = append(senders, bundler.NewSender(uint32(i), wallet, mempool, endorser, executor, collector, chainID))
+		slogger := logger.With("sender", i)
+		senders = append(senders, bundler.NewSender(slogger, uint32(i), wallet, mempool, endorser, executor, collector, chainID))
 	}
 
 	pruner := bundler.NewPruner(mempool, endorser, logger)
@@ -224,7 +229,7 @@ func (s *RPC) SendOperation(ctx context.Context, pop *proto.Operation) (bool, er
 	// Always PIN these operations to IPFS
 	// as they are being sent by the user, and
 	// it is useful for debugging
-	go s.mempool.ReportToIPFS(op)
+	go op.ReportToIPFS(s.ipfs)
 
 	err = s.mempool.AddOperation(ctx, op, true)
 	if err != nil {
@@ -235,7 +240,7 @@ func (s *RPC) SendOperation(ctx context.Context, pop *proto.Operation) (bool, er
 }
 
 func (s RPC) Mempool(ctx context.Context) (*proto.MempoolView, error) {
-	return s.mempool.Inspect(ctx), nil
+	return s.mempool.Inspect(), nil
 }
 
 func (s RPC) Operations(ctx context.Context) (*proto.Operations, error) {

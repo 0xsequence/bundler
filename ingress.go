@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
+	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/types"
@@ -24,11 +26,11 @@ type Ingress struct {
 	logger *httplog.Logger
 
 	Host      *p2p.Host
-	Mempool   *Mempool
-	Collector *Collector
+	Mempool   mempool.Interface
+	Collector *collector.Collector
 }
 
-func NewIngress(cfg *config.MempoolConfig, logger *httplog.Logger, mempool *Mempool, collector *Collector, host *p2p.Host) *Ingress {
+func NewIngress(cfg *config.MempoolConfig, logger *httplog.Logger, mempool mempool.Interface, collector *collector.Collector, host *p2p.Host) *Ingress {
 	return &Ingress{
 		lock:      sync.Mutex{},
 		buffer:    make(chan *types.Operation, cfg.IngressSize),
@@ -113,7 +115,7 @@ func (i *Ingress) Run(ctx context.Context) {
 	for {
 		select {
 		case op := <-i.buffer:
-			err := i.Mempool.tryPromoteOperation(ctx, op)
+			err := i.Mempool.AddOperation(ctx, op, true)
 			if err != nil {
 				i.logger.Warn("ingress: failed to promote operation", "error", err, "op", op.Digest())
 			}

@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"github.com/0xsequence/bundler"
+	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/ipfs"
+	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/rpc"
 	"github.com/0xsequence/ethkit/ethrpc"
@@ -25,10 +27,10 @@ type Node struct {
 	Host   *p2p.Host
 	RPC    *rpc.RPC
 
-	Mempool   *bundler.Mempool
+	Mempool   mempool.Interface
 	Archive   *bundler.Archive
 	Ingress   *bundler.Ingress
-	Collector *bundler.Collector
+	Collector *collector.Collector
 
 	ctx       context.Context
 	ctxStopFn context.CancelFunc
@@ -92,13 +94,13 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	ipfs := ipfs.NewClient(cfg.NetworkConfig.IpfsUrl)
 
 	// Collector
-	collector, err := bundler.NewCollector(&cfg.CollectorConfig, logger, provider)
+	collector, err := collector.NewCollector(&cfg.CollectorConfig, logger, provider)
 	if err != nil {
 		return nil, err
 	}
 
 	// Mempool
-	mempool, err := bundler.NewMempool(&cfg.MempoolConfig, logger, endorser, host, collector, ipfs)
+	mempool, err := mempool.NewMempool(&cfg.MempoolConfig, logger, endorser, host, collector, ipfs)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +112,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	archive := bundler.NewArchive(host, logger, ipfs, mempool)
 
 	// RPC
-	rpc, err := rpc.NewRPC(cfg, logger, host, mempool, archive, provider, collector, endorser)
+	rpc, err := rpc.NewRPC(cfg, logger, host, mempool, archive, provider, collector, endorser, ipfs)
 	if err != nil {
 		return nil, err
 	}

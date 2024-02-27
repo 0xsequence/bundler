@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/0xsequence/bundler/endorser"
+	"github.com/0xsequence/bundler/mempool"
 	"github.com/go-chi/httplog/v2"
 )
 
@@ -13,11 +14,11 @@ const PrunerBatchSize = 1
 type Pruner struct {
 	logger *httplog.Logger
 
-	Mempool  MempoolInterface
+	Mempool  mempool.Interface
 	Endorser endorser.Interface
 }
 
-func NewPruner(mempool MempoolInterface, endorser endorser.Interface, logger *httplog.Logger) *Pruner {
+func NewPruner(mempool mempool.Interface, endorser endorser.Interface, logger *httplog.Logger) *Pruner {
 	return &Pruner{
 		logger: logger,
 
@@ -28,8 +29,8 @@ func NewPruner(mempool MempoolInterface, endorser endorser.Interface, logger *ht
 
 func (s *Pruner) Run(ctx context.Context) {
 	for ctx.Err() == nil {
-		ops := s.Mempool.ReserveOps(ctx, func(to []*TrackedOperation) []*TrackedOperation {
-			var ops []*TrackedOperation
+		ops := s.Mempool.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
+			var ops []*mempool.TrackedOperation
 
 			// Pick the last `PrunerBatchSize` operations
 			if PrunerBatchSize < len(to) {
@@ -38,7 +39,7 @@ func (s *Pruner) Run(ctx context.Context) {
 				ops = to
 			}
 
-			oldops := make([]*TrackedOperation, 0, len(ops))
+			oldops := make([]*mempool.TrackedOperation, 0, len(ops))
 			for _, op := range ops {
 				if time.Since(op.ReadyAt) > 5*time.Second {
 					oldops = append(oldops, op)
@@ -47,9 +48,9 @@ func (s *Pruner) Run(ctx context.Context) {
 			return oldops
 		})
 
-		failedOps := make([]*TrackedOperation, 0, len(ops))
-		discartOps := make([]*TrackedOperation, 0, len(ops))
-		releaseOps := make([]*TrackedOperation, 0, len(ops))
+		failedOps := make([]*mempool.TrackedOperation, 0, len(ops))
+		discartOps := make([]*mempool.TrackedOperation, 0, len(ops))
+		releaseOps := make([]*mempool.TrackedOperation, 0, len(ops))
 
 		// TODO: Batch this
 		for _, op := range ops {
@@ -92,7 +93,7 @@ func (s *Pruner) Run(ctx context.Context) {
 
 		if len(releaseOps) != 0 {
 			s.logger.Debug("pruner: releasing operations", "operations", len(releaseOps))
-			s.Mempool.ReleaseOps(ctx, releaseOps, ReadyAtChangeNow)
+			s.Mempool.ReleaseOps(ctx, releaseOps, mempool.ReadyAtChangeNow)
 		}
 
 		if len(discartOps) != 0 {

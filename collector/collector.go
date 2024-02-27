@@ -1,4 +1,4 @@
-package bundler
+package collector
 
 import (
 	"context"

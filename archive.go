@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/0xsequence/bundler/ipfs"
+	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/go-chi/httplog/v2"
@@ -47,10 +48,10 @@ type Archive struct {
 	PrevArchive  string
 	SeenArchives map[string]string
 
-	Mempool *Mempool
+	Mempool mempool.Interface
 }
 
-func NewArchive(host *p2p.Host, logger *httplog.Logger, ipfs *ipfs.Client, mempool *Mempool) *Archive {
+func NewArchive(host *p2p.Host, logger *httplog.Logger, ipfs *ipfs.Client, mempool mempool.Interface) *Archive {
 	return &Archive{
 		lock: sync.Mutex{},
 		ipfs: ipfs,
@@ -148,16 +149,7 @@ func (a *Archive) DoArchive(ctx context.Context, ops []string) error {
 }
 
 func (a *Archive) Operations(ctx context.Context) *proto.Operations {
-	a.Mempool.known.lock.Lock()
-	ops := make([]string, len(a.Mempool.known.digests))
-
-	var i int
-	for k := range a.Mempool.known.digests {
-		ops[i] = k
-		i++
-	}
-
-	a.Mempool.known.lock.Unlock()
+	ops := a.Mempool.KnownOperations()
 
 	// Sort the operations
 	sort.Strings(ops)
