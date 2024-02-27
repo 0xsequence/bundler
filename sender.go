@@ -108,7 +108,7 @@ func (s *Sender) Run(ctx context.Context) {
 			continue
 		}
 
-		priorityFeePerGas := s.Collector.MinPriorityFee()
+		priorityFeePerGas := s.Collector.PriorityFee()
 
 		signedTx, err := s.executor.SafeExecute(
 			&bind.TransactOpts{
@@ -127,7 +127,6 @@ func (s *Sender) Run(ctx context.Context) {
 			op.FeeToken,
 			op.BaseFeeScalingFactor,
 			op.BaseFeeNormalizationFactor,
-			big.NewInt(calldataGas),
 		)
 
 		if err != nil {
@@ -170,7 +169,6 @@ func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (pa
 		op.BaseFeeNormalizationFactor,
 		op.HasUntrustedContext,
 		op.Endorser,
-		big.NewInt(0),
 	)
 
 	if err != nil {

@@ -31,7 +31,8 @@ contract OperationValidator {
     uint256 _maxFeePerGas,
     uint256 _maxPriorityFeePerGas,
     address _feeToken,
-    uint256 _calldataGas
+    uint256 _baseFeeScalingFactor,
+    uint256 _baseFeeNormalizationFactor
   ) external returns (bool) {
     require(msg.sender == address(this), "only self");
 
@@ -44,8 +45,9 @@ contract OperationValidator {
     uint256 postGas = gasleft();
     uint256 postBal = fetchPaymentBal(_feeToken);
 
-    uint256 gasUsed = preGas - postGas + _calldataGas;
-    uint256 gasPrice = Math.min(block.basefee + _maxPriorityFeePerGas, _maxFeePerGas);
+    uint256 gasUsed = preGas - postGas;
+    uint256 baseFee = Math.mulDiv(block.basefee, _baseFeeScalingFactor, _baseFeeNormalizationFactor);
+    uint256 gasPrice = Math.min(baseFee + _maxPriorityFeePerGas, _maxFeePerGas);
     uint256 expectPayment = gasUsed * gasPrice;
 
     if (postBal - preBal < expectPayment) {
@@ -66,8 +68,7 @@ contract OperationValidator {
     uint256 _baseFeeScalingFactor,
     uint256 _baseFeeNormalizationFactor,
     bool _hasUntrustedContext,
-    address _endorser,
-    uint256 _calldataGas
+    address _endorser
   ) external returns (SimulationResult memory result) {
     // Try to execute the operation and measure the gas used
     // if it does not fail, then we can just return
@@ -78,7 +79,8 @@ contract OperationValidator {
       _maxFeePerGas,
       _maxPriorityFeePerGas,
       _feeToken,
-      _calldataGas
+      _baseFeeScalingFactor,
+      _baseFeeNormalizationFactor
     ) returns (
       bool success
     ) {
@@ -126,8 +128,7 @@ contract OperationValidator {
     uint256 _maxPriorityFeePerGas,
     address _feeToken,
     uint256 _baseFeeScalingFactor,
-    uint256 _baseFeeNormalizationFactor,
-    uint256 _calldataGas
+    uint256 _baseFeeNormalizationFactor
   ) external {
     uint256 preBal = fetchPaymentBal(_feeToken);
     
@@ -141,7 +142,7 @@ contract OperationValidator {
 
     uint256 postBal = fetchPaymentBal(_feeToken);
 
-    uint256 gasUsed = preGas - postGas + _calldataGas;
+    uint256 gasUsed = preGas - postGas;
     uint256 gasPrice = Math.min(Math.mulDiv(block.basefee, _baseFeeScalingFactor, _baseFeeNormalizationFactor) + _maxPriorityFeePerGas, _maxFeePerGas);
     uint256 expectPayment = gasUsed * gasPrice;
     uint256 paid = postBal - preBal;

@@ -17,9 +17,9 @@ import (
 type Collector struct {
 	cfg *config.CollectorConfig
 
-	listening      bool
-	lastBaseFee    *big.Int
-	minPriorityFee *big.Int
+	listening   bool
+	lastBaseFee *big.Int
+	priorityFee *big.Int
 
 	feeds map[common.Address]*pricefeed.Feed
 
@@ -50,11 +50,14 @@ func NewCollector(cfg *config.CollectorConfig, logger *httplog.Logger, provider 
 		feeds[common.HexToAddress(ref.Token)] = &feed
 	}
 
+	priorityFee := new(big.Int).SetInt64(cfg.PriorityFee)
+
 	return &Collector{
-		cfg:      cfg,
-		feeds:    feeds,
-		logger:   logger,
-		Provider: provider,
+		cfg:         cfg,
+		feeds:       feeds,
+		logger:      logger,
+		priorityFee: priorityFee,
+		Provider:    provider,
 	}, nil
 }
 
@@ -62,8 +65,8 @@ func (c *Collector) BaseFee() *big.Int {
 	return c.lastBaseFee
 }
 
-func (c *Collector) MinPriorityFee() *big.Int {
-	return c.minPriorityFee
+func (c *Collector) PriorityFee() *big.Int {
+	return c.priorityFee
 }
 
 func (c *Collector) Run(ctx context.Context) error {
@@ -74,7 +77,6 @@ func (c *Collector) Run(ctx context.Context) error {
 	c.listening = true
 	for ctx.Err() == nil {
 		c.FetchBaseFee(ctx)
-		c.FetchMinPriorityFee(ctx)
 
 		time.Sleep(5 * time.Second)
 	}
@@ -101,39 +103,12 @@ func (c *Collector) FetchBaseFee(ctx context.Context) {
 	c.logger.Debug("collector: base fee fetched", "fee", c.lastBaseFee.String())
 }
 
-func (c *Collector) FetchMinPriorityFee(ctx context.Context) {
-	block, err := c.Provider.BlockByNumber(ctx, nil)
-	if err != nil {
-		c.logger.Warn("collector: error fetching block", "error", err)
-		return
-	}
-
-	// Load all transactions and find the lowest one that has priority fee != 0
-	txs := block.Transactions()
-	var lowest *big.Int
-	for _, tx := range txs {
-		if tx.GasTipCap().Cmp(big.NewInt(0)) != 0 {
-			if lowest == nil || tx.GasTipCap().Cmp(lowest) < 0 {
-				lowest = tx.GasTipCap()
-			}
-		}
-	}
-
-	if lowest == nil {
-		c.logger.Debug("collector: no transactions with priority fee found")
-		return
-	}
-
-	c.minPriorityFee = lowest
-	c.logger.Debug("collector: lowest priority fee found", "fee", lowest.String())
-}
-
 func (c *Collector) MinFeePerGas(feeToken common.Address) (*big.Int, error) {
-	if c.lastBaseFee == nil || c.minPriorityFee == nil {
-		return nil, fmt.Errorf("collector: base fee or min priority fee not fetched")
+	if c.lastBaseFee == nil {
+		return nil, fmt.Errorf("collector: base fee not fetched")
 	}
 
-	minFeePerGas := new(big.Int).Add(c.lastBaseFee, c.minPriorityFee)
+	minFeePerGas := new(big.Int).Add(c.lastBaseFee, c.priorityFee)
 
 	if feeToken != (common.Address{}) {
 		feed, ok := c.feeds[feeToken]

@@ -56,7 +56,7 @@ type SendersConfig struct {
 }
 
 type CollectorConfig struct {
-	MinPriorityFee int64   `toml:"min_priority_fee"`
+	PriorityFee    int64   `toml:"min_priority_fee"`
 	PriorityFeeMul float64 `toml:"priority_fee_mul"`
 
 	References []PriceReference `toml:"references"`
