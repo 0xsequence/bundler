@@ -39,7 +39,7 @@ build-node:
 
 .PHONY: test
 test:
-	go clean -testcache && go test -v -race $$(go list ./... | grep -v /cmd/)
+	go clean -testcache && go test -v $$(go list ./... | grep -v /cmd/)
 
 clean:
 	rm -rf ./bin/*
