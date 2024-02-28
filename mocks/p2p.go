@@ -18,7 +18,7 @@ type MockP2p struct {
 
 func (p *MockP2p) Broadcast(payload proto.Message) error {
 	p.Broadcasted = append(p.Broadcasted, payload)
-	return nil
+	return p.Called(payload).Error(0)
 }
 
 func (p *MockP2p) HandleMessageType(messageType proto.MessageType, handler p2p.MsgHandler) {
