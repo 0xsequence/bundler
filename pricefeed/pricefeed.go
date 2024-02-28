@@ -18,7 +18,7 @@ type Feed interface {
 	Start(ctx context.Context) error
 }
 
-func FeedForReference(cfg *config.PriceReference, logger *httplog.Logger, provider *ethrpc.Provider) (Feed, error) {
+func FeedForReference(cfg *config.PriceReference, logger *httplog.Logger, provider ethrpc.Interface) (Feed, error) {
 	if cfg.UniswapV2 != nil {
 		return NewUniswapV2Feed(provider, logger, cfg.UniswapV2)
 	}

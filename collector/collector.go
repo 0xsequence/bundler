@@ -25,12 +25,12 @@ type Collector struct {
 
 	logger *httplog.Logger
 
-	Provider *ethrpc.Provider
+	Provider ethrpc.Interface
 }
 
 var _ Interface = &Collector{}
 
-func NewCollector(cfg *config.CollectorConfig, logger *httplog.Logger, provider *ethrpc.Provider) (*Collector, error) {
+func NewCollector(cfg *config.CollectorConfig, logger *httplog.Logger, provider ethrpc.Interface) (*Collector, error) {
 	feeds := make(map[common.Address]pricefeed.Feed)
 
 	priorityFee := new(big.Int).SetInt64(cfg.PriorityFee)
