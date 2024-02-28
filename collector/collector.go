@@ -33,34 +33,44 @@ var _ Interface = &Collector{}
 func NewCollector(cfg *config.CollectorConfig, logger *httplog.Logger, provider *ethrpc.Provider) (*Collector, error) {
 	feeds := make(map[common.Address]pricefeed.Feed)
 
+	priorityFee := new(big.Int).SetInt64(cfg.PriorityFee)
+
+	c := &Collector{
+		cfg:         cfg,
+		feeds:       feeds,
+		logger:      logger,
+		priorityFee: priorityFee,
+		Provider:    provider,
+	}
+
 	for _, ref := range cfg.References {
 		feed, err := pricefeed.FeedForReference(&ref, logger, provider)
 		if err != nil {
 			return nil, err
 		}
 
-		addr := common.HexToAddress(ref.Token)
-		if addr == (common.Address{}) {
-			return nil, fmt.Errorf("collector: invalid token address: %s", ref.Token)
+		if err := c.AddFeed(ref.Token, feed); err != nil {
+			return nil, err
 		}
-
-		if _, ok := feeds[addr]; ok {
-			return nil, fmt.Errorf("collector: duplicate token address: %s", ref.Token)
-		}
-
-		logger.Info("collector: added feed", "token", ref.Token, "feed", feed.Name())
-		feeds[common.HexToAddress(ref.Token)] = feed
 	}
 
-	priorityFee := new(big.Int).SetInt64(cfg.PriorityFee)
+	return c, nil
+}
 
-	return &Collector{
-		cfg:         cfg,
-		feeds:       feeds,
-		logger:      logger,
-		priorityFee: priorityFee,
-		Provider:    provider,
-	}, nil
+func (c *Collector) AddFeed(tokenAddr string, feed pricefeed.Feed) error {
+	addr := common.HexToAddress(tokenAddr)
+	if addr == (common.Address{}) {
+		return fmt.Errorf("collector: invalid token address: %s", tokenAddr)
+	}
+
+	if _, ok := c.feeds[addr]; ok {
+		return fmt.Errorf("collector: duplicate token address: %s", tokenAddr)
+	}
+
+	c.logger.Info("collector: added feed", "token", tokenAddr, "feed", feed.Name())
+	c.feeds[common.HexToAddress(tokenAddr)] = feed
+
+	return nil
 }
 
 func (c *Collector) BaseFee() *big.Int {
