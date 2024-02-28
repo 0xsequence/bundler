@@ -92,13 +92,13 @@ func (a *Archive) Run(ctx context.Context) {
 	for ctx.Err() == nil {
 		time.Sleep(ArchiveInterval)
 
-		a.TriggerArchive(ctx, OpTimeToArchive)
+		a.TriggerArchive(ctx, OpTimeToArchive, false)
 	}
 }
 
 func (a *Archive) Stop(ctx context.Context) {
 	a.Logger.Info("archive: stopping..")
-	a.TriggerArchive(ctx, 0)
+	a.TriggerArchive(ctx, 0, true)
 
 	// Delay 250ms to ensure the archive is published
 	// to the network before exiting
@@ -106,17 +106,17 @@ func (a *Archive) Stop(ctx context.Context) {
 	a.Logger.Info("archive: stopped, published last archive", "cid", a.PrevArchive)
 }
 
-func (a *Archive) TriggerArchive(ctx context.Context, age time.Duration) {
+func (a *Archive) TriggerArchive(ctx context.Context, age time.Duration, force bool) {
 	// Get the operations that should be archive
 	archive := a.Mempool.ForgetOps(age)
-	err := a.doArchive(ctx, archive)
+	err := a.doArchive(ctx, archive, force)
 	if err != nil {
 		a.Logger.Error("archive: error archiving", "ops", len(archive), "error", err)
 	}
 }
 
-func (a *Archive) doArchive(ctx context.Context, ops []string) error {
-	if len(ops) == 0 {
+func (a *Archive) doArchive(ctx context.Context, ops []string, force bool) error {
+	if len(ops) == 0 && !force {
 		return nil
 	}
 
