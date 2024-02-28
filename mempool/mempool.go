@@ -158,7 +158,7 @@ func (mp *Mempool) ReleaseOps(ctx context.Context, ops []*TrackedOperation, upda
 
 func (mp *Mempool) SortOperations() {
 	sort.Slice(mp.Operations, func(i, j int) bool {
-		return mp.Operations[i].ReadyAt.Before(mp.Operations[j].ReadyAt)
+		return mp.Operations[i].ReadyAt.After(mp.Operations[j].ReadyAt)
 	})
 }
 
@@ -178,12 +178,11 @@ func (mp *Mempool) DiscardOps(ctx context.Context, ops []*TrackedOperation) {
 		}
 
 		if discard {
+			// Mark the operation for deletion by setting
+			// the time to the current time
+			mp.markForForget(&op.Operation)
 			continue
 		}
-
-		// Mark the operation for deletion by setting
-		// the time to the current time
-		mp.markForForget(&op.Operation)
 
 		kops = append(kops, op)
 	}

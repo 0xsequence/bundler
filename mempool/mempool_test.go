@@ -2,6 +2,7 @@ package mempool_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/endorser"
@@ -255,10 +256,46 @@ func TestReserveOps(t *testing.T) {
 	assert.Equal(t, reserved[1].Operation.Digest(), op2.Digest())
 
 	// Calling reserve again should only give one option
-	reserved = mem.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
+	reserved2 := mem.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
 		assert.Equal(t, len(to), 1)
 		return []*mempool.TrackedOperation{}
 	})
+
+	assert.Equal(t, len(reserved2), 0)
+
+	// Release the reserved ops
+	// sleep a bit so op2 readyAt is newer than op3, op1 goes to zero
+	time.Sleep(10 * time.Millisecond)
+	mem.ReleaseOps(ctx, []*mempool.TrackedOperation{reserved[0]}, mempool.ReadyAtChangeZero)
+	mem.ReleaseOps(ctx, []*mempool.TrackedOperation{reserved[1]}, mempool.ReadyAtChangeNow)
+
+	// Should sort the operations from the most recent ready at first
+	reserved = mem.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
+		return to
+	})
+
+	assert.Equal(t, len(reserved), 3)
+
+	// The new order should be: op2, op3, op1
+	assert.Equal(t, reserved[0].Operation.Digest(), op2.Digest())
+	assert.Equal(t, reserved[1].Operation.Digest(), op3.Digest())
+	assert.Equal(t, reserved[2].Operation.Digest(), op1.Digest())
+
+	// Discard only two operations
+	mem.DiscardOps(ctx, []*mempool.TrackedOperation{reserved[0], reserved[1]})
+	mem.ReleaseOps(ctx, []*mempool.TrackedOperation{reserved[2]}, mempool.ReadyAtChangeZero)
+
+	// Reserving now should only give the last operation
+	mem.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
+		assert.Equal(t, len(to), 1)
+		assert.Equal(t, to[0].Operation.Digest(), op1.Digest())
+		return []*mempool.TrackedOperation{}
+	})
+
+	// They now should be marked for forget
+	f := mem.ForgetOps(0)
+	assert.Contains(t, f, op2.Digest())
+	assert.Contains(t, f, op3.Digest())
 
 	cancel()
 }
