@@ -19,10 +19,10 @@ import (
 
 type Mempool struct {
 	logger *httplog.Logger
-	ipfs   ipfs.Interface
 
-	Host      *p2p.Host
-	Collector *collector.Collector
+	Ipfs      ipfs.Interface
+	Host      p2p.Interface
+	Collector collector.Interface
 	Endorser  endorser.Interface
 
 	MaxSize uint
@@ -35,11 +35,11 @@ type Mempool struct {
 
 var _ Interface = &Mempool{}
 
-func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, endorser endorser.Interface, host *p2p.Host, collector *collector.Collector, ipfs ipfs.Interface) (*Mempool, error) {
+func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, endorser endorser.Interface, host p2p.Interface, collector collector.Interface, ipfs ipfs.Interface) (*Mempool, error) {
 	mp := &Mempool{
 		logger: logger,
-		ipfs:   ipfs,
 
+		Ipfs:      ipfs,
 		Host:      host,
 		Endorser:  endorser,
 		Collector: collector,
@@ -99,7 +99,15 @@ func (mp *Mempool) AddOperation(ctx context.Context, op *types.Operation, forceI
 	}
 
 	// NOTICE: Adding operations in sync does not respect the max size
-	return mp.tryPromoteOperation(ctx, op)
+	err = mp.tryPromoteOperation(ctx, op)
+
+	// If it fails, we need to mark the operation
+	// for deletion, or else it will hang around forever
+	if err != nil {
+		mp.markForForget(op)
+	}
+
+	return err
 }
 
 func (mp *Mempool) ReserveOps(ctx context.Context, selectFn func([]*TrackedOperation) []*TrackedOperation) []*TrackedOperation {
@@ -175,15 +183,19 @@ func (mp *Mempool) DiscardOps(ctx context.Context, ops []*TrackedOperation) {
 
 		// Mark the operation for deletion by setting
 		// the time to the current time
-		digest := op.Digest()
-		mp.known.lock.Lock()
-		mp.known.digests[digest] = time.Now()
-		mp.known.lock.Unlock()
+		mp.markForForget(&op.Operation)
 
 		kops = append(kops, op)
 	}
 
 	mp.Operations = kops
+}
+
+func (mp *Mempool) markForForget(op *types.Operation) {
+	mp.known.lock.Lock()
+	defer mp.known.lock.Unlock()
+
+	mp.known.digests[op.Digest()] = time.Now()
 }
 
 func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation) error {
@@ -258,12 +270,12 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 
 func (mp *Mempool) ReportToIPFS(op *types.Operation) {
 	// Fire a go-routine to report the operation to IPFS
-	if mp.ipfs == nil {
+	if mp.Ipfs == nil {
 		return
 	}
 
 	go func() {
-		err := op.ReportToIPFS(mp.ipfs)
+		err := op.ReportToIPFS(mp.Ipfs)
 		if err != nil {
 			mp.logger.Warn("error reporting operation to IPFS", "op", op.Digest(), "err", err)
 		}
