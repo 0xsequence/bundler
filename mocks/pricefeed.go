@@ -10,9 +10,6 @@ import (
 
 type MockFeed struct {
 	mock.Mock
-
-	EtherPerUnit float64
-	Decimals     uint
 }
 
 func (m *MockFeed) Factors() (*big.Int, *big.Int, error) {
@@ -20,66 +17,26 @@ func (m *MockFeed) Factors() (*big.Int, *big.Int, error) {
 	return args.Get(0).(*big.Int), args.Get(1).(*big.Int), args.Error(2)
 }
 
-func (f *MockFeed) Ready() bool {
-	return true
+func (m *MockFeed) Ready() bool {
+	return m.Called().Bool(0)
 }
 
-func (f *MockFeed) Name() string {
-	return "mock"
+func (m *MockFeed) Name() string {
+	return m.Called().String(0)
 }
 
-func (f *MockFeed) FromNative(amount *big.Int) (*big.Int, error) {
-	// amount / 1e18 / f.EtherPerUnit * 10 ^ f.Decimals
-
-	numerator := new(big.Int).Mul(
-		amount,
-		new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(f.Decimals)), nil),
-	)
-
-	denominator := new(big.Int).Mul(
-		big.NewInt(int64(f.EtherPerUnit*1000000000+0.5)),
-		big.NewInt(1000000000),
-	)
-
-	return new(big.Int).Div(
-		new(big.Int).Add(
-			numerator,
-			new(big.Int).Div(
-				denominator,
-				big.NewInt(2),
-			),
-		),
-		denominator,
-	), nil
+func (m *MockFeed) FromNative(amount *big.Int) (*big.Int, error) {
+	args := m.Called(amount)
+	return args.Get(0).(*big.Int), args.Error(1)
 }
 
-func (f *MockFeed) ToNative(amount *big.Int) (*big.Int, error) {
-	// amount / 10 ^ f.Decimals * f.EtherPerUnit * 1e18
-
-	numerator := new(big.Int).Mul(
-		amount,
-		new(big.Int).Mul(
-			big.NewInt(int64(f.EtherPerUnit*1000000000+0.5)),
-			big.NewInt(1000000000),
-		),
-	)
-
-	denominator := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(f.Decimals)), nil)
-
-	return new(big.Int).Div(
-		new(big.Int).Add(
-			numerator,
-			new(big.Int).Div(
-				denominator,
-				big.NewInt(2),
-			),
-		),
-		denominator,
-	), nil
+func (m *MockFeed) ToNative(amount *big.Int) (*big.Int, error) {
+	args := m.Called(amount)
+	return args.Get(0).(*big.Int), args.Error(1)
 }
 
-func (f *MockFeed) Start(ctx context.Context) error {
-	return nil
+func (m *MockFeed) Start(ctx context.Context) error {
+	return m.Called(ctx).Error(0)
 }
 
 var _ pricefeed.Feed = &MockFeed{}
