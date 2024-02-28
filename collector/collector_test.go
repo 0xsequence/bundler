@@ -41,7 +41,7 @@ func TestValidatePayment(t *testing.T) {
 
 	token := common.BytesToAddress(bytes)
 
-	err = c.AddFeed(token.String(), &mocks.Feed{
+	err = c.AddFeed(token.String(), &mocks.MockFeed{
 		EtherPerUnit: 1.0 / 3000.0,
 		Decimals:     6,
 	})

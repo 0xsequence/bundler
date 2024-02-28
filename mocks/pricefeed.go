@@ -8,27 +8,27 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-type Feed struct {
+type MockFeed struct {
 	mock.Mock
 
 	EtherPerUnit float64
 	Decimals     uint
 }
 
-func (m *Feed) Factors() (*big.Int, *big.Int, error) {
+func (m *MockFeed) Factors() (*big.Int, *big.Int, error) {
 	args := m.Called()
 	return args.Get(0).(*big.Int), args.Get(1).(*big.Int), args.Error(2)
 }
 
-func (f *Feed) Ready() bool {
+func (f *MockFeed) Ready() bool {
 	return true
 }
 
-func (f *Feed) Name() string {
+func (f *MockFeed) Name() string {
 	return "mock"
 }
 
-func (f *Feed) FromNative(amount *big.Int) (*big.Int, error) {
+func (f *MockFeed) FromNative(amount *big.Int) (*big.Int, error) {
 	// amount / 1e18 / f.EtherPerUnit * 10 ^ f.Decimals
 
 	numerator := new(big.Int).Mul(
@@ -53,7 +53,7 @@ func (f *Feed) FromNative(amount *big.Int) (*big.Int, error) {
 	), nil
 }
 
-func (f *Feed) ToNative(amount *big.Int) (*big.Int, error) {
+func (f *MockFeed) ToNative(amount *big.Int) (*big.Int, error) {
 	// amount / 10 ^ f.Decimals * f.EtherPerUnit * 1e18
 
 	numerator := new(big.Int).Mul(
@@ -78,8 +78,8 @@ func (f *Feed) ToNative(amount *big.Int) (*big.Int, error) {
 	), nil
 }
 
-func (f *Feed) Start(ctx context.Context) error {
+func (f *MockFeed) Start(ctx context.Context) error {
 	return nil
 }
 
-var _ pricefeed.Feed = &Feed{}
+var _ pricefeed.Feed = &MockFeed{}
