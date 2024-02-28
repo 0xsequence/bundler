@@ -33,10 +33,10 @@ type UniswapV2Feed struct {
 	logger   *httplog.Logger
 	contract *ethcontract.Contract
 
-	Provider *ethrpc.Provider
+	Provider ethrpc.Interface
 }
 
-func NewUniswapV2Feed(provider *ethrpc.Provider, logger *httplog.Logger, cfg *config.UniswapV2Reference) (*UniswapV2Feed, error) {
+func NewUniswapV2Feed(provider ethrpc.Interface, logger *httplog.Logger, cfg *config.UniswapV2Reference) (*UniswapV2Feed, error) {
 	abi := ethcontract.MustParseABI(abis.UNISWAP_V2)
 	contract := ethcontract.NewContractCaller(common.HexToAddress(cfg.Pool), abi, provider)
 

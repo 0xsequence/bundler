@@ -21,9 +21,9 @@ func (m *MockCollector) Feeds() []pricefeed.Feed {
 	return m.Called().Get(0).([]pricefeed.Feed)
 }
 
-func (m *MockCollector) MeetsPayment(op *types.Operation) (bool, error) {
+func (m *MockCollector) ValidatePayment(op *types.Operation) error {
 	args := m.Called(op)
-	return args.Bool(0), args.Error(1)
+	return args.Error(0)
 }
 
 func (m *MockCollector) PriorityFee() *big.Int {

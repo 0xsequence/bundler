@@ -224,13 +224,8 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 	}
 
 	// Check the collector (fees)
-	pok, err := mp.Collector.MeetsPayment(op)
-	if err != nil {
-		return fmt.Errorf("MeetsPayment failed: %w", err)
-	}
-
-	if !pok {
-		return fmt.Errorf("operation does not meet payment")
+	if err := mp.Collector.ValidatePayment(op); err != nil {
+		return fmt.Errorf("payment validation failed: %w", err)
 	}
 
 	// If the operation is ready

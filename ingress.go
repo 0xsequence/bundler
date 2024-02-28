@@ -3,6 +3,7 @@ package bundler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -86,14 +87,13 @@ func (i *Ingress) Add(op *types.Operation) error {
 	// Pass it trough the collector, since
 	// it can quickly reject it if it doesn't
 	// pay enough fees
-	mp, err := i.Collector.MeetsPayment(op)
-	if err != nil {
-		return err
-	}
-
-	if !mp {
-		i.logger.Info("ingress: rejected by collector", "op", op.Digest())
-		return nil
+	if err := i.Collector.ValidatePayment(op); err != nil {
+		if errors.Is(err, collector.InsufficientFeeError) {
+			i.logger.Info("%v", err)
+			return nil
+		} else {
+			return err
+		}
 	}
 
 	i.lock.Lock()

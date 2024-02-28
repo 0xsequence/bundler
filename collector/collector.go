@@ -25,12 +25,12 @@ type Collector struct {
 
 	logger *httplog.Logger
 
-	Provider *ethrpc.Provider
+	Provider ethrpc.Interface
 }
 
 var _ Interface = &Collector{}
 
-func NewCollector(cfg *config.CollectorConfig, logger *httplog.Logger, provider *ethrpc.Provider) (*Collector, error) {
+func NewCollector(cfg *config.CollectorConfig, logger *httplog.Logger, provider ethrpc.Interface) (*Collector, error) {
 	feeds := make(map[common.Address]pricefeed.Feed)
 
 	priorityFee := new(big.Int).SetInt64(cfg.PriorityFee)
@@ -144,15 +144,15 @@ func (c *Collector) MinFeePerGas(feeToken common.Address) (*big.Int, error) {
 	return minFeePerGas, nil
 }
 
-func (c *Collector) MeetsPayment(op *types.Operation) (bool, error) {
+func (c *Collector) ValidatePayment(op *types.Operation) error {
 	minFeePerGas, err := c.MinFeePerGas(op.FeeToken)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	if op.MaxFeePerGas.Cmp(minFeePerGas) < 0 {
-		return false, fmt.Errorf("collector: operation payment too low: %s < %s", op.MaxFeePerGas.String(), minFeePerGas.String())
+		return fmt.Errorf("collector: maxFeePerGas %v < minFeePerGas %v: %w", op.MaxFeePerGas, minFeePerGas, InsufficientFeeError)
 	}
 
-	return true, nil
+	return nil
 }

@@ -7,7 +7,7 @@ import (
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 )
 
-func FetchDecimals(provider *ethrpc.Provider, token common.Address) (int, error) {
+func FetchDecimals(provider ethrpc.Interface, token common.Address) (int, error) {
 	abi := ethcontract.MustParseABI(abis.ERC20)
 	contract := ethcontract.NewContractCaller(token, abi, provider)
 
