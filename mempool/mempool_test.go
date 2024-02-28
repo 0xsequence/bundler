@@ -299,3 +299,60 @@ func TestReserveOps(t *testing.T) {
 
 	cancel()
 }
+
+func TestReportToIPFS(t *testing.T) {
+	logger := httplog.NewLogger("")
+	mockP2p := &mocks.MockP2p{}
+	mockCollector := &mocks.MockCollector{}
+	mockEndorser := &mocks.MockEndorser{}
+	mockIpfs := &mocks.MockIpfs{}
+
+	mempool, err := mempool.NewMempool(&config.MempoolConfig{}, logger, mockEndorser, mockP2p, mockCollector, mockIpfs)
+
+	assert.NoError(t, err)
+
+	op1 := &types.Operation{
+		Calldata: []byte{0x01},
+	}
+
+	// Should report to IPFS if the operation is valid
+	mockEndorser.On("ConstraintsMet", mock.Anything, mock.Anything).Return(true, nil).Maybe()
+	mockEndorser.On("DependencyState", mock.Anything, mock.Anything).Return(&endorser.EndorserResultState{}, nil).Maybe()
+	mockCollector.On("ValidatePayment", op1).Return(nil).Maybe()
+	mockP2p.On("Broadcast", mock.Anything).Return(nil).Maybe()
+
+	mockEndorser.On("IsOperationReady", mock.Anything, op1).Return(&endorser.EndorserResult{
+		Readiness: true,
+	}, nil).Once()
+
+	done := make(chan struct{})
+
+	mockIpfs.On("Report", mock.Anything).Run(func(mock.Arguments) {
+		done <- struct{}{}
+	}).Return(op1.Digest(), nil).Once()
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	err = mempool.AddOperation(ctx, op1, false)
+	assert.NoError(t, err)
+
+	<-done
+
+	mockIpfs.AssertExpectations(t)
+
+	// Do not report to IPFS if it fails
+	op2 := &types.Operation{
+		Calldata: []byte{0x02},
+	}
+
+	mockEndorser.On("IsOperationReady", mock.Anything, op2).Return(&endorser.EndorserResult{
+		Readiness: false,
+	}, nil).Once()
+
+	err = mempool.AddOperation(ctx, op2, false)
+	assert.Error(t, err)
+
+	mockIpfs.AssertExpectations(t)
+
+	cancel()
+}
