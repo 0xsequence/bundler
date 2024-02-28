@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/ipfs"
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/p2p"
@@ -14,9 +15,6 @@ import (
 	"github.com/go-chi/httplog/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
-
-const ArchiveInterval = 5 * time.Minute
-const OpTimeToArchive = 5 * time.Minute
 
 type ArchiveSnapshot struct {
 	Timestamp uint64 `json:"time"`
@@ -42,6 +40,9 @@ type Archive struct {
 
 	ipfs ipfs.Interface
 
+	runEvery    time.Duration
+	forgetAfter time.Duration
+
 	Host   p2p.Interface
 	Logger *httplog.Logger
 
@@ -51,10 +52,31 @@ type Archive struct {
 	Mempool mempool.Interface
 }
 
-func NewArchive(host p2p.Interface, logger *httplog.Logger, ipfs ipfs.Interface, mempool mempool.Interface) *Archive {
+func NewArchive(cfg *config.ArchiveConfig, host p2p.Interface, logger *httplog.Logger, ipfs ipfs.Interface, mempool mempool.Interface) *Archive {
+	var runEvery time.Duration
+	if cfg.RunEveryMillis != 0 {
+		runEvery = time.Duration(cfg.RunEveryMillis) * time.Millisecond
+	} else {
+		runEvery = 5 * time.Minute
+	}
+
+	var forgetAfter time.Duration
+	if cfg.ForgetAfterSeconds != 0 {
+		forgetAfter = time.Duration(cfg.ForgetAfterSeconds) * time.Second
+	} else {
+		forgetAfter = 15 * time.Minute
+	}
+
+	if logger != nil {
+		logger.Info("archive: initialized", "run_every", runEvery, "forget_after", forgetAfter)
+	}
+
 	return &Archive{
 		lock: sync.Mutex{},
 		ipfs: ipfs,
+
+		runEvery:    runEvery,
+		forgetAfter: forgetAfter,
 
 		Host:   host,
 		Logger: logger,
@@ -90,9 +112,8 @@ func (a *Archive) Run(ctx context.Context) {
 	})
 
 	for ctx.Err() == nil {
-		time.Sleep(ArchiveInterval)
-
-		a.TriggerArchive(ctx, OpTimeToArchive, false)
+		time.Sleep(a.runEvery)
+		a.TriggerArchive(ctx, a.forgetAfter, false)
 	}
 }
 

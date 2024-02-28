@@ -24,6 +24,7 @@ type Config struct {
 	SendersConfig   SendersConfig   `toml:"senders"`
 	CollectorConfig CollectorConfig `toml:"collector"`
 	PrunerConfig    PrunerConfig    `toml:"pruner"`
+	ArchiveConfig   ArchiveConfig   `toml:"archive"`
 
 	BootNodeAddrs []multiaddr.Multiaddr `toml:"-"`
 }
@@ -59,6 +60,11 @@ type PrunerConfig struct {
 
 type SendersConfig struct {
 	NumSenders uint `toml:"num_senders"`
+}
+
+type ArchiveConfig struct {
+	RunEveryMillis     int `toml:"run_every_millis"`
+	ForgetAfterSeconds int `toml:"forget_after_seconds"`
 }
 
 type CollectorConfig struct {
