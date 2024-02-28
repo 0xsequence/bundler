@@ -17,8 +17,8 @@ func (m *MockCollector) BaseFee() *big.Int {
 	return m.Called().Get(0).(*big.Int)
 }
 
-func (m *MockCollector) Feeds() []*pricefeed.Feed {
-	return m.Called().Get(0).([]*pricefeed.Feed)
+func (m *MockCollector) Feeds() []pricefeed.Feed {
+	return m.Called().Get(0).([]pricefeed.Feed)
 }
 
 func (m *MockCollector) MeetsPayment(op *types.Operation) (bool, error) {
