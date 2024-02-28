@@ -14,7 +14,12 @@ type MockFeed struct {
 
 func (m *MockFeed) Factors() (*big.Int, *big.Int, error) {
 	args := m.Called()
-	return args.Get(0).(*big.Int), args.Get(1).(*big.Int), args.Error(2)
+	err := args.Error(2)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return args.Get(0).(*big.Int), args.Get(1).(*big.Int), nil
 }
 
 func (m *MockFeed) Ready() bool {

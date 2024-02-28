@@ -172,6 +172,7 @@ func (c *Collector) FeeAsks() (*proto.FeeAsks, error) {
 		s, n, err := feed.Factors()
 		if err != nil {
 			c.logger.Warn("collector: error fetching feed factors", "token", token.Hex(), "error", err)
+			continue
 		}
 
 		acceptedTokens[token.String()] = proto.BaseFeeRate{
