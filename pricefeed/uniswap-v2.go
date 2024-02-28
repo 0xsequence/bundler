@@ -27,8 +27,6 @@ type UniswapV2Feed struct {
 	lastUpdate time.Time
 	reserve0   *big.Int
 	reserve1   *big.Int
-	decimals0  int
-	decimals1  int
 
 	logger   *httplog.Logger
 	contract *ethcontract.Contract
@@ -110,17 +108,6 @@ func (f *UniswapV2Feed) Start(ctx context.Context) error {
 		return fmt.Errorf("neither token0 nor token1 is base token")
 	}
 
-	// Fetch the decimals of token0 and token1
-	f.decimals0, err = FetchDecimals(f.Provider, token0)
-	if err != nil {
-		return fmt.Errorf("uniswap-v2: error fetching decimals: %w", err)
-	}
-
-	f.decimals1, err = FetchDecimals(f.Provider, token1)
-	if err != nil {
-		return fmt.Errorf("uniswap-v2: error fetching decimals: %w", err)
-	}
-
 	for ctx.Err() == nil {
 		reserve0, reserve1, _, err := f.fetchReserves()
 		if err != nil {
@@ -142,19 +129,19 @@ func (f *UniswapV2Feed) Start(ctx context.Context) error {
 	return nil
 }
 
-func (f *UniswapV2Feed) getReservesNative0() (r0, r1 *big.Int, d0, d1 int, err error) {
+func (f *UniswapV2Feed) getReservesNative0() (r0, r1 *big.Int, err error) {
 	f.mutex.RLock()
 	defer f.mutex.RUnlock()
 
 	if !f.Ready() {
-		return nil, nil, 0, 0, fmt.Errorf("uniswap-v2: feed not ready")
+		return nil, nil, fmt.Errorf("uniswap-v2: feed not ready")
 	}
 
 	if f.inverse {
-		return f.reserve1, f.reserve0, f.decimals1, f.decimals0, nil
+		return f.reserve1, f.reserve0, nil
 	}
 
-	return f.reserve0, f.reserve1, f.decimals0, f.decimals1, nil
+	return f.reserve0, f.reserve1, nil
 }
 
 func normalizeDecimals(r0, r1 *big.Int, d0, d1 int) (nr0, nr1 *big.Int) {
@@ -171,29 +158,25 @@ func normalizeDecimals(r0, r1 *big.Int, d0, d1 int) (nr0, nr1 *big.Int) {
 }
 
 func (f *UniswapV2Feed) FromNative(native *big.Int) (*big.Int, error) {
-	r0, r1, d0, d1, err := f.getReservesNative0()
+	r0, r1, err := f.getReservesNative0()
 	if err != nil {
 		return nil, err
 	}
 
-	nr0, nr1 := normalizeDecimals(r0, r1, d0, d1)
-
-	return new(big.Int).Div(new(big.Int).Mul(native, nr1), nr0), nil
+	return new(big.Int).Div(new(big.Int).Mul(native, r1), r0), nil
 }
 
 func (f *UniswapV2Feed) ToNative(value *big.Int) (*big.Int, error) {
-	r0, r1, d0, d1, err := f.getReservesNative0()
+	r0, r1, err := f.getReservesNative0()
 	if err != nil {
 		return nil, err
 	}
 
-	nr0, nr1 := normalizeDecimals(r0, r1, d0, d1)
-
-	return new(big.Int).Div(new(big.Int).Mul(value, nr0), nr1), nil
+	return new(big.Int).Div(new(big.Int).Mul(value, r0), r1), nil
 }
 
 func (f *UniswapV2Feed) Factors() (*big.Int, *big.Int, error) {
-	r0, r1, _, _, err := f.getReservesNative0()
+	r0, r1, err := f.getReservesNative0()
 	if err != nil {
 		return nil, nil, err
 	}
