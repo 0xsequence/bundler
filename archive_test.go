@@ -186,3 +186,58 @@ func TestChainArchives(t *testing.T) {
 	mipfs.AssertExpectations(t)
 	mempool.AssertExpectations(t)
 }
+
+func TestRunArchiver(t *testing.T) {
+	logger := httplog.NewLogger("")
+	mipfs := &mocks.MockIpfs{}
+	host := &mocks.MockP2p{}
+	mempool := &mocks.MockMempool{}
+
+	archive := bundler.NewArchive(&config.ArchiveConfig{
+		RunEveryMillis:     1,
+		ForgetAfterSeconds: 13,
+	}, host, logger, mipfs, mempool)
+
+	cid, _ := ipfs.Cid([]byte("hello test"))
+
+	done := make(chan struct{})
+
+	host.On("HostID").Return(peer.ID("1")).Once()
+	mipfs.On("Report", mock.Anything).Run(func(args mock.Arguments) {
+		data := args.Get(0).([]byte)
+		var obj bundler.SignedArchiveSnapshot
+		err := json.Unmarshal(data, &obj)
+		assert.Nil(t, err)
+
+		assert.Equal(t, obj.Archive.SeenArchives, make(map[string]string))
+		assert.Equal(t, obj.Archive.Operations, []string{
+			"0x123",
+		})
+		assert.Equal(t, obj.Archive.PrevArchive, "")
+		assert.Equal(t, obj.Archive.Identity, peer.ID("1").String())
+		done <- struct{}{}
+	}).Return(cid, nil).Once()
+
+	mempool.On("ForgetOps", time.Second*13).Return([]string{
+		"0x123",
+	}).Once()
+
+	mempool.On("ForgetOps", time.Second*13).Return([]string{}).Maybe()
+
+	messageType := proto.MessageType_ARCHIVE
+	host.On("Broadcast", proto.Message{
+		Type:    &messageType,
+		Message: &bundler.ArchiveMessage{ArchiveCid: cid},
+	}).Return(nil).Once()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go archive.Run(ctx)
+
+	<-done
+
+	cancel()
+
+	mempool.AssertExpectations(t)
+	host.AssertExpectations(t)
+	mipfs.AssertExpectations(t)
+}
