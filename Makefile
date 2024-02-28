@@ -12,8 +12,8 @@ GITCOMMITDATE    ?= $(shell git log -1 --date=iso --pretty=format:%cd)
 GITCOMMITAUTHOR  ?= $(shell git log -1 --date=iso --pretty="format:%an")
 
 define run
-	@go run github.com/goware/rerun/cmd/rerun -watch ./ -ignore db vendor bin tests -run \
-		'GOGC=off go build -o ./bin/$(1) ./cmd/$(1)/main.go && ./bin/$(1) --config=$(2)'
+	@GOGC=off go build -o ./bin/$(1) ./cmd/$(1)/main.go
+	@./bin/$(1) --config=$(2)
 endef
 
 run:

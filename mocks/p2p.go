@@ -6,9 +6,12 @@ import (
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/mock"
 )
 
 type MockP2p struct {
+	mock.Mock
+
 	Broadcasted []proto.Message
 	Handlers    map[proto.MessageType][]p2p.MsgHandler
 }
@@ -42,6 +45,10 @@ func (p *MockP2p) ExtBroadcast(from peer.ID, messageType proto.MessageType, payl
 
 func (p *MockP2p) ClearBroadcasted() {
 	p.Broadcasted = []proto.Message{}
+}
+
+func (m *MockP2p) HostID() peer.ID {
+	return m.Called().Get(0).(peer.ID)
 }
 
 var _ p2p.Interface = &MockP2p{}

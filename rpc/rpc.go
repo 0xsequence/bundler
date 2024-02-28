@@ -91,6 +91,7 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		collector: collector,
 		executor:  executor,
 		pruner:    pruner,
+		ipfs:      ipfs,
 
 		Config:    cfg,
 		Log:       logger,

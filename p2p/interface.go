@@ -10,4 +10,5 @@ type MsgHandler func(from peer.ID, message []byte)
 type Interface interface {
 	Broadcast(payload proto.Message) error
 	HandleMessageType(messageType proto.MessageType, handler MsgHandler)
+	HostID() peer.ID
 }

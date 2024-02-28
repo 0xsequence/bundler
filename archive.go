@@ -42,7 +42,7 @@ type Archive struct {
 
 	ipfs ipfs.Interface
 
-	Host   *p2p.Host
+	Host   p2p.Interface
 	Logger *httplog.Logger
 
 	PrevArchive  string
@@ -51,7 +51,7 @@ type Archive struct {
 	Mempool mempool.Interface
 }
 
-func NewArchive(host *p2p.Host, logger *httplog.Logger, ipfs ipfs.Interface, mempool mempool.Interface) *Archive {
+func NewArchive(host p2p.Interface, logger *httplog.Logger, ipfs ipfs.Interface, mempool mempool.Interface) *Archive {
 	return &Archive{
 		lock: sync.Mutex{},
 		ipfs: ipfs,
@@ -92,16 +92,30 @@ func (a *Archive) Run(ctx context.Context) {
 	for ctx.Err() == nil {
 		time.Sleep(ArchiveInterval)
 
-		// Get the operations that should be archive
-		archive := a.Mempool.ForgetOps(OpTimeToArchive)
-		err := a.DoArchive(ctx, archive)
-		if err != nil {
-			a.Logger.Error("archive: error archiving", "ops", len(archive), "error", err)
-		}
+		a.TriggerArchive(ctx, OpTimeToArchive)
 	}
 }
 
-func (a *Archive) DoArchive(ctx context.Context, ops []string) error {
+func (a *Archive) Stop(ctx context.Context) {
+	a.Logger.Info("archive: stopping..")
+	a.TriggerArchive(ctx, 0)
+
+	// Delay 250ms to ensure the archive is published
+	// to the network before exiting
+	time.Sleep(250 * time.Millisecond)
+	a.Logger.Info("archive: stopped, published last archive", "cid", a.PrevArchive)
+}
+
+func (a *Archive) TriggerArchive(ctx context.Context, age time.Duration) {
+	// Get the operations that should be archive
+	archive := a.Mempool.ForgetOps(age)
+	err := a.doArchive(ctx, archive)
+	if err != nil {
+		a.Logger.Error("archive: error archiving", "ops", len(archive), "error", err)
+	}
+}
+
+func (a *Archive) doArchive(ctx context.Context, ops []string) error {
 	if len(ops) == 0 {
 		return nil
 	}

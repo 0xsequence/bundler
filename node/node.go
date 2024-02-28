@@ -222,6 +222,14 @@ func (s *Node) Stop() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	// Force shutdown after grace period
+	go func() {
+		<-shutdownCtx.Done()
+		if shutdownCtx.Err() == context.DeadlineExceeded {
+			s.Fatal("graceful shutdown timed out.. forced exit.")
+		}
+	}()
+
 	var wg sync.WaitGroup
 
 	wg.Add(1)
@@ -233,15 +241,18 @@ func (s *Node) Stop() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s.Host.Stop(shutdownCtx)
+		s.Archive.Stop(shutdownCtx)
 	}()
 
-	// Force shutdown after grace period
+	wg.Wait()
+
+	// Stop the P2P layer last
+	// as the node may have some messages to send
+
+	wg.Add(1)
 	go func() {
-		<-shutdownCtx.Done()
-		if shutdownCtx.Err() == context.DeadlineExceeded {
-			s.Fatal("graceful shutdown timed out.. forced exit.")
-		}
+		defer wg.Done()
+		s.Host.Stop(shutdownCtx)
 	}()
 
 	// Wait for subprocesses to gracefully stop
