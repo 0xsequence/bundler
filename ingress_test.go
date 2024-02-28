@@ -148,6 +148,8 @@ func TestAddOperation(t *testing.T) {
 
 	done := make(chan bool)
 
+	mockP2p.On("HandleMessageType", proto.MessageType_NEW_OPERATION, mock.Anything).Return(nil).Once()
+
 	mockMempool.On("IsKnownOp", op).Return(false).Once()
 	mockMempool.On("AddOperation", mock.Anything, op, false).Run(func(args mock.Arguments) {
 		done <- true
@@ -202,6 +204,8 @@ func TestBuffer(t *testing.T) {
 		done <- true
 	}).Return(nil).Once()
 	mockCollector.On("MeetsPayment", mock.Anything).Return(true, nil).Times(3)
+
+	mockP2p.On("HandleMessageType", proto.MessageType_NEW_OPERATION, mock.Anything).Return(nil).Once()
 
 	go ingress.Run(context.Background())
 
@@ -292,6 +296,8 @@ func TestListenP2P(t *testing.T) {
 	assert.NoError(t, err)
 
 	done := make(chan bool)
+
+	mockP2p.On("HandleMessageType", proto.MessageType_NEW_OPERATION, mock.Anything).Return(nil).Once()
 
 	go ingress.Run(context.Background())
 

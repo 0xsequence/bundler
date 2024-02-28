@@ -26,6 +26,7 @@ func (p *MockP2p) HandleMessageType(messageType proto.MessageType, handler p2p.M
 		p.Handlers = make(map[proto.MessageType][]p2p.MsgHandler)
 	}
 	p.Handlers[messageType] = append(p.Handlers[messageType], handler)
+	p.Called(messageType, handler)
 }
 
 func (p *MockP2p) ExtBroadcast(from peer.ID, messageType proto.MessageType, payload interface{}) {

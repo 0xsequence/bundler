@@ -94,22 +94,26 @@ func TestListenArchives(t *testing.T) {
 
 	archive := bundler.NewArchive(&config.ArchiveConfig{}, host, logger, mipfs, mempool)
 
+	handlerregistered := make(chan struct{})
+	host.On("HandleMessageType", proto.MessageType_ARCHIVE, mock.Anything).Run(func(mock.Arguments) {
+		handlerregistered <- struct{}{}
+	}).Return(nil).Once()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	go archive.Run(ctx)
 
 	cid, _ := ipfs.Cid([]byte("hello test 2"))
 
-	for len(host.Handlers[proto.MessageType_ARCHIVE]) == 0 {
-	}
+	<-handlerregistered
 
 	host.ExtBroadcast(peer.ID("123"), proto.MessageType_ARCHIVE, bundler.ArchiveMessage{ArchiveCid: cid})
 
-	for len(archive.SeenArchives) == 0 {
+	for len(archive.SeenArchives()) == 0 {
 	}
 
 	expectSeenArchives := map[string]string{}
 	expectSeenArchives[peer.ID("123").String()] = cid
-	assert.Equal(t, archive.SeenArchives, expectSeenArchives)
+	assert.Equal(t, archive.SeenArchives(), expectSeenArchives)
 
 	cid2, _ := ipfs.Cid([]byte("hello test 3"))
 
@@ -143,7 +147,7 @@ func TestListenArchives(t *testing.T) {
 	mempool.AssertExpectations(t)
 
 	// Should have reset the seen archives
-	assert.Equal(t, archive.SeenArchives, map[string]string{})
+	assert.Equal(t, archive.SeenArchives(), map[string]string{})
 
 	cancel()
 }
@@ -229,6 +233,7 @@ func TestRunArchiver(t *testing.T) {
 		Type:    &messageType,
 		Message: &bundler.ArchiveMessage{ArchiveCid: cid},
 	}).Return(nil).Once()
+	host.On("HandleMessageType", proto.MessageType_ARCHIVE, mock.Anything).Return(nil).Once()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go archive.Run(ctx)

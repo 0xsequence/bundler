@@ -40,14 +40,14 @@ type Archive struct {
 
 	ipfs ipfs.Interface
 
-	runEvery    time.Duration
-	forgetAfter time.Duration
+	runEvery     time.Duration
+	forgetAfter  time.Duration
+	seenArchives map[string]string
 
 	Host   p2p.Interface
 	Logger *httplog.Logger
 
-	PrevArchive  string
-	SeenArchives map[string]string
+	PrevArchive string
 
 	Mempool mempool.Interface
 }
@@ -81,7 +81,7 @@ func NewArchive(cfg *config.ArchiveConfig, host p2p.Interface, logger *httplog.L
 		Host:   host,
 		Logger: logger,
 
-		SeenArchives: make(map[string]string),
+		seenArchives: make(map[string]string),
 
 		Mempool: mempool,
 	}
@@ -108,13 +108,26 @@ func (a *Archive) Run(ctx context.Context) {
 			a.Logger.Warn("archive: invalid cid", "peer", peer, "cid", amsg.ArchiveCid)
 		}
 
-		a.SeenArchives[peer.String()] = amsg.ArchiveCid
+		a.seenArchives[peer.String()] = amsg.ArchiveCid
 	})
 
 	for ctx.Err() == nil {
 		time.Sleep(a.runEvery)
 		a.TriggerArchive(ctx, a.forgetAfter, false)
 	}
+}
+
+func (a *Archive) SeenArchives() map[string]string {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
+	// Copy the map
+	seen := make(map[string]string)
+	for k, v := range a.seenArchives {
+		seen[k] = v
+	}
+
+	return seen
 }
 
 func (a *Archive) Stop(ctx context.Context) {
@@ -148,7 +161,7 @@ func (a *Archive) doArchive(ctx context.Context, ops []string, force bool) error
 		Timestamp:    uint64(time.Now().Unix()),
 		Identity:     a.Host.HostID().String(),
 		Operations:   ops,
-		SeenArchives: a.SeenArchives,
+		SeenArchives: a.seenArchives,
 		PrevArchive:  a.PrevArchive,
 	}
 
@@ -171,7 +184,7 @@ func (a *Archive) doArchive(ctx context.Context, ops []string, force bool) error
 	a.Logger.Info("archive: archived", "ops", len(ops), "cid", cid)
 
 	a.PrevArchive = cid
-	a.SeenArchives = make(map[string]string)
+	a.seenArchives = make(map[string]string)
 
 	// Broadcast the archive
 	messageType := proto.MessageType_ARCHIVE
