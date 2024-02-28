@@ -34,7 +34,7 @@ func TestAddOperation(t *testing.T) {
 	mockEndorser.On("IsOperationReady", mock.Anything, op).Return(er, nil).Once()
 	mockEndorser.On("ConstraintsMet", mock.Anything, er).Return(true, nil).Once()
 	mockEndorser.On("DependencyState", mock.Anything, er).Return(es, nil).Once()
-	mockCollector.On("MeetsPayment", op).Return(true, nil).Once()
+	mockCollector.On("ValidatePayment", op).Return(nil).Once()
 
 	mt := proto.MessageType_NEW_OPERATION
 	mockP2p.On("Broadcast", proto.Message{
@@ -77,7 +77,7 @@ func TestForceIncludeKnownOp(t *testing.T) {
 	mockEndorser.On("IsOperationReady", mock.Anything, op).Return(er, nil).Twice()
 	mockEndorser.On("ConstraintsMet", mock.Anything, er).Return(true, nil).Twice()
 	mockEndorser.On("DependencyState", mock.Anything, er).Return(es, nil).Twice()
-	mockCollector.On("MeetsPayment", op).Return(true, nil).Twice()
+	mockCollector.On("ValidatePayment", op).Return(nil).Twice()
 	mockP2p.On("Broadcast", mock.Anything).Return(nil).Twice()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -114,7 +114,7 @@ func TestSkipAddingKnownOperation(t *testing.T) {
 	mockEndorser.On("IsOperationReady", mock.Anything, op).Return(er, nil).Once()
 	mockEndorser.On("ConstraintsMet", mock.Anything, er).Return(true, nil).Once()
 	mockEndorser.On("DependencyState", mock.Anything, er).Return(es, nil).Once()
-	mockCollector.On("MeetsPayment", op).Return(true, nil).Once()
+	mockCollector.On("ValidatePayment", op).Return(nil).Once()
 	mockP2p.On("Broadcast", mock.Anything).Return(nil).Once()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -192,15 +192,7 @@ func TestNotReadyOperation(t *testing.T) {
 	mockEndorser.On("DependencyState", mock.Anything, mock.Anything).Return(&endorser.EndorserResultState{}, nil).Maybe()
 
 	// Maybe the collector fails
-	mockCollector.On("MeetsPayment", op).Return(false, assert.AnError).Once()
-
-	err = mempool.AddOperation(ctx, op, false)
-	assert.Error(t, err)
-	f = mempool.ForgetOps(0)
-	assert.Equal(t, f, []string{op.Digest()})
-
-	// Maybe the collector rejects it
-	mockCollector.On("MeetsPayment", op).Return(false, nil).Once()
+	mockCollector.On("ValidatePayment", op).Return(assert.AnError).Once()
 
 	err = mempool.AddOperation(ctx, op, false)
 	assert.Error(t, err)
@@ -240,7 +232,7 @@ func TestReserveOps(t *testing.T) {
 
 	mockEndorser.On("ConstraintsMet", mock.Anything, er).Return(true, nil).Maybe()
 	mockEndorser.On("DependencyState", mock.Anything, er).Return(es, nil).Maybe()
-	mockCollector.On("MeetsPayment", mock.Anything).Return(true, nil).Maybe()
+	mockCollector.On("ValidatePayment", mock.Anything).Return(nil).Maybe()
 	mockP2p.On("Broadcast", mock.Anything).Return(nil).Maybe()
 
 	ctx, cancel := context.WithCancel(context.Background())

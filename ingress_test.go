@@ -53,14 +53,8 @@ func TestRejectLowPayment(t *testing.T) {
 	op := &types.Operation{}
 
 	mockMempool.On("IsKnownOp", op).Return(false).Twice()
-	mockCollector.On("ValidatePayment", op).Return(false, nil).Once()
-
-	// NOOP
+	mockCollector.On("ValidatePayment", op).Return(fmt.Errorf("err")).Once()
 	err := ingress.Add(op)
-	assert.NoError(t, err)
-
-	mockCollector.On("ValidatePayment", op).Return(false, fmt.Errorf("err")).Once()
-	err = ingress.Add(op)
 	assert.Error(t, err)
 }
 
@@ -84,8 +78,8 @@ func TestIgnoreInTransit(t *testing.T) {
 
 	mockMempool.On("IsKnownOp", op1).Return(false).Once()
 	mockMempool.On("IsKnownOp", op2).Return(false).Once()
-	mockCollector.On("ValidatePayment", op1).Return(true, nil).Once()
-	mockCollector.On("ValidatePayment", op2).Return(true, nil).Once()
+	mockCollector.On("ValidatePayment", op1).Return(nil).Once()
+	mockCollector.On("ValidatePayment", op2).Return(nil).Once()
 
 	err := ingress.Add(op1)
 	assert.NoError(t, err)
@@ -118,8 +112,8 @@ func TestRejectBufferFull(t *testing.T) {
 
 	mockMempool.On("IsKnownOp", op1).Return(false).Once()
 	mockMempool.On("IsKnownOp", op2).Return(false).Once()
-	mockCollector.On("ValidatePayment", op1).Return(true, nil).Once()
-	mockCollector.On("ValidatePayment", op2).Return(true, nil).Once()
+	mockCollector.On("ValidatePayment", op1).Return(nil).Once()
+	mockCollector.On("ValidatePayment", op2).Return(nil).Once()
 
 	err := ingress.Add(op1)
 	assert.NoError(t, err)
@@ -155,7 +149,7 @@ func TestAddOperation(t *testing.T) {
 		done <- true
 
 	}).Return(nil).Once()
-	mockCollector.On("ValidatePayment", op).Return(true, nil).Once()
+	mockCollector.On("ValidatePayment", op).Return(nil).Once()
 
 	go ingress.Run(context.Background())
 
@@ -203,7 +197,7 @@ func TestBuffer(t *testing.T) {
 	mockMempool.On("AddOperation", mock.Anything, op3, false).Run(func(args mock.Arguments) {
 		done <- true
 	}).Return(nil).Once()
-	mockCollector.On("ValidatePayment", mock.Anything).Return(true, nil).Times(3)
+	mockCollector.On("ValidatePayment", mock.Anything).Return(nil).Times(3)
 
 	mockP2p.On("HandleMessageType", proto.MessageType_NEW_OPERATION, mock.Anything).Return(nil).Once()
 
@@ -311,7 +305,7 @@ func TestListenP2P(t *testing.T) {
 	mockMempool.On("AddOperation", mock.Anything, top3, false).Run(func(args mock.Arguments) {
 		done <- true
 	}).Return(nil).Once()
-	mockCollector.On("ValidatePayment", mock.Anything).Return(true, nil).Times(3)
+	mockCollector.On("ValidatePayment", mock.Anything).Return(nil).Times(3)
 
 	for len(mockP2p.Handlers) == 0 {
 	}
