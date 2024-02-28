@@ -1,0 +1,32 @@
+mnemonic = ""
+
+p2p_port = 0
+rpc_port = 3000
+
+boot_nodes = [
+  "/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+  "/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
+  "/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+  "/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
+  "/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+]
+
+[senders]
+  num_senders = 1
+
+[network]
+  ipfs_url = "http://localhost:5001"
+  rpc_url = "https://nodes.sequence.app/arbitrum-nova"
+  validator_contract = "0x6A75f326e3F467868677D61F4247c8c3d151B2cB"
+
+[mempool]
+  max_size = 1000
+
+[logging]
+  service       = "bundler"
+  level         = "INFO"
+  # json          = true
+  concise       = true
+  req_headers   = false
+  resp_headers  = false
+  # source        = "source"

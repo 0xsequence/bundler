@@ -32,35 +32,71 @@ struct Operation
 
   # contract address that must be called with callData to execute the operation.
   - entrypoint: string
+    + go.field.type = prototyp.Hash
 
   # data (in hex) that must be passed to the entrypoint call to execute the operation.
   - callData: string
+    + go.field.type = prototyp.Hash
 
   # minimum gasLimit that must be passed when executing the operation.
-  - gasLimit: uint64
+  - gasLimit: string
+    + go.field.type = prototyp.BigInt
 
   # contract address of the ERC-20 token used to repay the bundler. (address(0) for the native token).
   - feeToken: string
+    + go.field.type = prototyp.Hash
 
   # address of the endorser contract that should be used to validate the operation.
   - endorser: string
+    + go.field.type = prototyp.Hash
 
   # additional data that must be passed to the endorser when calling isOperationReady().
   - endorserCallData: string
+    + go.field.type = prototyp.Hash
 
   # amount of gas that should be passed to the endorser when validating the operation.
-  - endorserGasLimit: uint64
+  - endorserGasLimit: string
+    + go.field.type = prototyp.BigInt
 
   # uint256 max amount of basefee that the operation execution is expected to pay. (Similar to EIP-1559 max_fee_per_gas).
-  - maxFeePerGas: string # TODO: can we use BigInt in JS later..? check webrpc..	
+  - maxFeePerGas: string # TODO: can we use BigInt in JS later..? check webrpc..
+    + go.field.type = prototyp.BigInt
 
   # uint256	fixed amount of fees that the operation execution is expected to pay to the bundler. (Similar to EIP-1559 max_priority_fee_per_gas).
   - priorityFeePerGas: string	# TODO: can we use BigInt in JS later..? check webrpc..	
+    + go.field.type = prototyp.BigInt
 
-  # singleton flag if the operation is allowed to be bundled / aggregated with other operations.
-  # setting to true will opt-out of bundling
-  - singleton?: bool
+  # Scaling factor to convert block.basefee into the feeToken unit.
+  - baseFeeScalingFactor: string
+    + go.field.type = prototyp.BigInt
 
+  # Normalization factor to convert block.basefee into the feeToken unit.
+  - baseFeeNormalizationFactor: string
+    + go.field.type = prototyp.BigInt
+
+  # If true, the operation may have untrusted code paths. These should be treated differently by the bundler (see untrusted environment).
+  - hasUntrustedContext: bool
+
+enum MessageType: int
+  - DEBUG
+  - NEW_OPERATION
+  - ARCHIVE
+
+struct Message
+  - type: MessageType
+  - message: any
+
+struct MempoolView
+  - size: int
+  - seenSize: int
+  - lockSize: int
+  - seen: []string
+  - operations: any
+
+struct Operations
+  - mempool: []string
+  - archive: string
+    + go.tag.json = archive,omitempty
 
 error 1000 NotFound "Not found" HTTP 404
 error 2000 Unauthorized "Unauthorized access" HTTP 401
@@ -71,7 +107,9 @@ service Bundler
   - Ping() => (status: bool)
   - Status() => (status: Status)
   - Peers() => (peers: []string, priorityPeers: []string)
-
+  - Mempool() => (mempool: MempoolView)
+  - SendOperation(operation: Operation) => (status: bool)
+  - Operations() => (operations: Operations)
 
 service Debug
   - Broadcast(message: any) => (status: bool)

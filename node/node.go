@@ -9,10 +9,14 @@ import (
 	"time"
 
 	"github.com/0xsequence/bundler"
+	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
+	"github.com/0xsequence/bundler/endorser"
+	"github.com/0xsequence/bundler/ipfs"
+	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/rpc"
-	"github.com/0xsequence/ethkit/ethwallet"
+	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/go-chi/httplog/v2"
 	"golang.org/x/sync/errgroup"
 )
@@ -22,7 +26,11 @@ type Node struct {
 	Logger *httplog.Logger
 	Host   *p2p.Host
 	RPC    *rpc.RPC
-	Wallet *ethwallet.Wallet
+
+	Mempool   mempool.Interface
+	Archive   *bundler.Archive
+	Ingress   *bundler.Ingress
+	Collector *collector.Collector
 
 	ctx       context.Context
 	ctxStopFn context.CancelFunc
@@ -60,8 +68,17 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 	logger := httplog.NewLogger("bundler", loggerOptions)
 
+	// Provider
+	provider, err := ethrpc.NewProvider(cfg.NetworkConfig.RpcUrl)
+	if err != nil {
+		return nil, err
+	}
+
+	// Endorser
+	endorser := endorser.NewEndorser(provider)
+
 	// wallet
-	wallet, err := setupWallet(cfg.PrivateKey, cfg.DerivationPath)
+	wallet, err := rpc.SetupWallet(cfg.Mnemonic, 0, provider)
 	if err != nil {
 		return nil, err
 	}
@@ -73,8 +90,29 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		return nil, err
 	}
 
+	// IPFS Client
+	ipfs := ipfs.NewClient(cfg.NetworkConfig.IpfsUrl)
+
+	// Collector
+	collector, err := collector.NewCollector(&cfg.CollectorConfig, logger, provider)
+	if err != nil {
+		return nil, err
+	}
+
+	// Mempool
+	mempool, err := mempool.NewMempool(&cfg.MempoolConfig, logger, endorser, host, collector, ipfs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Ingress
+	ingress := bundler.NewIngress(&cfg.MempoolConfig, logger, mempool, collector, host)
+
+	// Archive
+	archive := bundler.NewArchive(&cfg.ArchiveConfig, host, logger, ipfs, mempool)
+
 	// RPC
-	rpc, err := rpc.NewRPC(cfg, logger, host)
+	rpc, err := rpc.NewRPC(cfg, logger, host, mempool, archive, provider, collector, endorser, ipfs)
 	if err != nil {
 		return nil, err
 	}
@@ -83,11 +121,14 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	// Server
 	//
 	server := &Node{
-		Config: cfg,
-		Logger: logger,
-		Host:   host,
-		RPC:    rpc,
-		Wallet: wallet,
+		Config:    cfg,
+		Logger:    logger,
+		Host:      host,
+		RPC:       rpc,
+		Mempool:   mempool,
+		Archive:   archive,
+		Ingress:   ingress,
+		Collector: collector,
 	}
 
 	return server, nil
@@ -122,6 +163,41 @@ func (s *Node) Run() error {
 		return s.Host.Run(ctx)
 	})
 
+	// Ingress processor
+	g.Go(func() error {
+		oplog.Info("-> ingress: run")
+		s.Ingress.Run(ctx)
+		return nil
+	})
+
+	// Archive
+	g.Go(func() error {
+		oplog.Info("-> archive: run")
+		s.Archive.Run(ctx)
+		return nil
+	})
+
+	// Collector
+	g.Go(func() error {
+		oplog.Info("-> collector: run")
+		s.Collector.Run(ctx)
+		return nil
+	})
+
+	// Collector feeds
+	feeds := s.Collector.Feeds()
+	for _, feed := range feeds {
+		feed := feed
+		g.Go(func() error {
+			oplog.Info("-> collector: feed: run", "feed", feed.Name())
+			err := feed.Start(ctx)
+			if err != nil {
+				oplog.Error("-> collector: feed: error", "feed", feed.Name(), "error", err)
+			}
+			return err
+		})
+	}
+
 	// Once run context is done, trigger a server-stop.
 	go func() {
 		<-ctx.Done()
@@ -146,6 +222,14 @@ func (s *Node) Stop() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	// Force shutdown after grace period
+	go func() {
+		<-shutdownCtx.Done()
+		if shutdownCtx.Err() == context.DeadlineExceeded {
+			s.Fatal("graceful shutdown timed out.. forced exit.")
+		}
+	}()
+
 	var wg sync.WaitGroup
 
 	wg.Add(1)
@@ -157,15 +241,18 @@ func (s *Node) Stop() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s.Host.Stop(shutdownCtx)
+		s.Archive.Stop(shutdownCtx)
 	}()
 
-	// Force shutdown after grace period
+	wg.Wait()
+
+	// Stop the P2P layer last
+	// as the node may have some messages to send
+
+	wg.Add(1)
 	go func() {
-		<-shutdownCtx.Done()
-		if shutdownCtx.Err() == context.DeadlineExceeded {
-			s.Fatal("graceful shutdown timed out.. forced exit.")
-		}
+		defer wg.Done()
+		s.Host.Stop(shutdownCtx)
 	}()
 
 	// Wait for subprocesses to gracefully stop

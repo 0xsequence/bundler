@@ -11,15 +11,20 @@ import (
 type Config struct {
 	GitCommit string `toml:"-"`
 
-	// TODO: add support for mnemonic + hd wallet
-	PrivateKey     string `toml:"private_key"`
-	DerivationPath string `toml:"derivation_path"`
+	Mnemonic string `toml:"mnemonic"`
 
 	P2PPort   int      `toml:"p2p_port"`
 	RPCPort   int      `toml:"rpc_port"`
 	BootNodes []string `toml:"boot_nodes"`
 
 	Logging LoggingConfig `toml:"logging"`
+
+	NetworkConfig   NetworkConfig   `toml:"network"`
+	MempoolConfig   MempoolConfig   `toml:"mempool"`
+	SendersConfig   SendersConfig   `toml:"senders"`
+	CollectorConfig CollectorConfig `toml:"collector"`
+	PrunerConfig    PrunerConfig    `toml:"pruner"`
+	ArchiveConfig   ArchiveConfig   `toml:"archive"`
 
 	BootNodeAddrs []multiaddr.Multiaddr `toml:"-"`
 }
@@ -32,6 +37,52 @@ type LoggingConfig struct {
 	RequestHeaders  bool   `toml:"req_headers"`
 	ResponseHeaders bool   `toml:"resp_headers"`
 	Source          string `toml:"source"`
+}
+
+type NetworkConfig struct {
+	RpcUrl  string `toml:"rpc_url"`
+	IpfsUrl string `toml:"ipfs_url"`
+
+	ValidatorContract string `toml:"validator_contract"`
+}
+
+type MempoolConfig struct {
+	Size        uint `toml:"max_size"`
+	IngressSize uint `toml:"max_ingress_size"`
+
+	MaxEndorserGasLimit uint `toml:"max_endorser_gas_limit"`
+}
+
+type PrunerConfig struct {
+	GracePeriodSeconds int `toml:"grace_period"`
+	RunWaitMillis      int `toml:"run_wait_millis"`
+}
+
+type SendersConfig struct {
+	NumSenders uint `toml:"num_senders"`
+}
+
+type ArchiveConfig struct {
+	RunEveryMillis     int `toml:"run_every_millis"`
+	ForgetAfterSeconds int `toml:"forget_after_seconds"`
+}
+
+type CollectorConfig struct {
+	PriorityFee    int64   `toml:"min_priority_fee"`
+	PriorityFeeMul float64 `toml:"priority_fee_mul"`
+
+	References []PriceReference `toml:"references"`
+}
+
+type PriceReference struct {
+	Token string `toml:"token"`
+
+	UniswapV2 *UniswapV2Reference `toml:"uniswap_v2"`
+}
+
+type UniswapV2Reference struct {
+	Pool      string `toml:"pool"`
+	BaseToken string `toml:"base_token"`
 }
 
 func NewFromFile(file string, env string, cfg *Config) error {

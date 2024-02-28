@@ -1,15 +1,17 @@
 module github.com/0xsequence/bundler
 
-go 1.21.6
+go 1.21
 
 require (
 	github.com/0xsequence/ethkit v1.22.6
+	github.com/0xsequence/go-sequence v0.28.3
 	github.com/BurntSushi/toml v1.3.2
 	github.com/davecgh/go-spew v1.1.1
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0
 	github.com/go-chi/chi/v5 v5.0.11
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/httplog/v2 v2.0.9
+	github.com/ipfs/boxo v0.18.0
 	github.com/ipfs/go-cid v0.4.1
 	github.com/libp2p/go-libp2p v0.32.2
 	github.com/libp2p/go-libp2p-kad-dht v0.25.2
@@ -55,7 +57,6 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/ipfs/boxo v0.17.0 // indirect
 	github.com/ipfs/go-datastore v0.6.0 // indirect
 	github.com/ipfs/go-log v1.0.5 // indirect
 	github.com/ipfs/go-log/v2 v2.5.1 // indirect
@@ -98,6 +99,7 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/polydawn/refmt v0.89.0 // indirect
 	github.com/prometheus/client_golang v1.18.0 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
@@ -109,7 +111,10 @@ require (
 	github.com/raulk/go-watchdog v1.3.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/stretchr/objx v0.5.0 // indirect
+	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/tyler-smith/go-bip39 v1.1.0 // indirect
+	github.com/whyrusleeping/chunker v0.0.0-20181014151217-fe64bd25879f // indirect
 	github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/otel v1.23.1 // indirect
@@ -130,5 +135,6 @@ require (
 	gonum.org/v1/gonum v0.14.0 // indirect
 	google.golang.org/protobuf v1.32.0 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/blake3 v1.2.1 // indirect
 )

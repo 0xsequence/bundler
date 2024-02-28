@@ -1,0 +1,114 @@
+name: Go
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: [ '1.21.6' ]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Display Go version
+        run: go version
+    
+      - name: Install dependencies
+        run: go get .
+
+      - name: Build
+        run: make build
+
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: bin
+          path: bin/
+
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: [ '1.21.6', '1.21.7', '1.22.x' ]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Display Go version
+        run: go version
+    
+      - name: Install dependencies
+        run: go get .
+
+      - name: Run tests
+        run: make test
+
+  proto-gen:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: [ '1.21.6' ]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Display Go version
+        run: go version
+    
+      - name: Install dependencies
+        run: go get .
+
+      - name: Make proto
+        run: make proto
+
+      - name: Check for uncommitted changes
+        run: |
+          if git status --porcelain | grep '.'; then
+            echo "Uncommitted changes detected."
+            exit 1
+          else
+            echo "No uncommitted changes detected."
+          fi
+
+  forge-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+
+      - uses: gacts/install-geth-tools@v1
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Build contracts
+        run: cd contracts && make all
+
+      - name: Check for uncommitted changes
+        run: |
+          if git status --porcelain | grep '.'; then
+            echo "Uncommitted changes detected."
+            exit 1
+          else
+            echo "No uncommitted changes detected."
+          fi

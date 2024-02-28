@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/0xsequence/bundler/config"
+	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/ethkit/ethwallet"
 	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
 	"github.com/libp2p/go-libp2p"
@@ -28,17 +29,20 @@ import (
 )
 
 type Host struct {
-	cfg    *config.Config
-	logger *slog.Logger
-	host   host.Host
-	pubsub *pubsub.PubSub
-	topic  *pubsub.Topic
+	cfg      *config.Config
+	logger   *slog.Logger
+	host     host.Host
+	pubsub   *pubsub.PubSub
+	topic    *pubsub.Topic
+	handlers map[proto.MessageType][]MsgHandler
 
 	ctx     context.Context
 	ctxStop context.CancelFunc
 	running int32
 	// mu      sync.RWMutex
 }
+
+var _ Interface = &Host{}
 
 func NewHost(cfg *config.Config, logger *slog.Logger, wallet *ethwallet.Wallet) (*Host, error) {
 
@@ -123,9 +127,10 @@ func NewHost(cfg *config.Config, logger *slog.Logger, wallet *ethwallet.Wallet) 
 	}
 
 	nd := &Host{
-		cfg:    cfg,
-		logger: logger,
-		host:   h,
+		cfg:      cfg,
+		logger:   logger,
+		host:     h,
+		handlers: map[proto.MessageType][]MsgHandler{},
 	}
 
 	return nd, nil
@@ -276,7 +281,7 @@ func (n *Host) PriorityPeers() []peer.ID {
 	return priorityPeers
 }
 
-func (n *Host) Broadcast(payload interface{}) error {
+func (n *Host) Broadcast(payload proto.Message) error {
 	if n.topic == nil {
 		return fmt.Errorf("pubsub topic not initialized")
 	}

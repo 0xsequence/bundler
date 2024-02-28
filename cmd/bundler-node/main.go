@@ -111,6 +111,7 @@ func run() error {
 
 		// Shutdown the server
 		s.Stop()
+		os.Exit(0)
 	}()
 
 	// Run the server
