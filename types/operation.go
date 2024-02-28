@@ -26,6 +26,7 @@ type Operation struct {
 	BaseFeeScalingFactor       *big.Int       `json:"baseFeeScalingFactor"`
 	BaseFeeNormalizationFactor *big.Int       `json:"baseFeeNormalizationFactor"`
 	HasUntrustedContext        bool           `json:"hasUntrustedContext"`
+	ChainID                    *big.Int       `json:"chainId"`
 }
 
 func NewOperation() *Operation {
@@ -46,6 +47,7 @@ func (o *Operation) ToProto() *proto.Operation {
 		BaseFeeScalingFactor:       prototyp.ToBigInt(o.BaseFeeScalingFactor),
 		BaseFeeNormalizationFactor: prototyp.ToBigInt(o.BaseFeeNormalizationFactor),
 		HasUntrustedContext:        o.HasUntrustedContext,
+		ChainID:                    prototyp.ToBigInt(o.ChainID),
 	}
 }
 
@@ -96,6 +98,7 @@ func NewOperationFromProto(op *proto.Operation) (*Operation, error) {
 		BaseFeeScalingFactor:       op.BaseFeeScalingFactor.Int(),
 		BaseFeeNormalizationFactor: op.BaseFeeNormalizationFactor.Int(),
 		HasUntrustedContext:        op.HasUntrustedContext,
+		ChainID:                    op.ChainID.Int(),
 	}, nil
 }
 
