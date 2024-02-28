@@ -21,7 +21,7 @@ type Collector struct {
 	lastBaseFee *big.Int
 	priorityFee *big.Int
 
-	feeds map[common.Address]*pricefeed.Feed
+	feeds map[common.Address]pricefeed.Feed
 
 	logger *httplog.Logger
 
@@ -31,7 +31,7 @@ type Collector struct {
 var _ Interface = &Collector{}
 
 func NewCollector(cfg *config.CollectorConfig, logger *httplog.Logger, provider *ethrpc.Provider) (*Collector, error) {
-	feeds := make(map[common.Address]*pricefeed.Feed)
+	feeds := make(map[common.Address]pricefeed.Feed)
 
 	for _, ref := range cfg.References {
 		feed, err := pricefeed.FeedForReference(&ref, logger, provider)
@@ -49,7 +49,7 @@ func NewCollector(cfg *config.CollectorConfig, logger *httplog.Logger, provider 
 		}
 
 		logger.Info("collector: added feed", "token", ref.Token, "feed", feed.Name())
-		feeds[common.HexToAddress(ref.Token)] = &feed
+		feeds[common.HexToAddress(ref.Token)] = feed
 	}
 
 	priorityFee := new(big.Int).SetInt64(cfg.PriorityFee)
@@ -86,8 +86,8 @@ func (c *Collector) Run(ctx context.Context) error {
 	return nil
 }
 
-func (c *Collector) Feeds() []*pricefeed.Feed {
-	feeds := make([]*pricefeed.Feed, 0, len(c.feeds))
+func (c *Collector) Feeds() []pricefeed.Feed {
+	feeds := make([]pricefeed.Feed, 0, len(c.feeds))
 	for _, feed := range c.feeds {
 		feeds = append(feeds, feed)
 	}
@@ -119,7 +119,7 @@ func (c *Collector) MinFeePerGas(feeToken common.Address) (*big.Int, error) {
 		}
 
 		var err error
-		minFeePerGas, err = (*feed).FromNative(minFeePerGas)
+		minFeePerGas, err = feed.FromNative(minFeePerGas)
 		if err != nil {
 			return nil, fmt.Errorf("collector: error converting fee to native token: %w", err)
 		}

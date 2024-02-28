@@ -10,6 +10,6 @@ import (
 type Interface interface {
 	BaseFee() *big.Int
 	PriorityFee() *big.Int
-	Feeds() []*pricefeed.Feed
+	Feeds() []pricefeed.Feed
 	MeetsPayment(op *types.Operation) (bool, error)
 }

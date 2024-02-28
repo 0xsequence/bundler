@@ -187,12 +187,12 @@ func (s *Node) Run() error {
 	// Collector feeds
 	feeds := s.Collector.Feeds()
 	for _, feed := range feeds {
-		f := *feed
+		feed := feed
 		g.Go(func() error {
-			oplog.Info("-> collector: feed: run", "feed", f.Name())
-			err := f.Start(ctx)
+			oplog.Info("-> collector: feed: run", "feed", feed.Name())
+			err := feed.Start(ctx)
 			if err != nil {
-				oplog.Error("-> collector: feed: error", "feed", f.Name(), "error", err)
+				oplog.Error("-> collector: feed: error", "feed", feed.Name(), "error", err)
 			}
 			return err
 		})
