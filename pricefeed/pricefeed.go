@@ -15,6 +15,7 @@ type Feed interface {
 	Name() string
 	FromNative(amount *big.Int) (*big.Int, error)
 	ToNative(amount *big.Int) (*big.Int, error)
+	Factors() (*big.Int, *big.Int, error)
 	Start(ctx context.Context) error
 }
 

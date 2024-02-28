@@ -5,11 +5,19 @@ import (
 	"math/big"
 
 	"github.com/0xsequence/bundler/pricefeed"
+	"github.com/stretchr/testify/mock"
 )
 
 type Feed struct {
+	mock.Mock
+
 	EtherPerUnit float64
 	Decimals     uint
+}
+
+func (m *Feed) Factors() (*big.Int, *big.Int, error) {
+	args := m.Called()
+	return args.Get(0).(*big.Int), args.Get(1).(*big.Int), args.Error(2)
 }
 
 func (f *Feed) Ready() bool {

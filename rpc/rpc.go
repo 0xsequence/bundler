@@ -248,8 +248,14 @@ func (s RPC) Operations(ctx context.Context) (*proto.Operations, error) {
 	return s.archive.Operations(ctx), nil
 }
 
+func (s *RPC) FeeAsks(ctx context.Context) (*proto.FeeAsks, error) {
+	return s.collector.FeeAsks()
+}
+
 func stubHandler(respBody string) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(respBody))
 	})
 }
+
+var _ proto.Bundler = &RPC{}

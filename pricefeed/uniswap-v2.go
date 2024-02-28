@@ -191,3 +191,17 @@ func (f *UniswapV2Feed) ToNative(value *big.Int) (*big.Int, error) {
 
 	return new(big.Int).Div(new(big.Int).Mul(value, nr0), nr1), nil
 }
+
+func (f *UniswapV2Feed) Factors() (*big.Int, *big.Int, error) {
+	r0, r1, _, _, err := f.getReservesNative0()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Find the lowest representation for the price
+	gdc := new(big.Int).GCD(nil, nil, r0, r1)
+
+	return new(big.Int).Div(r0, gdc), new(big.Int).Div(r1, gdc), nil
+}
+
+var _ Feed = (*UniswapV2Feed)(nil)
