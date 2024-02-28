@@ -77,6 +77,12 @@ struct Operation
   # If true, the operation may have untrusted code paths. These should be treated differently by the bundler (see untrusted environment).
   - hasUntrustedContext: bool
 
+  # Chain ID of the network where the operation is intended to be executed.
+  - chainId: string
+    + go.field.name = ChainID
+    + go.field.type = prototyp.BigInt
+
+
 enum MessageType: int
   - DEBUG
   - NEW_OPERATION

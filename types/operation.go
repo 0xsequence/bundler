@@ -11,6 +11,7 @@ import (
 	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
 	"github.com/0xsequence/ethkit/go-ethereum/log"
 	"github.com/0xsequence/go-sequence/lib/prototyp"
+	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
 )
 
 type Operation struct {
@@ -26,6 +27,7 @@ type Operation struct {
 	BaseFeeScalingFactor       *big.Int       `json:"baseFeeScalingFactor"`
 	BaseFeeNormalizationFactor *big.Int       `json:"baseFeeNormalizationFactor"`
 	HasUntrustedContext        bool           `json:"hasUntrustedContext"`
+	ChainID                    *big.Int       `json:"chainId"`
 }
 
 func NewOperation() *Operation {
@@ -46,6 +48,7 @@ func (o *Operation) ToProto() *proto.Operation {
 		BaseFeeScalingFactor:       prototyp.ToBigInt(o.BaseFeeScalingFactor),
 		BaseFeeNormalizationFactor: prototyp.ToBigInt(o.BaseFeeNormalizationFactor),
 		HasUntrustedContext:        o.HasUntrustedContext,
+		ChainID:                    prototyp.ToBigInt(o.ChainID),
 	}
 }
 
@@ -96,12 +99,19 @@ func NewOperationFromProto(op *proto.Operation) (*Operation, error) {
 		BaseFeeScalingFactor:       op.BaseFeeScalingFactor.Int(),
 		BaseFeeNormalizationFactor: op.BaseFeeNormalizationFactor.Int(),
 		HasUntrustedContext:        op.HasUntrustedContext,
+		ChainID:                    op.ChainID.Int(),
 	}, nil
 }
 
 func (op *Operation) Digest() string {
 	// Convert to json
 	jsonData, err := json.Marshal(op.ToProto())
+	if err != nil {
+		return ""
+	}
+
+	// Normalize
+	jsonData, err = jsoncanonicalizer.Transform(jsonData)
 	if err != nil {
 		return ""
 	}
@@ -119,6 +129,12 @@ func (op *Operation) ReportToIPFS(ip ipfs.Interface) error {
 	jsonData, err := json.Marshal(op.ToProto())
 	if err != nil {
 		return err
+	}
+
+	// Normalize
+	jsonData, err = jsoncanonicalizer.Transform(jsonData)
+	if err != nil {
+		return fmt.Errorf("unable to normalize operation json: %w", err)
 	}
 
 	cid, err := ipfs.Cid(jsonData)
