@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"errors"
 	"math/big"
 
 	"github.com/0xsequence/bundler/pricefeed"
@@ -11,5 +12,7 @@ type Interface interface {
 	BaseFee() *big.Int
 	PriorityFee() *big.Int
 	Feeds() []pricefeed.Feed
-	MeetsPayment(op *types.Operation) (bool, error)
+	ValidatePayment(op *types.Operation) error
 }
+
+var InsufficientFeeError = errors.New("insufficient fee")

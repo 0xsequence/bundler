@@ -144,15 +144,15 @@ func (c *Collector) MinFeePerGas(feeToken common.Address) (*big.Int, error) {
 	return minFeePerGas, nil
 }
 
-func (c *Collector) MeetsPayment(op *types.Operation) (bool, error) {
+func (c *Collector) ValidatePayment(op *types.Operation) error {
 	minFeePerGas, err := c.MinFeePerGas(op.FeeToken)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	if op.MaxFeePerGas.Cmp(minFeePerGas) < 0 {
-		return false, fmt.Errorf("collector: operation payment too low: %s < %s", op.MaxFeePerGas.String(), minFeePerGas.String())
+		return fmt.Errorf("collector: maxFeePerGas %v < minFeePerGas %v: %w", op.MaxFeePerGas, minFeePerGas, InsufficientFeeError)
 	}
 
-	return true, nil
+	return nil
 }
