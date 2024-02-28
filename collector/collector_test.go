@@ -28,7 +28,7 @@ func TestValidatePayment(t *testing.T) {
 		On("BlockByNumber", context.Background(), tag).
 		Return(gethTypes.NewBlockWithHeader(&gethTypes.Header{BaseFee: big.NewInt(10000000000)}), nil)
 
-	collector, err := collector.NewCollector(
+	c, err := collector.NewCollector(
 		&config.CollectorConfig{},
 		httplog.NewLogger("collector"),
 		provider,
@@ -41,19 +41,19 @@ func TestValidatePayment(t *testing.T) {
 
 	token := common.BytesToAddress(bytes)
 
-	err = collector.AddFeed(token.String(), &mocks.Feed{
+	err = c.AddFeed(token.String(), &mocks.Feed{
 		EtherPerUnit: 1.0 / 3000.0,
 		Decimals:     6,
 	})
 	require.NoError(t, err)
 
 	go func() {
-		if err := collector.Run(context.Background()); err != nil {
+		if err := c.Run(context.Background()); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 		}
 	}()
 
-	for collector.BaseFee() == nil {
+	for c.BaseFee() == nil {
 		time.Sleep(time.Second)
 	}
 
@@ -64,11 +64,11 @@ func TestValidatePayment(t *testing.T) {
 		BaseFeeNormalizationFactor: big.NewInt(1000000000),
 	}
 
-	err = collector.ValidatePayment(&op)
+	err = c.ValidatePayment(&op)
 	require.NoError(t, err)
 
 	op.MaxFeePerGas = big.NewInt(9999999999)
 
-	err = collector.ValidatePayment(&op)
-	require.Error(t, err)
+	err = c.ValidatePayment(&op)
+	require.ErrorIs(t, err, collector.InsufficientFeeError)
 }
