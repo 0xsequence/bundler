@@ -11,6 +11,7 @@ import (
 	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
 	"github.com/0xsequence/ethkit/go-ethereum/log"
 	"github.com/0xsequence/go-sequence/lib/prototyp"
+	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
 )
 
 type Operation struct {
@@ -109,6 +110,12 @@ func (op *Operation) Digest() string {
 		return ""
 	}
 
+	// Normalize
+	jsonData, err = jsoncanonicalizer.Transform(jsonData)
+	if err != nil {
+		return ""
+	}
+
 	res, err := ipfs.Cid(jsonData)
 	if err != nil {
 		log.Warn("failed to create CID", "error", err)
@@ -122,6 +129,12 @@ func (op *Operation) ReportToIPFS(ip ipfs.Interface) error {
 	jsonData, err := json.Marshal(op.ToProto())
 	if err != nil {
 		return err
+	}
+
+	// Normalize
+	jsonData, err = jsoncanonicalizer.Transform(jsonData)
+	if err != nil {
+		return fmt.Errorf("unable to normalize operation json: %w", err)
 	}
 
 	cid, err := ipfs.Cid(jsonData)
