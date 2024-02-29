@@ -37,9 +37,8 @@ func TestAddOperation(t *testing.T) {
 	mockEndorser.On("DependencyState", mock.Anything, er).Return(es, nil).Once()
 	mockCollector.On("ValidatePayment", op).Return(nil).Once()
 
-	mt := proto.MessageType_NEW_OPERATION
 	mockP2p.On("Broadcast", proto.Message{
-		Type:    &mt,
+		Type:    proto.MessageType_NEW_OPERATION,
 		Message: op.ToProto(),
 	}).Return(nil).Once()
 

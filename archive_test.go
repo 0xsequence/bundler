@@ -71,9 +71,8 @@ func TestDoArchive(t *testing.T) {
 		"0x456",
 	}).Once()
 
-	messageType := proto.MessageType_ARCHIVE
 	host.On("Broadcast", proto.Message{
-		Type:    &messageType,
+		Type:    proto.MessageType_ARCHIVE,
 		Message: &bundler.ArchiveMessage{ArchiveCid: cid},
 	}).Return(nil).Once()
 
@@ -132,9 +131,8 @@ func TestListenArchives(t *testing.T) {
 	}).Return(cid2, nil).Once()
 	mempool.On("ForgetOps", time.Minute).Return([]string{}).Once()
 
-	mtype := proto.MessageType_ARCHIVE
 	host.On("Broadcast", proto.Message{
-		Type: &mtype,
+		Type: proto.MessageType_ARCHIVE,
 		Message: &bundler.ArchiveMessage{
 			ArchiveCid: cid2,
 		},
@@ -228,9 +226,8 @@ func TestRunArchiver(t *testing.T) {
 
 	mempool.On("ForgetOps", time.Second*13).Return([]string{}).Maybe()
 
-	messageType := proto.MessageType_ARCHIVE
 	host.On("Broadcast", proto.Message{
-		Type:    &messageType,
+		Type:    proto.MessageType_ARCHIVE,
 		Message: &bundler.ArchiveMessage{ArchiveCid: cid},
 	}).Return(nil).Once()
 	host.On("HandleMessageType", proto.MessageType_ARCHIVE, mock.Anything).Return(nil).Once()
