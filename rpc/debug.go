@@ -11,9 +11,8 @@ type Debug struct {
 }
 
 func (d *Debug) Broadcast(ctx context.Context, message interface{}) (bool, error) {
-	messageType := proto.MessageType_DEBUG
 	err := d.RPC.Host.Broadcast(proto.Message{
-		Type:    &messageType,
+		Type:    proto.MessageType_DEBUG,
 		Message: message,
 	})
 	if err != nil {

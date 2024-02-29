@@ -119,8 +119,8 @@ type Operation struct {
 }
 
 type Message struct {
-	Type    *MessageType `json:"type"`
-	Message interface{}  `json:"message"`
+	Type    MessageType `json:"type"`
+	Message interface{} `json:"message"`
 }
 
 type MempoolView struct {

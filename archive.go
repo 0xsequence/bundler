@@ -187,9 +187,8 @@ func (a *Archive) doArchive(ctx context.Context, ops []string, force bool) error
 	a.seenArchives = make(map[string]string)
 
 	// Broadcast the archive
-	messageType := proto.MessageType_ARCHIVE
 	err = a.Host.Broadcast(proto.Message{
-		Type:    &messageType,
+		Type:    proto.MessageType_ARCHIVE,
 		Message: &ArchiveMessage{ArchiveCid: cid},
 	})
 

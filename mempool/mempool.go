@@ -249,9 +249,8 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 	// Broadcast the operation to the network
 	// ONLY now, since we are sure it's ready
 	if mp.Host != nil {
-		messageType := proto.MessageType_NEW_OPERATION
 		err = mp.Host.Broadcast(proto.Message{
-			Type:    &messageType,
+			Type:    proto.MessageType_NEW_OPERATION,
 			Message: op.ToProto(),
 		})
 		if err != nil {
