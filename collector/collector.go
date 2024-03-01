@@ -63,10 +63,10 @@ func NewCollector(cfg *config.CollectorConfig, logger *httplog.Logger, provider 
 }
 
 func (c *Collector) AddFeed(tokenAddr string, feed pricefeed.Feed) error {
-	addr := common.HexToAddress(tokenAddr)
-	if addr == (common.Address{}) {
-		return fmt.Errorf("collector: invalid token address: %s", tokenAddr)
+	if !common.IsHexAddress(tokenAddr) {
+		return fmt.Errorf("\"%v\" is not a token address", tokenAddr)
 	}
+	addr := common.HexToAddress(tokenAddr)
 
 	if _, ok := c.feeds[addr]; ok {
 		return fmt.Errorf("collector: duplicate token address: %s", tokenAddr)
