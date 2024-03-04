@@ -70,7 +70,7 @@ func (s *Sender) Run(ctx context.Context) {
 		time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
 
 		op := ops[0]
-		paid, lied, err := s.simulateOperation(ctx, &op.Operation)
+		res, err := s.simulateOperation(ctx, &op.Operation)
 
 		// If we got an error, we should discard the operation
 		if err != nil {
@@ -81,9 +81,9 @@ func (s *Sender) Run(ctx context.Context) {
 
 		// If the endorser lied to us, we should discard the operation
 		// TODO: We should ban the endorser too
-		if !paid {
-			if lied {
-				s.logger.Warn("sender: endorser lied", "op", op.Digest(), "endorser", op.Endorser)
+		if !res.Paid {
+			if res.Lied {
+				s.logger.Warn("sender: endorser lied", "op", op.Digest(), "endorser", op.Endorser, "innerOk", res.Meta.InnerOk, "innerPaid", res.Meta.InnerPaid, "innerExpected", res.Meta.InnerExpected)
 			} else {
 				s.logger.Info("sender: stale operation", "op", op.Digest())
 			}
@@ -145,7 +145,35 @@ func (s *Sender) Run(ctx context.Context) {
 	}
 }
 
-func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (paid bool, lied bool, err error) {
+type SimulateResult struct {
+	Paid bool
+	Lied bool
+	Meta *SimulateResultMeta
+}
+
+type SimulateResultMeta struct {
+	InnerOk       bool
+	InnerPaid     big.Int
+	InnerExpected big.Int
+}
+
+func parseMeta(res *abivalidator.OperationValidatorSimulationResult) (*SimulateResultMeta, error) {
+	if len(res.Err) != 32*3 {
+		return nil, fmt.Errorf("invalid error length, expected 32*3, got %v", len(res.Err))
+	}
+
+	ok := new(big.Int).SetBytes(res.Err[4:32+4]).Cmp(big.NewInt(1)) == 0
+	paid := new(big.Int).SetBytes(res.Err[32+4 : 64+4])
+	expected := new(big.Int).SetBytes(res.Err[64+4 : 96+4])
+
+	return &SimulateResultMeta{
+		InnerOk:       ok,
+		InnerPaid:     *paid,
+		InnerExpected: *expected,
+	}, nil
+}
+
+func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (*SimulateResult, error) {
 	result, err := s.executor.SimulateOperation(
 		&bind.CallOpts{Context: ctx},
 		op.Entrypoint,
@@ -162,18 +190,23 @@ func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (pa
 	)
 
 	if err != nil {
-		return false, false, fmt.Errorf("unable to call simulateOperation: %w", err)
+		return nil, fmt.Errorf("unable to call simulateOperation: %w", err)
 	}
 
 	// The operation is healthy, ready to be executed
 	if result.Paid {
-		return true, false, nil
+		return &SimulateResult{
+			Paid: true,
+		}, nil
 	}
 
 	// The endorser is telling us that the operation was not ready
 	// to be executed, so it didn't lie to us
 	if !result.Readiness {
-		return false, false, nil
+		return &SimulateResult{
+			Paid: false,
+			Lied: false,
+		}, nil
 	}
 
 	// The only chance for the endorser left is that
@@ -181,16 +214,27 @@ func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (pa
 
 	constraintsOk, err := s.Endorser.ConstraintsMet(ctx, endorser.FromExecutorResult(&result))
 	if err != nil {
-		return false, false, fmt.Errorf("unable to check dependency constraints: %w", err)
+		return nil, fmt.Errorf("unable to check dependency constraints: %w", err)
 	}
 
 	// So constraints are not met, so it didn't lie to us
 	if !constraintsOk {
-		return false, false, nil
+		return &SimulateResult{
+			Paid: false,
+			Lied: false,
+		}, nil
 	}
 
 	// The endorser is telling us that the operation was ready
 	// to be executed, constraints are met, but we didn't get paid
 	// this means the endorser lied to us.
-	return false, true, nil
+	meta, err := parseMeta(&result)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse simulation meta: %w", err)
+	}
+
+	return &SimulateResult{
+		Paid: false,
+		Meta: meta,
+	}, nil
 }
