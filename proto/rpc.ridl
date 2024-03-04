@@ -128,7 +128,7 @@ service Bundler
   - Status() => (status: Status)
   - Peers() => (peers: []string, priorityPeers: []string)
   - Mempool() => (mempool: MempoolView)
-  - SendOperation(operation: Operation) => (status: bool)
+  - SendOperation(operation: Operation) => (operation: string)
   - Operations() => (operations: Operations)
   - FeeAsks() => (feeAsks: FeeAsks)
 

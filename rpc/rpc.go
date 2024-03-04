@@ -221,10 +221,10 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("."))
 }
 
-func (s *RPC) SendOperation(ctx context.Context, pop *proto.Operation) (bool, error) {
+func (s *RPC) SendOperation(ctx context.Context, pop *proto.Operation) (string, error) {
 	op, err := types.NewOperationFromProto(pop)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 
 	// Always PIN these operations to IPFS
@@ -234,10 +234,10 @@ func (s *RPC) SendOperation(ctx context.Context, pop *proto.Operation) (bool, er
 
 	err = s.mempool.AddOperation(ctx, op, true)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 
-	return true, nil
+	return op.Digest(), nil
 }
 
 func (s RPC) Mempool(ctx context.Context) (*proto.MempoolView, error) {
