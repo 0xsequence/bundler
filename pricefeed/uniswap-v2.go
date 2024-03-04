@@ -138,10 +138,10 @@ func (f *UniswapV2Feed) getReservesNative0() (r0, r1 *big.Int, err error) {
 	}
 
 	if f.inverse {
-		return f.reserve1, f.reserve0, nil
+		return f.reserve0, f.reserve1, nil
 	}
 
-	return f.reserve0, f.reserve1, nil
+	return f.reserve1, f.reserve0, nil
 }
 
 func normalizeDecimals(r0, r1 *big.Int, d0, d1 int) (nr0, nr1 *big.Int) {
@@ -163,7 +163,7 @@ func (f *UniswapV2Feed) FromNative(native *big.Int) (*big.Int, error) {
 		return nil, err
 	}
 
-	return new(big.Int).Div(new(big.Int).Mul(native, r1), r0), nil
+	return new(big.Int).Div(new(big.Int).Mul(native, r0), r1), nil
 }
 
 func (f *UniswapV2Feed) ToNative(value *big.Int) (*big.Int, error) {
@@ -172,7 +172,7 @@ func (f *UniswapV2Feed) ToNative(value *big.Int) (*big.Int, error) {
 		return nil, err
 	}
 
-	return new(big.Int).Div(new(big.Int).Mul(value, r0), r1), nil
+	return new(big.Int).Div(new(big.Int).Mul(value, r1), r0), nil
 }
 
 func (f *UniswapV2Feed) Factors() (*big.Int, *big.Int, error) {
@@ -181,10 +181,11 @@ func (f *UniswapV2Feed) Factors() (*big.Int, *big.Int, error) {
 		return nil, nil, err
 	}
 
-	// Find the lowest representation for the price
-	gdc := new(big.Int).GCD(nil, nil, r0, r1)
+	return r0, r1, nil
+	// // Find the lowest representation for the price
+	// gdc := new(big.Int).GCD(nil, nil, r0, r1)
 
-	return new(big.Int).Div(r0, gdc), new(big.Int).Div(r1, gdc), nil
+	// return new(big.Int).Div(r0, gdc), new(big.Int).Div(r1, gdc), nil
 }
 
 var _ Feed = (*UniswapV2Feed)(nil)

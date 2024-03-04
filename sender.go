@@ -42,6 +42,7 @@ func NewSender(logger *slog.Logger, id uint32, wallet *ethwallet.Wallet, mempool
 		Wallet:    wallet,
 		Mempool:   mempool,
 		Collector: collector,
+		Endorser:  endorser,
 
 		ChainID: chainID,
 
