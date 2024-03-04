@@ -7,13 +7,14 @@ import "./Math.sol";
 
 contract OperationValidator {
   error BundlerExecutionFailed();
-  error BundlerUnderpaid(uint256 _paid, uint256 _expected);
+  error BundlerUnderpaid(bool _succeed, uint256 _paid, uint256 _expected);
 
   struct SimulationResult {
     bool paid;
     bool readiness;
     Endorser.GlobalDependency globalDependency;
     Endorser.Dependency[] dependencies;
+    bytes err;
   }
 
   function fetchPaymentBal(address _feeToken) internal view returns (uint256) {
@@ -40,18 +41,17 @@ contract OperationValidator {
     
     uint256 preGas = gasleft();
     // Ignore the return value, we don't trust any of it
-    _entrypoint.call{ gas: _gasLimit }(_data);
+    (bool ok,) = _entrypoint.call{ gas: _gasLimit }(_data);
 
     uint256 postGas = gasleft();
     uint256 postBal = fetchPaymentBal(_feeToken);
 
     uint256 gasUsed = preGas - postGas;
-    uint256 baseFee = Math.mulDiv(block.basefee, _baseFeeScalingFactor, _baseFeeNormalizationFactor);
-    uint256 gasPrice = Math.min(baseFee + _maxPriorityFeePerGas, _maxFeePerGas);
-    uint256 expectPayment = gasUsed * gasPrice;
+    uint256 gasPrice = Math.min(block.basefee + _maxPriorityFeePerGas, _maxFeePerGas);
+    uint256 expectPayment = Math.mulDiv(gasUsed * gasPrice, _baseFeeScalingFactor, _baseFeeNormalizationFactor);
 
     if (postBal - preBal < expectPayment) {
-      revert();
+      revert BundlerUnderpaid(ok, postBal - preBal, expectPayment);
     }
 
     return true;
@@ -114,8 +114,9 @@ contract OperationValidator {
       result.globalDependency = globalDependency;
       result.dependencies = dependencies;
       return result;
-    } catch {
+    } catch (bytes memory err) {
       result.readiness = false;
+      result.err = err;
       return result;
     }
   }
@@ -136,19 +137,15 @@ contract OperationValidator {
     (bool ok,) = _entrypoint.call{ gas: _gasLimit }(_data);
     uint256 postGas = gasleft();
 
-    if (!ok) {
-      revert BundlerExecutionFailed();
-    }
-
     uint256 postBal = fetchPaymentBal(_feeToken);
 
     uint256 gasUsed = preGas - postGas;
-    uint256 gasPrice = Math.min(Math.mulDiv(block.basefee, _baseFeeScalingFactor, _baseFeeNormalizationFactor) + _maxPriorityFeePerGas, _maxFeePerGas);
-    uint256 expectPayment = gasUsed * gasPrice;
+    uint256 gasPrice = Math.min(block.basefee + _maxPriorityFeePerGas, _maxFeePerGas);
+    uint256 expectPayment = Math.mulDiv(gasUsed * gasPrice, _baseFeeScalingFactor, _baseFeeNormalizationFactor);
     uint256 paid = postBal - preBal;
 
     if (paid < expectPayment) {
-      revert BundlerUnderpaid(paid, expectPayment);
+      revert BundlerUnderpaid(ok, paid, expectPayment);
     }
   }
 }
