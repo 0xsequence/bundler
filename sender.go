@@ -83,7 +83,7 @@ func (s *Sender) Run(ctx context.Context) {
 		// TODO: We should ban the endorser too
 		if !res.Paid {
 			if res.Lied {
-				s.logger.Warn("sender: endorser lied", "op", op.Digest(), "endorser", op.Endorser, "innerOk", res.Meta.InnerOk, "innerPaid", res.Meta.InnerPaid, "innerExpected", res.Meta.InnerExpected)
+				s.logger.Warn("sender: endorser lied", "op", op.Digest(), "endorser", op.Endorser, "innerOk", res.Meta.InnerOk, "innerPaid", res.Meta.InnerPaid.String(), "innerExpected", res.Meta.InnerExpected.String())
 			} else {
 				s.logger.Info("sender: stale operation", "op", op.Digest())
 			}
@@ -108,6 +108,7 @@ func (s *Sender) Run(ctx context.Context) {
 				Nonce:     new(big.Int).SetUint64(nonce),
 				GasTipCap: priorityFeePerGas,
 				NoSend:    true,
+				From:      s.Wallet.Address(),
 			},
 			op.Entrypoint,
 			op.Calldata,
@@ -158,7 +159,7 @@ type SimulateResultMeta struct {
 }
 
 func parseMeta(res *abivalidator.OperationValidatorSimulationResult) (*SimulateResultMeta, error) {
-	if len(res.Err) != 32*3 {
+	if len(res.Err) != 32*3+4 {
 		return nil, fmt.Errorf("invalid error length, expected 32*3, got %v", len(res.Err))
 	}
 
@@ -175,7 +176,10 @@ func parseMeta(res *abivalidator.OperationValidatorSimulationResult) (*SimulateR
 
 func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (*SimulateResult, error) {
 	result, err := s.executor.SimulateOperation(
-		&bind.CallOpts{Context: ctx},
+		&bind.CallOpts{
+			Context: ctx,
+			From:    s.Wallet.Address(),
+		},
 		op.Entrypoint,
 		op.Calldata,
 		op.EndorserCallData,
@@ -235,6 +239,7 @@ func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (*S
 
 	return &SimulateResult{
 		Paid: false,
+		Lied: true,
 		Meta: meta,
 	}, nil
 }

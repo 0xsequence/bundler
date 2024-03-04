@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache 2.0
 pragma solidity ^0.8.13;
 
+import "solady/utils/FixedPointMathLib.sol";
+
 import "./interfaces/ERC20.sol";
 import "./interfaces/Endorser.sol";
-import "./Math.sol";
 
 contract OperationValidator {
+  using FixedPointMathLib for *;
+
   error BundlerExecutionFailed();
   error BundlerUnderpaid(bool _succeed, uint256 _paid, uint256 _expected);
 
@@ -47,8 +50,8 @@ contract OperationValidator {
     uint256 postBal = fetchPaymentBal(_feeToken);
 
     uint256 gasUsed = preGas - postGas;
-    uint256 gasPrice = Math.min(block.basefee + _maxPriorityFeePerGas, _maxFeePerGas);
-    uint256 expectPayment = Math.mulDiv(gasUsed * gasPrice, _baseFeeScalingFactor, _baseFeeNormalizationFactor);
+    uint256 gasPrice = (block.basefee + _maxPriorityFeePerGas).min(_maxFeePerGas);
+    uint256 expectPayment = (gasUsed * gasPrice).fullMulDiv(_baseFeeScalingFactor, _baseFeeNormalizationFactor);
 
     if (postBal - preBal < expectPayment) {
       revert BundlerUnderpaid(ok, postBal - preBal, expectPayment);
@@ -86,7 +89,8 @@ contract OperationValidator {
     ) {
       result.paid = success;
       return result;
-    } catch {
+    } catch (bytes memory err) {
+      result.err = err;
       result.paid = false;
     }
 
@@ -114,9 +118,8 @@ contract OperationValidator {
       result.globalDependency = globalDependency;
       result.dependencies = dependencies;
       return result;
-    } catch (bytes memory err) {
+    } catch {
       result.readiness = false;
-      result.err = err;
       return result;
     }
   }
@@ -140,8 +143,8 @@ contract OperationValidator {
     uint256 postBal = fetchPaymentBal(_feeToken);
 
     uint256 gasUsed = preGas - postGas;
-    uint256 gasPrice = Math.min(block.basefee + _maxPriorityFeePerGas, _maxFeePerGas);
-    uint256 expectPayment = Math.mulDiv(gasUsed * gasPrice, _baseFeeScalingFactor, _baseFeeNormalizationFactor);
+    uint256 gasPrice = (block.basefee + _maxPriorityFeePerGas).min(_maxFeePerGas);
+    uint256 expectPayment = (gasUsed * gasPrice).fullMulDiv(_baseFeeScalingFactor, _baseFeeNormalizationFactor);
     uint256 paid = postBal - preBal;
 
     if (paid < expectPayment) {
