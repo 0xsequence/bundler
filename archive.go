@@ -3,6 +3,7 @@ package bundler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
+	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
 	"github.com/go-chi/httplog/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -171,17 +173,23 @@ func (a *Archive) doArchive(ctx context.Context, ops []string, force bool) error
 		PrevArchive:  a.PrevArchive,
 	}
 
-	snapshotBytes, err := json.Marshal(snapshot)
+	// Convert to json
+	snapshotJson, err := json.Marshal(snapshot)
 	if err != nil {
 		return err
 	}
 
-	sig, err := a.Host.Sign(snapshotBytes)
+	// Normalize
+	snapshotJson, err = jsoncanonicalizer.Transform(snapshotJson)
+	if err != nil {
+		return fmt.Errorf("unable to normalize archive json: %w", err)
+	}
+
+	sig, err := a.Host.Sign(snapshotJson)
 	if err != nil {
 		return err
 	}
 
-	// TODO: Sign the snapshot
 	signedSnapshot := &SignedArchiveSnapshot{
 		Archive:   snapshot,
 		Signature: "0x" + common.Bytes2Hex(sig),
@@ -190,6 +198,11 @@ func (a *Archive) doArchive(ctx context.Context, ops []string, force bool) error
 	body, err := json.Marshal(signedSnapshot)
 	if err != nil {
 		return err
+	}
+
+	body, err = jsoncanonicalizer.Transform(body)
+	if err != nil {
+		return fmt.Errorf("unable to normalize archive json: %w", err)
 	}
 
 	cid, err := a.ipfs.Report(body)
