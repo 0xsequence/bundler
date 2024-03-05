@@ -123,32 +123,4 @@ contract OperationValidator {
       return result;
     }
   }
-
-  function safeExecute(
-    address _entrypoint,
-    bytes calldata _data,
-    uint256 _gasLimit,
-    uint256 _maxFeePerGas,
-    uint256 _maxPriorityFeePerGas,
-    address _feeToken,
-    uint256 _baseFeeScalingFactor,
-    uint256 _baseFeeNormalizationFactor
-  ) external {
-    uint256 preBal = fetchPaymentBal(_feeToken);
-    
-    uint256 preGas = gasleft();
-    (bool ok,) = _entrypoint.call{ gas: _gasLimit }(_data);
-    uint256 postGas = gasleft();
-
-    uint256 postBal = fetchPaymentBal(_feeToken);
-
-    uint256 gasUsed = preGas - postGas;
-    uint256 gasPrice = (block.basefee + _maxPriorityFeePerGas).min(_maxFeePerGas);
-    uint256 expectPayment = (gasUsed * gasPrice).fullMulDiv(_baseFeeScalingFactor, _baseFeeNormalizationFactor);
-    uint256 paid = postBal - preBal;
-
-    if (paid < expectPayment) {
-      revert BundlerUnderpaid(ok, paid, expectPayment);
-    }
-  }
 }

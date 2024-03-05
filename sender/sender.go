@@ -13,11 +13,9 @@ import (
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/types"
+	"github.com/0xsequence/ethkit/ethtxn"
 	"github.com/0xsequence/ethkit/ethwallet"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi/bind"
-	"github.com/0xsequence/ethkit/go-ethereum/common"
-
-	ethtypes "github.com/0xsequence/ethkit/go-ethereum/core/types"
 )
 
 type Sender struct {
@@ -32,12 +30,12 @@ type Sender struct {
 	Endorser endorser.Interface
 	ChainID  *big.Int
 
-	executor ExecutorInterface
+	validator ValidatorInterface
 }
 
 var _ Interface = &Sender{}
 
-func NewSender(logger *slog.Logger, id uint32, wallet *ethwallet.Wallet, mempool mempool.Interface, endorser endorser.Interface, executor *abivalidator.OperationValidator, collector *collector.Collector, chainID *big.Int) *Sender {
+func NewSender(logger *slog.Logger, id uint32, wallet *ethwallet.Wallet, mempool mempool.Interface, endorser endorser.Interface, validator *abivalidator.OperationValidator, collector *collector.Collector, chainID *big.Int) *Sender {
 	return &Sender{
 		ID:        id,
 		logger:    logger,
@@ -48,7 +46,7 @@ func NewSender(logger *slog.Logger, id uint32, wallet *ethwallet.Wallet, mempool
 
 		ChainID: chainID,
 
-		executor: executor,
+		validator: validator,
 	}
 }
 
@@ -93,33 +91,18 @@ func (s *Sender) Run(ctx context.Context) {
 			continue
 		}
 
-		nonce, err := s.Wallet.GetNonce(ctx)
-		if err != nil {
-			s.logger.Warn("sender: error signing transaction", "op", op.Digest(), "error", err)
-			s.Mempool.ReleaseOps(ctx, []*mempool.TrackedOperation{op}, mempool.ReadyAtChangeNone)
-			continue
-		}
-
 		priorityFeePerGas := s.Collector.PriorityFee()
 
-		signedTx, err := s.executor.SafeExecute(
-			&bind.TransactOpts{
-				Signer: func(a common.Address, t *ethtypes.Transaction) (*ethtypes.Transaction, error) {
-					return s.Wallet.SignTx(t, s.ChainID)
-				},
-				Nonce:     new(big.Int).SetUint64(nonce),
-				GasTipCap: priorityFeePerGas,
-				NoSend:    true,
-				From:      s.Wallet.Address(),
+		signedTx, err := s.Wallet.NewTransaction(
+			ctx,
+			&ethtxn.TransactionRequest{
+				GasPrice: op.MaxFeePerGas,
+				GasTip:   priorityFeePerGas,
+				GasLimit: op.GasLimit.Uint64(),
+				To:       &op.Entrypoint,
+				ETHValue: big.NewInt(0),
+				Data:     op.Calldata,
 			},
-			op.Entrypoint,
-			op.Calldata,
-			op.GasLimit,
-			op.MaxFeePerGas,
-			op.PriorityFeePerGas,
-			op.FeeToken,
-			op.BaseFeeScalingFactor,
-			op.BaseFeeNormalizationFactor,
 		)
 
 		if err != nil {
@@ -177,7 +160,7 @@ func parseMeta(res *abivalidator.OperationValidatorSimulationResult) (*SimulateR
 }
 
 func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (*SimulateResult, error) {
-	result, err := s.executor.SimulateOperation(
+	result, err := s.validator.SimulateOperation(
 		&bind.CallOpts{
 			Context: ctx,
 			From:    s.Wallet.Address(),
