@@ -1,4 +1,4 @@
-package bundler
+package sender
 
 import (
 	"context"
@@ -25,15 +25,17 @@ type Sender struct {
 
 	logger *slog.Logger
 
-	Wallet    *ethwallet.Wallet
+	Wallet    WalletInterface
 	Mempool   mempool.Interface
-	Collector *collector.Collector
+	Collector collector.Interface
 
 	Endorser endorser.Interface
 	ChainID  *big.Int
 
-	executor *abivalidator.OperationValidator
+	executor ExecutorInterface
 }
+
+var _ Interface = &Sender{}
 
 func NewSender(logger *slog.Logger, id uint32, wallet *ethwallet.Wallet, mempool mempool.Interface, endorser endorser.Interface, executor *abivalidator.OperationValidator, collector *collector.Collector, chainID *big.Int) *Sender {
 	return &Sender{

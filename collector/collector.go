@@ -140,12 +140,6 @@ func (c *Collector) MinFeePerGas(feeToken common.Address) (*big.Int, error) {
 		}
 	}
 
-	if c.cfg.PriorityFeeMul != 0 {
-		scalar := new(big.Float).SetFloat64(c.cfg.PriorityFeeMul)
-		applied := new(big.Float).Mul(new(big.Float).SetInt(minFeePerGas), scalar)
-		minFeePerGas, _ = applied.Int(nil)
-	}
-
 	return minFeePerGas, nil
 }
 

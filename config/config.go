@@ -60,6 +60,8 @@ type PrunerConfig struct {
 
 type SendersConfig struct {
 	NumSenders uint `toml:"num_senders"`
+
+	PriorityFee int64 `toml:"priority_fee"`
 }
 
 type ArchiveConfig struct {
@@ -68,8 +70,7 @@ type ArchiveConfig struct {
 }
 
 type CollectorConfig struct {
-	PriorityFee    int64   `toml:"min_priority_fee"`
-	PriorityFeeMul float64 `toml:"priority_fee_mul"`
+	PriorityFee int64 `toml:"min_priority_fee"`
 
 	References []PriceReference `toml:"references"`
 }

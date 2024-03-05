@@ -17,6 +17,7 @@ import (
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
+	"github.com/0xsequence/bundler/sender"
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
@@ -36,7 +37,7 @@ type RPC struct {
 	pruner    *bundler.Pruner
 	archive   *bundler.Archive
 	collector *collector.Collector
-	senders   []*bundler.Sender
+	senders   []sender.Interface
 	executor  *abivalidator.OperationValidator
 	ipfs      ipfs.Interface
 
@@ -71,7 +72,7 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		return nil, fmt.Errorf("unable to get chain ID: %w", err)
 	}
 
-	senders := make([]*bundler.Sender, 0, cfg.SendersConfig.NumSenders)
+	senders := make([]sender.Interface, 0, cfg.SendersConfig.NumSenders)
 	for i := 0; i < int(cfg.SendersConfig.NumSenders); i++ {
 		wallet, err := SetupWallet(cfg.Mnemonic, uint32(1+i), provider)
 		if err != nil {
@@ -79,7 +80,7 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		}
 		logger.Info(fmt.Sprintf("sender %v: %v", i, wallet.Address()))
 		slogger := logger.With("sender", i)
-		senders = append(senders, bundler.NewSender(slogger, uint32(i), wallet, mempool, endorser, executor, collector, chainID))
+		senders = append(senders, sender.NewSender(slogger, uint32(i), wallet, mempool, endorser, executor, collector, chainID))
 	}
 
 	pruner := bundler.NewPruner(cfg.PrunerConfig, mempool, endorser, logger)
