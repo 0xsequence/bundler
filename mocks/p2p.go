@@ -48,8 +48,14 @@ func (p *MockP2p) ClearBroadcasted() {
 	p.Broadcasted = []proto.Message{}
 }
 
-func (m *MockP2p) HostID() peer.ID {
-	return m.Called().Get(0).(peer.ID)
+func (m *MockP2p) Address() (string, error) {
+	args := m.Called()
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockP2p) Sign(data []byte) ([]byte, error) {
+	args := m.Called(data)
+	return args.Get(0).([]byte), args.Error(1)
 }
 
 var _ p2p.Interface = &MockP2p{}

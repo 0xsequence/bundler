@@ -50,7 +50,8 @@ func TestDoArchive(t *testing.T) {
 
 	cid, _ := ipfs.Cid([]byte("hello test"))
 
-	host.On("HostID").Return(peer.ID("1")).Once()
+	host.On("Address").Return("0x3BC1C2e7120F1a2cf4535C752BE921ABeD2dc14b", nil).Once()
+	host.On("Sign", mock.Anything).Return([]byte{0x01, 0x02, 0x03}, nil).Once()
 	mipfs.On("Report", mock.Anything).Run(func(args mock.Arguments) {
 		data := args.Get(0).([]byte)
 		var obj bundler.SignedArchiveSnapshot
@@ -63,7 +64,8 @@ func TestDoArchive(t *testing.T) {
 			"0x456",
 		})
 		assert.Equal(t, obj.Archive.PrevArchive, "")
-		assert.Equal(t, obj.Archive.Identity, peer.ID("1").String())
+		assert.Equal(t, obj.Archive.Identity, "0x3BC1C2e7120F1a2cf4535C752BE921ABeD2dc14b")
+		assert.Equal(t, obj.Signature, "0x010203")
 	}).Return(cid, nil).Once()
 
 	mempool.On("ForgetOps", time.Minute).Return([]string{
@@ -117,7 +119,8 @@ func TestListenArchives(t *testing.T) {
 	cid2, _ := ipfs.Cid([]byte("hello test 3"))
 
 	// Doing an archive should broadcast this seen one
-	host.On("HostID").Return(peer.ID("456")).Once()
+	host.On("Address").Return("0x3BC1C2e7120F1a2cf4535C752BE921ABeD2dc14b", nil).Once()
+	host.On("Sign", mock.Anything).Return([]byte{0x01, 0x02, 0x03}, nil).Once()
 	mipfs.On("Report", mock.Anything).Run(func(args mock.Arguments) {
 		data := args.Get(0).([]byte)
 		var obj bundler.SignedArchiveSnapshot
@@ -127,7 +130,7 @@ func TestListenArchives(t *testing.T) {
 		assert.Equal(t, obj.Archive.SeenArchives, expectSeenArchives)
 		assert.Equal(t, obj.Archive.Operations, []string{})
 		assert.Equal(t, obj.Archive.PrevArchive, "")
-		assert.Equal(t, obj.Archive.Identity, peer.ID("456").String())
+		assert.Equal(t, obj.Archive.Identity, "0x3BC1C2e7120F1a2cf4535C752BE921ABeD2dc14b")
 	}).Return(cid2, nil).Once()
 	mempool.On("ForgetOps", time.Minute).Return([]string{}).Once()
 
@@ -161,7 +164,8 @@ func TestChainArchives(t *testing.T) {
 	cid1, _ := ipfs.Cid([]byte("hello test 1"))
 	cid2, _ := ipfs.Cid([]byte("hello test 2"))
 
-	host.On("HostID").Return(peer.ID("1")).Twice()
+	host.On("Address").Return("0x3BC1C2e7120F1a2cf4535C752BE921ABeD2dc14b", nil).Twice()
+	host.On("Sign", mock.Anything).Return([]byte{0x01, 0x02, 0x03}, nil).Twice()
 	mempool.On("ForgetOps", time.Minute).Return([]string{}).Twice()
 	host.On("Broadcast", mock.Anything).Return(nil).Twice()
 
@@ -204,7 +208,8 @@ func TestRunArchiver(t *testing.T) {
 
 	done := make(chan struct{})
 
-	host.On("HostID").Return(peer.ID("1")).Once()
+	host.On("Address").Return("0x3BC1C2e7120F1a2cf4535C752BE921ABeD2dc14b", nil).Once()
+	host.On("Sign", mock.Anything).Return([]byte{0x01, 0x02, 0x03}, nil).Once()
 	mipfs.On("Report", mock.Anything).Run(func(args mock.Arguments) {
 		data := args.Get(0).([]byte)
 		var obj bundler.SignedArchiveSnapshot
@@ -216,7 +221,7 @@ func TestRunArchiver(t *testing.T) {
 			"0x123",
 		})
 		assert.Equal(t, obj.Archive.PrevArchive, "")
-		assert.Equal(t, obj.Archive.Identity, peer.ID("1").String())
+		assert.Equal(t, obj.Archive.Identity, "0x3BC1C2e7120F1a2cf4535C752BE921ABeD2dc14b")
 		done <- struct{}{}
 	}).Return(cid, nil).Once()
 

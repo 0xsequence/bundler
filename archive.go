@@ -12,6 +12,7 @@ import (
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
+	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/httplog/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -157,18 +158,33 @@ func (a *Archive) doArchive(ctx context.Context, ops []string, force bool) error
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
+	addr, err := a.Host.Address()
+	if err != nil {
+		return err
+	}
+
 	snapshot := &ArchiveSnapshot{
 		Timestamp:    uint64(time.Now().Unix()),
-		Identity:     a.Host.HostID().String(),
+		Identity:     addr,
 		Operations:   ops,
 		SeenArchives: a.seenArchives,
 		PrevArchive:  a.PrevArchive,
 	}
 
+	snapshotBytes, err := json.Marshal(snapshot)
+	if err != nil {
+		return err
+	}
+
+	sig, err := a.Host.Sign(snapshotBytes)
+	if err != nil {
+		return err
+	}
+
 	// TODO: Sign the snapshot
 	signedSnapshot := &SignedArchiveSnapshot{
 		Archive:   snapshot,
-		Signature: "",
+		Signature: "0x" + common.Bytes2Hex(sig),
 	}
 
 	body, err := json.Marshal(signedSnapshot)
