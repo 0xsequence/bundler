@@ -114,6 +114,11 @@ func (f *UniswapV2Feed) Start(ctx context.Context) error {
 			f.logger.Warn("uniswap-v2: error fetching reserves", "pool", f.cfg.Pool, "error", err)
 		}
 
+		if reserve0 == nil || reserve1 == nil {
+			f.logger.Warn("uniswap-v2: reserves are nil", "pool", f.cfg.Pool)
+			continue
+		}
+
 		f.mutex.Lock()
 		f.reserve0 = reserve0
 		f.reserve1 = reserve1
@@ -144,23 +149,14 @@ func (f *UniswapV2Feed) getReservesNative0() (r0, r1 *big.Int, err error) {
 	return f.reserve1, f.reserve0, nil
 }
 
-func normalizeDecimals(r0, r1 *big.Int, d0, d1 int) (nr0, nr1 *big.Int) {
-	// Convert r0 and r1 to the same decimals (the highest one)
-	if d0 > d1 {
-		nr0 = r0
-		nr1 = new(big.Int).Mul(r1, new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(d0-d1)), nil))
-	} else {
-		nr0 = new(big.Int).Mul(r0, new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(d1-d0)), nil))
-		nr1 = r1
-	}
-
-	return nr0, nr1
-}
-
 func (f *UniswapV2Feed) FromNative(native *big.Int) (*big.Int, error) {
 	r0, r1, err := f.getReservesNative0()
 	if err != nil {
 		return nil, err
+	}
+
+	if native == nil {
+		return nil, fmt.Errorf("uniswap-v2: native value is nil")
 	}
 
 	return new(big.Int).Div(new(big.Int).Mul(native, r0), r1), nil
