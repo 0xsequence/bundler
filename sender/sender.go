@@ -24,29 +24,24 @@ type Sender struct {
 	logger *slog.Logger
 
 	Wallet    WalletInterface
+	Validator ValidatorInterface
 	Mempool   mempool.Interface
 	Collector collector.Interface
-
-	Endorser endorser.Interface
-	ChainID  *big.Int
-
-	validator ValidatorInterface
+	Endorser  endorser.Interface
 }
 
 var _ Interface = &Sender{}
 
-func NewSender(logger *slog.Logger, id uint32, wallet *ethwallet.Wallet, mempool mempool.Interface, endorser endorser.Interface, validator *abivalidator.OperationValidator, collector *collector.Collector, chainID *big.Int) *Sender {
+func NewSender(logger *slog.Logger, id uint32, wallet *ethwallet.Wallet, mempool mempool.Interface, endorser endorser.Interface, validator *abivalidator.OperationValidator, collector *collector.Collector) *Sender {
 	return &Sender{
-		ID:        id,
-		logger:    logger,
+		ID:     id,
+		logger: logger,
+
 		Wallet:    wallet,
 		Mempool:   mempool,
 		Collector: collector,
 		Endorser:  endorser,
-
-		ChainID: chainID,
-
-		validator: validator,
+		Validator: validator,
 	}
 }
 
@@ -160,7 +155,7 @@ func parseMeta(res *abivalidator.OperationValidatorSimulationResult) (*SimulateR
 }
 
 func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (*SimulateResult, error) {
-	result, err := s.validator.SimulateOperation(
+	result, err := s.Validator.SimulateOperation(
 		&bind.CallOpts{
 			Context: ctx,
 			From:    s.Wallet.Address(),

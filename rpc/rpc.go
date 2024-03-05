@@ -66,12 +66,6 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		return nil, fmt.Errorf("unable to connect to validator contract")
 	}
 
-	// Get the chain ID
-	chainID, err := provider.ChainID(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("unable to get chain ID: %w", err)
-	}
-
 	senders := make([]sender.Interface, 0, cfg.SendersConfig.NumSenders)
 	for i := 0; i < int(cfg.SendersConfig.NumSenders); i++ {
 		wallet, err := SetupWallet(cfg.Mnemonic, uint32(1+i), provider)
@@ -80,7 +74,7 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		}
 		logger.Info(fmt.Sprintf("sender %v: %v", i, wallet.Address()))
 		slogger := logger.With("sender", i)
-		senders = append(senders, sender.NewSender(slogger, uint32(i), wallet, mempool, endorser, executor, collector, chainID))
+		senders = append(senders, sender.NewSender(slogger, uint32(i), wallet, mempool, endorser, executor, collector))
 	}
 
 	pruner := bundler.NewPruner(cfg.PrunerConfig, mempool, endorser, logger)
