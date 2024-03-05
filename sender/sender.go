@@ -8,38 +8,50 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/0xsequence/bundler/collector"
+	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethtxn"
-	"github.com/0xsequence/ethkit/ethwallet"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi/bind"
 )
 
 type Sender struct {
 	ID uint32
 
-	logger *slog.Logger
+	logger      *slog.Logger
+	priorityFee *big.Int
+	randomWait  int
+	sleepWait   time.Duration
 
 	Wallet    WalletInterface
 	Validator ValidatorInterface
 	Mempool   mempool.Interface
-	Collector collector.Interface
 	Endorser  endorser.Interface
 }
 
 var _ Interface = &Sender{}
 
-func NewSender(logger *slog.Logger, id uint32, wallet *ethwallet.Wallet, mempool mempool.Interface, endorser endorser.Interface, validator *abivalidator.OperationValidator, collector *collector.Collector) *Sender {
+func NewSender(
+	cfg *config.SendersConfig,
+	logger *slog.Logger,
+	id uint32,
+	wallet WalletInterface,
+	mempool mempool.Interface,
+	endorser endorser.Interface,
+	validator ValidatorInterface,
+) *Sender {
 	return &Sender{
 		ID:     id,
 		logger: logger,
 
+		priorityFee: big.NewInt(int64(cfg.PriorityFee)),
+		randomWait:  cfg.RandomWait,
+		sleepWait:   time.Duration(cfg.SleepWait),
+
 		Wallet:    wallet,
 		Mempool:   mempool,
-		Collector: collector,
 		Endorser:  endorser,
 		Validator: validator,
 	}
@@ -56,13 +68,15 @@ func (s *Sender) Run(ctx context.Context) {
 		})
 
 		if len(ops) == 0 {
-			time.Sleep(time.Second)
+			time.Sleep(s.sleepWait * time.Millisecond)
 			continue
 		}
 
 		// Random delay between 0 and 1 second
 		// it reduces the chances to collide with other senders
-		time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
+		if s.randomWait > 0 {
+			time.Sleep(time.Duration(rand.Intn(s.randomWait)) * time.Millisecond)
+		}
 
 		op := ops[0]
 		res, err := s.simulateOperation(ctx, &op.Operation)
@@ -86,13 +100,11 @@ func (s *Sender) Run(ctx context.Context) {
 			continue
 		}
 
-		priorityFeePerGas := s.Collector.PriorityFee()
-
 		signedTx, err := s.Wallet.NewTransaction(
 			ctx,
 			&ethtxn.TransactionRequest{
 				GasPrice: op.MaxFeePerGas,
-				GasTip:   priorityFeePerGas,
+				GasTip:   s.priorityFee,
 				GasLimit: op.GasLimit.Uint64(),
 				To:       &op.Entrypoint,
 				ETHValue: big.NewInt(0),

@@ -74,7 +74,15 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		}
 		logger.Info(fmt.Sprintf("sender %v: %v", i, wallet.Address()))
 		slogger := logger.With("sender", i)
-		senders = append(senders, sender.NewSender(slogger, uint32(i), wallet, mempool, endorser, executor, collector))
+		senders = append(senders, sender.NewSender(
+			&cfg.SendersConfig,
+			slogger,
+			uint32(i),
+			wallet,
+			mempool,
+			endorser,
+			executor,
+		))
 	}
 
 	pruner := bundler.NewPruner(cfg.PrunerConfig, mempool, endorser, logger)

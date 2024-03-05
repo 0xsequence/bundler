@@ -61,7 +61,9 @@ type PrunerConfig struct {
 type SendersConfig struct {
 	NumSenders uint `toml:"num_senders"`
 
-	PriorityFee int64 `toml:"priority_fee"`
+	PriorityFee int `toml:"priority_fee"`
+	RandomWait  int `toml:"random_wait"`
+	SleepWait   int `toml:"sleep_wait"`
 }
 
 type ArchiveConfig struct {

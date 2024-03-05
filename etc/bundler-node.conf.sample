@@ -20,6 +20,8 @@ boot_nodes = [
 
 [senders]
   num_senders = 1
+  random_wait = 1000
+  sleep_wait  = 1000
 
 [network]
   ipfs_url = "http://localhost:5001"
