@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/0xsequence/bundler"
+	"github.com/0xsequence/bundler/admin"
 	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
@@ -40,6 +41,7 @@ type RPC struct {
 	senders   []sender.Interface
 	executor  *abivalidator.OperationValidator
 	ipfs      ipfs.Interface
+	admin     *admin.Admin
 
 	running   int32
 	startTime time.Time
@@ -87,6 +89,8 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 
 	pruner := bundler.NewPruner(cfg.PrunerConfig, mempool, endorser, logger)
 
+	admin := admin.NewAdmin(logger, ipfs, mempool)
+
 	s := &RPC{
 		archive:   archive,
 		mempool:   mempool,
@@ -95,6 +99,7 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		executor:  executor,
 		pruner:    pruner,
 		ipfs:      ipfs,
+		admin:     admin,
 
 		Config:    cfg,
 		Log:       logger,
@@ -212,6 +217,10 @@ func (s *RPC) handler() http.Handler {
 	debugRPCHandler := proto.NewDebugServer(&Debug{RPC: s})
 	r.Post("/rpc/Debug/*", debugRPCHandler.ServeHTTP)
 
+	// TODO: Add JWT for Admin space
+	adminRPCHandler := proto.NewAdminServer(s.admin)
+	r.Post("/rpc/Admin/*", adminRPCHandler.ServeHTTP)
+
 	return r
 }
 
@@ -240,7 +249,7 @@ func (s *RPC) SendOperation(ctx context.Context, pop *proto.Operation) (string, 
 		return "", err
 	}
 
-	return op.Digest(), nil
+	return op.Hash(), nil
 }
 
 func (s RPC) Mempool(ctx context.Context) (*proto.MempoolView, error) {

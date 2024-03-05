@@ -10,14 +10,6 @@ import (
 	"github.com/0xsequence/bundler/types"
 )
 
-type ReadyAtChange int
-
-const (
-	ReadyAtChangeNone ReadyAtChange = iota
-	ReadyAtChangeNow
-	ReadyAtChangeZero
-)
-
 type TrackedOperation struct {
 	types.Operation
 
@@ -39,8 +31,8 @@ type Interface interface {
 	IsKnownOp(op *types.Operation) bool
 	AddOperation(ctx context.Context, op *types.Operation, forceInclude bool) error
 	ReserveOps(ctx context.Context, selectFn func([]*TrackedOperation) []*TrackedOperation) []*TrackedOperation
-	ReleaseOps(ctx context.Context, ops []*TrackedOperation, updateReadyAt ReadyAtChange)
-	DiscardOps(ctx context.Context, ops []*TrackedOperation)
+	ReleaseOps(ctx context.Context, ops []string, updateReadyAt proto.ReadyAtChange)
+	DiscardOps(ctx context.Context, ops []string)
 	ForgetOps(age time.Duration) []string
 	KnownOperations() []string
 	Inspect() *proto.MempoolView

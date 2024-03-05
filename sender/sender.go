@@ -12,6 +12,7 @@ import (
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/mempool"
+	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethtxn"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi/bind"
@@ -79,12 +80,13 @@ func (s *Sender) Run(ctx context.Context) {
 		}
 
 		op := ops[0]
+		opDigest := ops[0].Hash()
 		res, err := s.simulateOperation(ctx, &op.Operation)
 
 		// If we got an error, we should discard the operation
 		if err != nil {
-			s.logger.Warn("sender: error simulating operation", "op", op.Digest(), "error", err)
-			s.Mempool.DiscardOps(ctx, []*mempool.TrackedOperation{op})
+			s.logger.Warn("sender: error simulating operation", "op", opDigest, "error", err)
+			s.Mempool.DiscardOps(ctx, []string{opDigest})
 			continue
 		}
 
@@ -92,11 +94,11 @@ func (s *Sender) Run(ctx context.Context) {
 		// TODO: We should ban the endorser too
 		if !res.Paid {
 			if res.Lied {
-				s.logger.Warn("sender: endorser lied", "op", op.Digest(), "endorser", op.Endorser, "innerOk", res.Meta.InnerOk, "innerPaid", res.Meta.InnerPaid.String(), "innerExpected", res.Meta.InnerExpected.String())
+				s.logger.Warn("sender: endorser lied", "op", opDigest, "endorser", op.Endorser, "innerOk", res.Meta.InnerOk, "innerPaid", res.Meta.InnerPaid.String(), "innerExpected", res.Meta.InnerExpected.String())
 			} else {
-				s.logger.Info("sender: stale operation", "op", op.Digest())
+				s.logger.Info("sender: stale operation", "op", opDigest)
 			}
-			s.Mempool.DiscardOps(ctx, []*mempool.TrackedOperation{op})
+			s.Mempool.DiscardOps(ctx, []string{opDigest})
 			continue
 		}
 
@@ -113,28 +115,28 @@ func (s *Sender) Run(ctx context.Context) {
 		)
 
 		if err != nil {
-			s.logger.Warn("sender: error signing transaction", "op", op.Digest(), "error", err)
-			s.Mempool.ReleaseOps(ctx, []*mempool.TrackedOperation{op}, mempool.ReadyAtChangeNone)
+			s.logger.Warn("sender: error signing transaction", "op", opDigest, "error", err)
+			s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_None)
 			continue
 		}
 
 		// Try sending the transaction
 		_, wait, err := s.Wallet.SendTransaction(ctx, signedTx)
 		if err != nil {
-			s.logger.Warn("sender: error sending transaction", "op", op.Digest(), "error", err)
-			s.Mempool.ReleaseOps(ctx, []*mempool.TrackedOperation{op}, mempool.ReadyAtChangeNone)
+			s.logger.Warn("sender: error sending transaction", "op", opDigest, "error", err)
+			s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_None)
 			continue
 		}
 
 		receipt, err := wait(ctx)
 		if err != nil {
-			s.logger.Warn("sender: error waiting for receipt", "op", op.Digest(), "error", err)
-			s.Mempool.ReleaseOps(ctx, []*mempool.TrackedOperation{op}, mempool.ReadyAtChangeNone)
+			s.logger.Warn("sender: error waiting for receipt", "op", opDigest, "error", err)
+			s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_None)
 			continue
 		}
 
-		s.logger.Info("sender: operation executed", "op", op.Digest(), "tx", receipt.TxHash.String())
-		s.Mempool.ReleaseOps(ctx, []*mempool.TrackedOperation{op}, mempool.ReadyAtChangeZero)
+		s.logger.Info("sender: operation executed", "op", opDigest, "tx", receipt.TxHash.String())
+		s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_Zero)
 	}
 }
 

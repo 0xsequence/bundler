@@ -35,6 +35,13 @@ func NewOperation() *Operation {
 }
 
 func (o *Operation) ToProto() *proto.Operation {
+	pure := o.ToProtoPure()
+	hash := o.Hash()
+	pure.Hash = &hash
+	return pure
+}
+
+func (o *Operation) ToProtoPure() *proto.Operation {
 	return &proto.Operation{
 		Entrypoint:                 prototyp.ToHash(o.Entrypoint),
 		CallData:                   prototyp.HashFromBytes(o.Calldata),
@@ -103,9 +110,9 @@ func NewOperationFromProto(op *proto.Operation) (*Operation, error) {
 	}, nil
 }
 
-func (op *Operation) Digest() string {
+func (op *Operation) Hash() string {
 	// Convert to json
-	jsonData, err := json.Marshal(op.ToProto())
+	jsonData, err := json.Marshal(op.ToProtoPure())
 	if err != nil {
 		return ""
 	}

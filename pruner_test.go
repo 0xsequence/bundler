@@ -13,6 +13,7 @@ import (
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/mocks"
+	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/httplog/v2"
 	"github.com/stretchr/testify/mock"
@@ -99,8 +100,8 @@ func TestPullAndDiscartHasChangedErr(t *testing.T) {
 	).Maybe()
 
 	mockMempool.On("DiscardOps", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		arg := args.Get(1).([]*mempool.TrackedOperation)
-		if arg[0] == op1 {
+		arg := args.Get(1).([]string)
+		if arg[0] == op1.Hash() {
 			done <- true
 		}
 	}).Return().Once()
@@ -146,10 +147,10 @@ func TestPullAndReleaseNotChanged(t *testing.T) {
 		"ReleaseOps",
 		mock.Anything,
 		mock.Anything,
-		mempool.ReadyAtChangeNow,
+		proto.ReadyAtChange_Now,
 	).Run(func(args mock.Arguments) {
-		arg := args.Get(1).([]*mempool.TrackedOperation)
-		if arg[0] == op1 {
+		arg := args.Get(1).([]string)
+		if arg[0] == op1.Hash() {
 			done <- true
 		}
 	}).Return().Once()
@@ -225,8 +226,8 @@ func TestDiscardNotReady(t *testing.T) {
 	).Once()
 
 	mockMempool.On("DiscardOps", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		arg := args.Get(1).([]*mempool.TrackedOperation)
-		if arg[0] == op1 {
+		arg := args.Get(1).([]string)
+		if arg[0] == op1.Hash() {
 			done <- true
 		}
 	}).Return().Once()
@@ -301,10 +302,10 @@ func TestKeepReady(t *testing.T) {
 		"ReleaseOps",
 		mock.Anything,
 		mock.Anything,
-		mempool.ReadyAtChangeNow,
+		proto.ReadyAtChange_Now,
 	).Run(func(args mock.Arguments) {
-		arg := args.Get(1).([]*mempool.TrackedOperation)
-		if arg[0] == op1 {
+		arg := args.Get(1).([]string)
+		if arg[0] == op1.Hash() {
 			done <- true
 		}
 	}).Return().Once()

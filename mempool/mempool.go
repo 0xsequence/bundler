@@ -65,12 +65,12 @@ func (mp *Mempool) IsKnownOp(op *types.Operation) bool {
 	mp.known.lock.RLock()
 	defer mp.known.lock.RUnlock()
 
-	_, ok := mp.known.digests[op.Digest()]
+	_, ok := mp.known.digests[op.Hash()]
 	return ok
 }
 
 func (mp *Mempool) mustBeUniqueOp(op *types.Operation) error {
-	digest := op.Digest()
+	digest := op.Hash()
 
 	mp.known.lock.Lock()
 	defer mp.known.lock.Unlock()
@@ -134,20 +134,20 @@ func (mp *Mempool) ReserveOps(ctx context.Context, selectFn func([]*TrackedOpera
 	return resOps
 }
 
-func (mp *Mempool) ReleaseOps(ctx context.Context, ops []*TrackedOperation, updateReadyAt ReadyAtChange) {
+func (mp *Mempool) ReleaseOps(ctx context.Context, ops []string, updateReadyAt proto.ReadyAtChange) {
 	mp.lock.Lock()
 	defer mp.lock.Unlock()
 
 	for _, op := range mp.Operations {
 		for _, rop := range ops {
-			if op.Digest() == rop.Digest() {
-				rop.ReservedSince = nil
+			if op.Hash() == rop {
+				op.ReservedSince = nil
 
 				switch updateReadyAt {
-				case ReadyAtChangeNow:
-					rop.ReadyAt = time.Now()
-				case ReadyAtChangeZero:
-					rop.ReadyAt = time.Time{}
+				case proto.ReadyAtChange_Now:
+					op.ReadyAt = time.Now()
+				case proto.ReadyAtChange_Zero:
+					op.ReadyAt = time.Time{}
 				}
 			}
 		}
@@ -162,7 +162,7 @@ func (mp *Mempool) SortOperations() {
 	})
 }
 
-func (mp *Mempool) DiscardOps(ctx context.Context, ops []*TrackedOperation) {
+func (mp *Mempool) DiscardOps(ctx context.Context, ops []string) {
 	mp.lock.Lock()
 	defer mp.lock.Unlock()
 
@@ -171,7 +171,7 @@ func (mp *Mempool) DiscardOps(ctx context.Context, ops []*TrackedOperation) {
 		discard := false
 
 		for _, dop := range ops {
-			if op.Digest() == dop.Digest() {
+			if op.Hash() == dop {
 				discard = true
 				break
 			}
@@ -194,7 +194,7 @@ func (mp *Mempool) markForForget(op *types.Operation) {
 	mp.known.lock.Lock()
 	defer mp.known.lock.Unlock()
 
-	mp.known.digests[op.Digest()] = time.Now()
+	mp.known.digests[op.Hash()] = time.Now()
 }
 
 func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation) error {
@@ -230,7 +230,7 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 	// If the operation is ready
 	// then we add it to the mempool
 
-	mp.logger.Info("operation added to mempool", "op", op.Digest())
+	mp.logger.Info("operation added to mempool", "op", op.Hash())
 	mp.ReportToIPFS(op)
 
 	mp.lock.Lock()
@@ -254,7 +254,7 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 			Message: op.ToProto(),
 		})
 		if err != nil {
-			mp.logger.Warn("error broadcasting operation to the network", "op", op.Digest(), "err", err)
+			mp.logger.Warn("error broadcasting operation to the network", "op", op.Hash(), "err", err)
 		}
 	}
 
@@ -270,7 +270,7 @@ func (mp *Mempool) ReportToIPFS(op *types.Operation) {
 	go func() {
 		err := op.ReportToIPFS(mp.Ipfs)
 		if err != nil {
-			mp.logger.Warn("error reporting operation to IPFS", "op", op.Digest(), "err", err)
+			mp.logger.Warn("error reporting operation to IPFS", "op", op.Hash(), "err", err)
 		}
 	}()
 }

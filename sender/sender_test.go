@@ -12,6 +12,7 @@ import (
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/mocks"
+	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/sender"
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethtxn"
@@ -434,7 +435,7 @@ func TestSend(t *testing.T) {
 	}
 
 	mockWallet.On("SendTransaction", mock.Anything, &rtx).Return(&rtx, waitFn, nil).Once()
-	mockMempool.On("ReleaseOps", mock.Anything, mock.Anything, mempool.ReadyAtChangeZero).
+	mockMempool.On("ReleaseOps", mock.Anything, mock.Anything, proto.ReadyAtChange_Zero).
 		Run(func(args mock.Arguments) {
 			done <- struct{}{}
 		}).Return(nil).Once()

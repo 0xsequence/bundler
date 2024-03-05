@@ -149,7 +149,7 @@ func TestNotReadyOperation(t *testing.T) {
 	err = mempool.AddOperation(ctx, op, false)
 	assert.Error(t, err)
 	f := mempool.ForgetOps(0)
-	assert.Equal(t, f, []string{op.Digest()})
+	assert.Equal(t, f, []string{op.Hash()})
 
 	// Maybe IsOperationReady returns an error
 	mockEndorser.On("IsOperationReady", mock.Anything, op).Return(nil, assert.AnError).Once()
@@ -157,7 +157,7 @@ func TestNotReadyOperation(t *testing.T) {
 	err = mempool.AddOperation(ctx, op, false)
 	assert.Error(t, err)
 	f = mempool.ForgetOps(0)
-	assert.Equal(t, f, []string{op.Digest()})
+	assert.Equal(t, f, []string{op.Hash()})
 
 	mockEndorser.On("IsOperationReady", mock.Anything, op).Return(&endorser.EndorserResult{
 		Readiness: true,
@@ -169,7 +169,7 @@ func TestNotReadyOperation(t *testing.T) {
 	err = mempool.AddOperation(ctx, op, false)
 	assert.Error(t, err)
 	f = mempool.ForgetOps(0)
-	assert.Equal(t, f, []string{op.Digest()})
+	assert.Equal(t, f, []string{op.Hash()})
 
 	// Maybe the contraints failed
 	mockEndorser.On("ConstraintsMet", mock.Anything, mock.Anything).Return(false, assert.AnError).Once()
@@ -177,7 +177,7 @@ func TestNotReadyOperation(t *testing.T) {
 	err = mempool.AddOperation(ctx, op, false)
 	assert.Error(t, err)
 	f = mempool.ForgetOps(0)
-	assert.Equal(t, f, []string{op.Digest()})
+	assert.Equal(t, f, []string{op.Hash()})
 
 	mockEndorser.On("ConstraintsMet", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 
@@ -187,7 +187,7 @@ func TestNotReadyOperation(t *testing.T) {
 	err = mempool.AddOperation(ctx, op, false)
 	assert.Error(t, err)
 	f = mempool.ForgetOps(0)
-	assert.Equal(t, f, []string{op.Digest()})
+	assert.Equal(t, f, []string{op.Hash()})
 
 	mockEndorser.On("DependencyState", mock.Anything, mock.Anything).Return(&endorser.EndorserResultState{}, nil).Maybe()
 
@@ -197,7 +197,7 @@ func TestNotReadyOperation(t *testing.T) {
 	err = mempool.AddOperation(ctx, op, false)
 	assert.Error(t, err)
 	f = mempool.ForgetOps(0)
-	assert.Equal(t, f, []string{op.Digest()})
+	assert.Equal(t, f, []string{op.Hash()})
 
 	cancel()
 }
@@ -251,8 +251,8 @@ func TestReserveOps(t *testing.T) {
 	})
 
 	assert.Equal(t, len(reserved), 2)
-	assert.Equal(t, reserved[0].Operation.Digest(), op1.Digest())
-	assert.Equal(t, reserved[1].Operation.Digest(), op2.Digest())
+	assert.Equal(t, reserved[0].Operation.Hash(), op1.Hash())
+	assert.Equal(t, reserved[1].Operation.Hash(), op2.Hash())
 
 	// Calling reserve again should only give one option
 	reserved2 := mem.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
@@ -265,8 +265,8 @@ func TestReserveOps(t *testing.T) {
 	// Release the reserved ops
 	// sleep a bit so op2 readyAt is newer than op3, op1 goes to zero
 	time.Sleep(10 * time.Millisecond)
-	mem.ReleaseOps(ctx, []*mempool.TrackedOperation{reserved[0]}, mempool.ReadyAtChangeZero)
-	mem.ReleaseOps(ctx, []*mempool.TrackedOperation{reserved[1]}, mempool.ReadyAtChangeNow)
+	mem.ReleaseOps(ctx, []string{reserved[0].Hash()}, proto.ReadyAtChange_Zero)
+	mem.ReleaseOps(ctx, []string{reserved[1].Hash()}, proto.ReadyAtChange_Now)
 
 	// Should sort the operations from the most recent ready at first
 	reserved = mem.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
@@ -276,25 +276,25 @@ func TestReserveOps(t *testing.T) {
 	assert.Equal(t, len(reserved), 3)
 
 	// The new order should be: op2, op3, op1
-	assert.Equal(t, reserved[0].Operation.Digest(), op2.Digest())
-	assert.Equal(t, reserved[1].Operation.Digest(), op3.Digest())
-	assert.Equal(t, reserved[2].Operation.Digest(), op1.Digest())
+	assert.Equal(t, reserved[0].Operation.Hash(), op2.Hash())
+	assert.Equal(t, reserved[1].Operation.Hash(), op3.Hash())
+	assert.Equal(t, reserved[2].Operation.Hash(), op1.Hash())
 
 	// Discard only two operations
-	mem.DiscardOps(ctx, []*mempool.TrackedOperation{reserved[0], reserved[1]})
-	mem.ReleaseOps(ctx, []*mempool.TrackedOperation{reserved[2]}, mempool.ReadyAtChangeZero)
+	mem.DiscardOps(ctx, []string{reserved[0].Hash(), reserved[1].Hash()})
+	mem.ReleaseOps(ctx, []string{reserved[2].Hash()}, proto.ReadyAtChange_Zero)
 
 	// Reserving now should only give the last operation
 	mem.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
 		assert.Equal(t, len(to), 1)
-		assert.Equal(t, to[0].Operation.Digest(), op1.Digest())
+		assert.Equal(t, to[0].Operation.Hash(), op1.Hash())
 		return []*mempool.TrackedOperation{}
 	})
 
 	// They now should be marked for forget
 	f := mem.ForgetOps(0)
-	assert.Contains(t, f, op2.Digest())
-	assert.Contains(t, f, op3.Digest())
+	assert.Contains(t, f, op2.Hash())
+	assert.Contains(t, f, op3.Hash())
 
 	cancel()
 }
@@ -328,7 +328,7 @@ func TestReportToIPFS(t *testing.T) {
 
 	mockIpfs.On("Report", mock.Anything).Run(func(mock.Arguments) {
 		done <- struct{}{}
-	}).Return(op1.Digest(), nil).Once()
+	}).Return(op1.Hash(), nil).Once()
 
 	ctx, cancel := context.WithCancel(context.Background())
 
