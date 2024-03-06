@@ -69,11 +69,10 @@ func depHashes(dep *endorser.Dependency) []string {
 }
 
 func depsOfResult(res *endorser.EndorserResult) []string {
-	hs := make([]string, 0, len(res.Dependencies)*2)
-
 	// Global dependencies are always a wildcard
 	// TODO: Some of these may not be wildcards
-	if res.GlobalDependency.Basefee ||
+	if res.WildcardOnly ||
+		res.GlobalDependency.Basefee ||
 		res.GlobalDependency.Blobbasefee ||
 		res.GlobalDependency.Chainid ||
 		res.GlobalDependency.Coinbase ||
@@ -85,6 +84,8 @@ func depsOfResult(res *endorser.EndorserResult) []string {
 		res.GlobalDependency.TxGasPrice {
 		return []string{wildcard}
 	}
+
+	hs := make([]string, 0, len(res.Dependencies)*2)
 
 	for _, dep := range res.Dependencies {
 		dhs := depHashes(&dep)

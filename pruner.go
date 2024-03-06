@@ -80,21 +80,29 @@ func (s *Pruner) Run(ctx context.Context) {
 
 		// TODO: Batch this
 		for _, op := range ops {
-			nextState, err := s.Endorser.DependencyState(ctx, op.EndorserResult)
-			if err != nil {
-				s.logger.Error("pruner: error getting state", "error", err)
-				failedOps = append(failedOps, op.Hash())
-				continue
+			var needsReevaluation bool
+
+			if op.EndorserResult.WildcardOnly {
+				// Wildcard operations always require validation, as we can't
+				// validate the dependencies of them
+				needsReevaluation = true
+			} else {
+				nextState, err := s.Endorser.DependencyState(ctx, op.EndorserResult)
+				if err != nil {
+					s.logger.Error("pruner: error getting state", "error", err)
+					failedOps = append(failedOps, op.Hash())
+					continue
+				}
+
+				needsReevaluation, err = op.EndorserResult.HasChanged(op.EndorserResultState, nextState)
+				if err != nil {
+					s.logger.Error("pruner: error comparing state", "error", err)
+					failedOps = append(failedOps, op.Hash())
+					continue
+				}
 			}
 
-			changed, err := op.EndorserResult.HasChanged(op.EndorserResultState, nextState)
-			if err != nil {
-				s.logger.Error("pruner: error comparing state", "error", err)
-				failedOps = append(failedOps, op.Hash())
-				continue
-			}
-
-			if changed {
+			if needsReevaluation {
 				// We need to re-validate the operation
 				// NOTICE that the endorser may revert instead of returning false
 				res, err := s.Endorser.IsOperationReady(ctx, &op.Operation)

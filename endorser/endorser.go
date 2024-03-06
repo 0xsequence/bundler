@@ -174,6 +174,12 @@ func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*
 		endorserResult.Dependencies = append(endorserResult.Dependencies, dependency)
 	}
 
+	// NOTICE: Untrusted context is not supported yet
+	// so we MUST Use wildcard only
+	if op.HasUntrustedContext {
+		endorserResult.WildcardOnly = true
+	}
+
 	return endorserResult, nil
 }
 
