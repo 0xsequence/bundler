@@ -167,7 +167,7 @@ func (op *Operation) Hash() string {
 
 func (op *Operation) ReportToIPFS(ip ipfs.Interface) error {
 	// Convert to json
-	jsonData, err := json.Marshal(op.ToProto())
+	jsonData, err := json.Marshal(op.ToProtoPure())
 	if err != nil {
 		return err
 	}
