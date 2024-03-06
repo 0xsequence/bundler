@@ -22,7 +22,9 @@ func TestAddOperation(t *testing.T) {
 	mockCollector := &mocks.MockCollector{}
 	mockEndorser := &mocks.MockEndorser{}
 
-	mempool, err := mempool.NewMempool(&config.MempoolConfig{}, logger, mockEndorser, mockP2p, mockCollector, nil)
+	mempool, err := mempool.NewMempool(&config.MempoolConfig{
+		Size: 10,
+	}, logger, mockEndorser, mockP2p, mockCollector, nil)
 
 	assert.NoError(t, err)
 
@@ -64,7 +66,9 @@ func TestForceIncludeKnownOp(t *testing.T) {
 	mockCollector := &mocks.MockCollector{}
 	mockEndorser := &mocks.MockEndorser{}
 
-	mempool, err := mempool.NewMempool(&config.MempoolConfig{}, logger, mockEndorser, mockP2p, mockCollector, nil)
+	mempool, err := mempool.NewMempool(&config.MempoolConfig{
+		Size: 10,
+	}, logger, mockEndorser, mockP2p, mockCollector, nil)
 
 	assert.NoError(t, err)
 
@@ -101,7 +105,9 @@ func TestSkipAddingKnownOperation(t *testing.T) {
 	mockCollector := &mocks.MockCollector{}
 	mockEndorser := &mocks.MockEndorser{}
 
-	mempool, err := mempool.NewMempool(&config.MempoolConfig{}, logger, mockEndorser, mockP2p, mockCollector, nil)
+	mempool, err := mempool.NewMempool(&config.MempoolConfig{
+		Size: 10,
+	}, logger, mockEndorser, mockP2p, mockCollector, nil)
 
 	assert.NoError(t, err)
 
@@ -134,7 +140,9 @@ func TestNotReadyOperation(t *testing.T) {
 	mockCollector := &mocks.MockCollector{}
 	mockEndorser := &mocks.MockEndorser{}
 
-	mempool, err := mempool.NewMempool(&config.MempoolConfig{}, logger, mockEndorser, mockP2p, mockCollector, nil)
+	mempool, err := mempool.NewMempool(&config.MempoolConfig{
+		Size: 10,
+	}, logger, mockEndorser, mockP2p, mockCollector, nil)
 
 	assert.NoError(t, err)
 
@@ -208,7 +216,9 @@ func TestReserveOps(t *testing.T) {
 	mockCollector := &mocks.MockCollector{}
 	mockEndorser := &mocks.MockEndorser{}
 
-	mem, err := mempool.NewMempool(&config.MempoolConfig{}, logger, mockEndorser, mockP2p, mockCollector, nil)
+	mem, err := mempool.NewMempool(&config.MempoolConfig{
+		Size: 10,
+	}, logger, mockEndorser, mockP2p, mockCollector, nil)
 
 	assert.NoError(t, err)
 
@@ -306,7 +316,9 @@ func TestReportToIPFS(t *testing.T) {
 	mockEndorser := &mocks.MockEndorser{}
 	mockIpfs := &mocks.MockIpfs{}
 
-	mempool, err := mempool.NewMempool(&config.MempoolConfig{}, logger, mockEndorser, mockP2p, mockCollector, mockIpfs)
+	mempool, err := mempool.NewMempool(&config.MempoolConfig{
+		Size: 10,
+	}, logger, mockEndorser, mockP2p, mockCollector, mockIpfs)
 
 	assert.NoError(t, err)
 

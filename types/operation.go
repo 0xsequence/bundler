@@ -34,6 +34,20 @@ func NewOperation() *Operation {
 	return &Operation{}
 }
 
+func (o *Operation) Value() *big.Int {
+	val := new(big.Int)
+
+	if o.MaxFeePerGas == nil || o.GasLimit == nil || o.BaseFeeScalingFactor == nil || o.BaseFeeNormalizationFactor == nil {
+		return val
+	}
+
+	// TODO: Account for calldata cost
+	val.Mul(o.MaxFeePerGas, o.GasLimit)
+	val.Mul(val, o.BaseFeeScalingFactor)
+	val.Div(val, o.BaseFeeNormalizationFactor)
+	return val
+}
+
 func (o *Operation) ToProto() *proto.Operation {
 	pure := o.ToProtoPure()
 	hash := o.Hash()

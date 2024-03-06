@@ -3,6 +3,7 @@ package mempool
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"sort"
 	"sync"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/ipfs"
+	"github.com/0xsequence/bundler/mempool/partitioner"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/types"
@@ -25,17 +27,22 @@ type Mempool struct {
 	Collector collector.Interface
 	Endorser  endorser.Interface
 
-	MaxSize uint
+	MaxSize int
 
 	lock       sync.Mutex
 	Operations []*TrackedOperation
 
-	known *KnownOperations
+	partitioner *partitioner.Partitioner
+	known       *KnownOperations
 }
 
 var _ Interface = &Mempool{}
 
 func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, endorser endorser.Interface, host p2p.Interface, collector collector.Interface, ipfs ipfs.Interface) (*Mempool, error) {
+	if cfg.Size <= 1 {
+		return nil, fmt.Errorf("mempool: size must be greater than 1")
+	}
+
 	mp := &Mempool{
 		logger: logger,
 
@@ -44,9 +51,11 @@ func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, endorser endo
 		Endorser:  endorser,
 		Collector: collector,
 
-		MaxSize: cfg.Size,
+		MaxSize: int(cfg.Size),
 
 		Operations: []*TrackedOperation{},
+
+		partitioner: partitioner.NewPartitioner(cfg.OverlapLimit, cfg.WildcardLimit),
 
 		known: &KnownOperations{
 			lock:    sync.RWMutex{},
@@ -165,7 +174,10 @@ func (mp *Mempool) SortOperations() {
 func (mp *Mempool) DiscardOps(ctx context.Context, ops []string) {
 	mp.lock.Lock()
 	defer mp.lock.Unlock()
+	mp.discardOpsUnlocked(ctx, ops)
+}
 
+func (mp *Mempool) discardOpsUnlocked(ctx context.Context, ops []string) {
 	var kops []*TrackedOperation
 	for _, op := range mp.Operations {
 		discard := false
@@ -188,6 +200,7 @@ func (mp *Mempool) DiscardOps(ctx context.Context, ops []string) {
 	}
 
 	mp.Operations = kops
+	mp.partitioner.Remove(ops)
 }
 
 func (mp *Mempool) markForForget(op *types.Operation) {
@@ -195,6 +208,47 @@ func (mp *Mempool) markForForget(op *types.Operation) {
 	defer mp.known.lock.Unlock()
 
 	mp.known.digests[op.Hash()] = time.Now()
+}
+
+func (mp *Mempool) evictLesser(ctx context.Context, cand *types.Operation, subsets *[][]*types.Operation) error {
+	var groups [][]*types.Operation
+	if subsets == nil {
+		// Having a standalone method for evicting lesser operations
+		// on the whole mempool *could* be faster, but we keep it simple for now
+		groups = make([][]*types.Operation, 1)
+		groups[0] = make([]*types.Operation, len(mp.Operations))
+		for i, op := range mp.Operations {
+			groups[0][i] = &op.Operation
+		}
+	} else {
+		groups = *subsets
+	}
+
+	evictions := make([]string, 0, len(groups))
+	for _, alts := range groups {
+		worst := cand
+		var secondWorstVal *big.Int = nil
+		for _, alt := range alts {
+			av := alt.Value()
+			if worst == cand || av.Cmp(worst.Value()) < 0 {
+				secondWorstVal = worst.Value()
+				worst = alt
+			} else if secondWorstVal == nil || av.Cmp(secondWorstVal) < 0 {
+				secondWorstVal = alt.Value()
+			}
+		}
+
+		// Don't evict if the worst is the candidate
+		if worst == cand {
+			return fmt.Errorf("candidate is the worst operation: %s - %s < %s", worst.Hash(), worst.Value(), secondWorstVal)
+		}
+
+		evictions = append(evictions, worst.Hash())
+	}
+
+	mp.discardOpsUnlocked(ctx, evictions)
+
+	return nil
 }
 
 func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation) error {
@@ -231,10 +285,35 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 	// then we add it to the mempool
 
 	mp.logger.Info("operation added to mempool", "op", op.Hash())
-	mp.ReportToIPFS(op)
+	go mp.ReportToIPFS(op)
 
 	mp.lock.Lock()
 	defer mp.lock.Unlock()
+
+	// Check the dependency overlap
+	ok, overlaps := mp.partitioner.Add(op, res)
+	if !ok {
+		// Evict lesser operations among the overlaps and see if we can
+		// make room for the new operation
+		err := mp.evictLesser(ctx, op, &overlaps)
+		if err != nil {
+			return err
+		}
+
+		// Try again, now we should have room
+		// notice that a race condition could happen here
+		// but in that case we fail
+		ok, _ = mp.partitioner.Add(op, res)
+		if !ok {
+			return fmt.Errorf("operation dependency constraints not met")
+		}
+	} else if len(mp.Operations) >= mp.MaxSize {
+		// We need to evict *something* to make room
+		err := mp.evictLesser(ctx, op, nil)
+		if err != nil {
+			return err
+		}
+	}
 
 	mp.Operations = append(mp.Operations, &TrackedOperation{
 		Operation: *op,

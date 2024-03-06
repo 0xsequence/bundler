@@ -50,6 +50,9 @@ type MempoolConfig struct {
 	Size        uint `toml:"max_size"`
 	IngressSize uint `toml:"max_ingress_size"`
 
+	OverlapLimit  uint `toml:"overlap_limit"`
+	WildcardLimit uint `toml:"wildcard_limit"`
+
 	MaxEndorserGasLimit uint `toml:"max_endorser_gas_limit"`
 }
 
