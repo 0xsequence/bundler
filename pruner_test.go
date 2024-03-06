@@ -13,6 +13,7 @@ import (
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/mocks"
+	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/httplog/v2"
 	"github.com/stretchr/testify/mock"
@@ -49,7 +50,9 @@ func TestPullAndDiscartStateErr(t *testing.T) {
 	mockEndorser := &mocks.MockEndorser{}
 	logger := httplog.NewLogger("")
 
-	op1 := &mempool.TrackedOperation{}
+	op1 := &mempool.TrackedOperation{
+		EndorserResult: &endorser.EndorserResult{},
+	}
 
 	done := make(chan bool)
 
@@ -99,8 +102,8 @@ func TestPullAndDiscartHasChangedErr(t *testing.T) {
 	).Maybe()
 
 	mockMempool.On("DiscardOps", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		arg := args.Get(1).([]*mempool.TrackedOperation)
-		if arg[0] == op1 {
+		arg := args.Get(1).([]string)
+		if arg[0] == op1.Hash() {
 			done <- true
 		}
 	}).Return().Once()
@@ -146,10 +149,10 @@ func TestPullAndReleaseNotChanged(t *testing.T) {
 		"ReleaseOps",
 		mock.Anything,
 		mock.Anything,
-		mempool.ReadyAtChangeNow,
+		proto.ReadyAtChange_Now,
 	).Run(func(args mock.Arguments) {
-		arg := args.Get(1).([]*mempool.TrackedOperation)
-		if arg[0] == op1 {
+		arg := args.Get(1).([]string)
+		if arg[0] == op1.Hash() {
 			done <- true
 		}
 	}).Return().Once()
@@ -225,8 +228,8 @@ func TestDiscardNotReady(t *testing.T) {
 	).Once()
 
 	mockMempool.On("DiscardOps", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		arg := args.Get(1).([]*mempool.TrackedOperation)
-		if arg[0] == op1 {
+		arg := args.Get(1).([]string)
+		if arg[0] == op1.Hash() {
 			done <- true
 		}
 	}).Return().Once()
@@ -301,10 +304,10 @@ func TestKeepReady(t *testing.T) {
 		"ReleaseOps",
 		mock.Anything,
 		mock.Anything,
-		mempool.ReadyAtChangeNow,
+		proto.ReadyAtChange_Now,
 	).Run(func(args mock.Arguments) {
-		arg := args.Get(1).([]*mempool.TrackedOperation)
-		if arg[0] == op1 {
+		arg := args.Get(1).([]string)
+		if arg[0] == op1.Hash() {
 			done <- true
 		}
 	}).Return().Once()
@@ -341,6 +344,52 @@ func TestSkipRecentOps(t *testing.T) {
 	}).Return(
 		[]*mempool.TrackedOperation{},
 	).Maybe()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go pruner.Run(ctx)
+
+	<-done
+	cancel()
+}
+
+func TestRevalidateIfWildcarOnly(t *testing.T) {
+	mockMempool := &mocks.MockMempool{}
+	mockEndorser := &mocks.MockEndorser{}
+	logger := httplog.NewLogger("")
+
+	er1 := &endorser.EndorserResult{
+		WildcardOnly: true,
+	}
+
+	op1 := &mempool.TrackedOperation{
+		EndorserResult: er1,
+	}
+
+	done := make(chan bool)
+
+	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return(
+		[]*mempool.TrackedOperation{op1},
+	).Maybe()
+
+	mockMempool.On(
+		"ReleaseOps",
+		mock.Anything,
+		mock.Anything,
+		proto.ReadyAtChange_Now,
+	).Run(func(args mock.Arguments) {
+		arg := args.Get(1).([]string)
+		if arg[0] == op1.Hash() {
+			done <- true
+		}
+	}).Return().Once()
+
+	mockEndorser.On("IsOperationReady", mock.Anything, &op1.Operation).Return(&endorser.EndorserResult{
+		Readiness: true,
+	}, nil).Once()
+
+	pruner := bundler.NewPruner(config.PrunerConfig{
+		RunWaitMillis: 1,
+	}, mockMempool, mockEndorser, logger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pruner.Run(ctx)

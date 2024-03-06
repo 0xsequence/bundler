@@ -103,23 +103,21 @@ func (n *Host) pubsubEventHandler() error {
 
 			n.logger.Info("received pubsub message", "from", msg.GetFrom().String(), "type", message.Type)
 
-			if message.Type != nil {
-				handlers := n.handlers[*message.Type]
-				if handlers != nil {
-					// TODO: Can't we just not use json.Marshal and directly use msg.Data?
-					data, err := json.Marshal(message.Message)
-					if err != nil {
-						n.logger.Error("unable to marshal message", "err", err)
-						continue
-					}
-
-					from := msg.GetFrom()
-					for _, handler := range handlers {
-						handler(from, data)
-					}
-				} else {
-					n.logger.Info("no handler found for message type", "type", *message.Type)
+			handlers := n.handlers[message.Type]
+			if handlers != nil {
+				// TODO: Can't we just not use json.Marshal and directly use msg.Data?
+				data, err := json.Marshal(message.Message)
+				if err != nil {
+					n.logger.Error("unable to marshal message", "err", err)
+					continue
 				}
+
+				from := msg.GetFrom()
+				for _, handler := range handlers {
+					handler(from, data)
+				}
+			} else {
+				n.logger.Info("no handler found for message type", "type", message.Type)
 			}
 		}
 	}()

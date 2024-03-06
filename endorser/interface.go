@@ -34,6 +34,8 @@ type Dependency = abiendorser.EndorserDependency
 type Constraint = abiendorser.EndorserConstraint
 
 type EndorserResult struct {
+	WildcardOnly bool
+
 	Readiness        bool             `json:"readiness"`
 	GlobalDependency GlobalDependency `json:"global_dependency"`
 	Dependencies     []Dependency     `json:"dependencies"`

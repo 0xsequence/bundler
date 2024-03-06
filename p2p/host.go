@@ -36,6 +36,8 @@ type Host struct {
 	topic    *pubsub.Topic
 	handlers map[proto.MessageType][]MsgHandler
 
+	peerPrivKey crypto.PrivKey
+
 	ctx     context.Context
 	ctxStop context.CancelFunc
 	running int32
@@ -127,10 +129,11 @@ func NewHost(cfg *config.Config, logger *slog.Logger, wallet *ethwallet.Wallet) 
 	}
 
 	nd := &Host{
-		cfg:      cfg,
-		logger:   logger,
-		host:     h,
-		handlers: map[proto.MessageType][]MsgHandler{},
+		cfg:         cfg,
+		logger:      logger,
+		host:        h,
+		peerPrivKey: peerPrivKey,
+		handlers:    map[proto.MessageType][]MsgHandler{},
 	}
 
 	return nd, nil
@@ -248,6 +251,19 @@ func (n *Host) HostID() peer.ID {
 	} else {
 		return n.host.ID()
 	}
+}
+
+func (n *Host) Address() (string, error) {
+	addr, err := PeerIDToETHAddress(n.host.ID())
+	if err != nil {
+		return "", err
+	}
+
+	return addr.String(), nil
+}
+
+func (n *Host) Sign(data []byte) ([]byte, error) {
+	return n.peerPrivKey.Sign(data)
 }
 
 func (n *Host) Addrs() []multiaddr.Multiaddr {

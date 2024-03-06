@@ -5,12 +5,18 @@ import (
 
 	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/pricefeed"
+	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/types"
 	"github.com/stretchr/testify/mock"
 )
 
 type MockCollector struct {
 	mock.Mock
+}
+
+func (m *MockCollector) FeeAsks() (*proto.FeeAsks, error) {
+	args := m.Called()
+	return args.Get(0).(*proto.FeeAsks), args.Error(1)
 }
 
 func (m *MockCollector) BaseFee() *big.Int {

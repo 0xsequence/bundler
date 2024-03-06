@@ -31,11 +31,11 @@ func (m *MockMempool) ReserveOps(ctx context.Context, selectFn func([]*mempool.T
 	return args.Get(0).([]*mempool.TrackedOperation)
 }
 
-func (m *MockMempool) ReleaseOps(ctx context.Context, ops []*mempool.TrackedOperation, updateReadyAt mempool.ReadyAtChange) {
+func (m *MockMempool) ReleaseOps(ctx context.Context, ops []string, updateReadyAt proto.ReadyAtChange) {
 	m.Called(ctx, ops, updateReadyAt)
 }
 
-func (m *MockMempool) DiscardOps(ctx context.Context, ops []*mempool.TrackedOperation) {
+func (m *MockMempool) DiscardOps(ctx context.Context, ops []string) {
 	m.Called(ctx, ops)
 }
 

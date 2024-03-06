@@ -3,6 +3,7 @@ package bundler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -12,6 +13,8 @@ import (
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
+	"github.com/0xsequence/ethkit/go-ethereum/common"
+	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
 	"github.com/go-chi/httplog/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -157,23 +160,49 @@ func (a *Archive) doArchive(ctx context.Context, ops []string, force bool) error
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
+	addr, err := a.Host.Address()
+	if err != nil {
+		return err
+	}
+
 	snapshot := &ArchiveSnapshot{
 		Timestamp:    uint64(time.Now().Unix()),
-		Identity:     a.Host.HostID().String(),
+		Identity:     addr,
 		Operations:   ops,
 		SeenArchives: a.seenArchives,
 		PrevArchive:  a.PrevArchive,
 	}
 
-	// TODO: Sign the snapshot
+	// Convert to json
+	snapshotJson, err := json.Marshal(snapshot)
+	if err != nil {
+		return err
+	}
+
+	// Normalize
+	snapshotJson, err = jsoncanonicalizer.Transform(snapshotJson)
+	if err != nil {
+		return fmt.Errorf("unable to normalize archive json: %w", err)
+	}
+
+	sig, err := a.Host.Sign(snapshotJson)
+	if err != nil {
+		return err
+	}
+
 	signedSnapshot := &SignedArchiveSnapshot{
 		Archive:   snapshot,
-		Signature: "",
+		Signature: "0x" + common.Bytes2Hex(sig),
 	}
 
 	body, err := json.Marshal(signedSnapshot)
 	if err != nil {
 		return err
+	}
+
+	body, err = jsoncanonicalizer.Transform(body)
+	if err != nil {
+		return fmt.Errorf("unable to normalize archive json: %w", err)
 	}
 
 	cid, err := a.ipfs.Report(body)
@@ -187,9 +216,8 @@ func (a *Archive) doArchive(ctx context.Context, ops []string, force bool) error
 	a.seenArchives = make(map[string]string)
 
 	// Broadcast the archive
-	messageType := proto.MessageType_ARCHIVE
 	err = a.Host.Broadcast(proto.Message{
-		Type:    &messageType,
+		Type:    proto.MessageType_ARCHIVE,
 		Message: &ArchiveMessage{ArchiveCid: cid},
 	})
 

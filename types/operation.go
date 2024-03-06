@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/0xsequence/bundler/calldata"
 	"github.com/0xsequence/bundler/ipfs"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
 	"github.com/0xsequence/ethkit/go-ethereum/log"
 	"github.com/0xsequence/go-sequence/lib/prototyp"
+	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
 )
 
 type Operation struct {
@@ -26,13 +28,54 @@ type Operation struct {
 	BaseFeeScalingFactor       *big.Int       `json:"baseFeeScalingFactor"`
 	BaseFeeNormalizationFactor *big.Int       `json:"baseFeeNormalizationFactor"`
 	HasUntrustedContext        bool           `json:"hasUntrustedContext"`
+	ChainID                    *big.Int       `json:"chainId"`
 }
 
 func NewOperation() *Operation {
 	return &Operation{}
 }
 
+func (o *Operation) Value(cmodel calldata.CostModel) *big.Int {
+	val := new(big.Int)
+
+	if o.MaxFeePerGas == nil ||
+		o.GasLimit == nil ||
+		o.BaseFeeScalingFactor == nil ||
+		o.BaseFeeNormalizationFactor == nil ||
+		o.PriorityFeePerGas == nil {
+		return val
+	}
+
+	// Use the minimum of the two fees
+	var feePerGas *big.Int
+	if o.MaxFeePerGas.Cmp(o.PriorityFeePerGas) < 0 {
+		feePerGas = o.MaxFeePerGas
+	} else {
+		feePerGas = o.PriorityFeePerGas
+	}
+
+	// The operation doesn't directly pay for the calldata cost
+	// so we need to subtract it from the value.
+	// This can go negative, but it is fine as we only want this
+	// as a relative value to compare operations.
+	calldataCost := new(big.Int).SetUint64(cmodel.CostFor(o.Calldata))
+	val.Sub(o.GasLimit, calldataCost)
+
+	val.Mul(val, feePerGas)
+	val.Mul(val, o.BaseFeeScalingFactor)
+	val.Div(val, o.BaseFeeNormalizationFactor)
+
+	return val
+}
+
 func (o *Operation) ToProto() *proto.Operation {
+	pure := o.ToProtoPure()
+	hash := o.Hash()
+	pure.Hash = &hash
+	return pure
+}
+
+func (o *Operation) ToProtoPure() *proto.Operation {
 	return &proto.Operation{
 		Entrypoint:                 prototyp.ToHash(o.Entrypoint),
 		CallData:                   prototyp.HashFromBytes(o.Calldata),
@@ -46,6 +89,7 @@ func (o *Operation) ToProto() *proto.Operation {
 		BaseFeeScalingFactor:       prototyp.ToBigInt(o.BaseFeeScalingFactor),
 		BaseFeeNormalizationFactor: prototyp.ToBigInt(o.BaseFeeNormalizationFactor),
 		HasUntrustedContext:        o.HasUntrustedContext,
+		ChainID:                    prototyp.ToBigInt(o.ChainID),
 	}
 }
 
@@ -96,12 +140,19 @@ func NewOperationFromProto(op *proto.Operation) (*Operation, error) {
 		BaseFeeScalingFactor:       op.BaseFeeScalingFactor.Int(),
 		BaseFeeNormalizationFactor: op.BaseFeeNormalizationFactor.Int(),
 		HasUntrustedContext:        op.HasUntrustedContext,
+		ChainID:                    op.ChainID.Int(),
 	}, nil
 }
 
-func (op *Operation) Digest() string {
+func (op *Operation) Hash() string {
 	// Convert to json
-	jsonData, err := json.Marshal(op.ToProto())
+	jsonData, err := json.Marshal(op.ToProtoPure())
+	if err != nil {
+		return ""
+	}
+
+	// Normalize
+	jsonData, err = jsoncanonicalizer.Transform(jsonData)
 	if err != nil {
 		return ""
 	}
@@ -116,9 +167,15 @@ func (op *Operation) Digest() string {
 
 func (op *Operation) ReportToIPFS(ip ipfs.Interface) error {
 	// Convert to json
-	jsonData, err := json.Marshal(op.ToProto())
+	jsonData, err := json.Marshal(op.ToProtoPure())
 	if err != nil {
 		return err
+	}
+
+	// Normalize
+	jsonData, err = jsoncanonicalizer.Transform(jsonData)
+	if err != nil {
+		return fmt.Errorf("unable to normalize operation json: %w", err)
 	}
 
 	cid, err := ipfs.Cid(jsonData)

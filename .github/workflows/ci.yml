@@ -79,6 +79,9 @@ jobs:
         run: |
           if git status --porcelain | grep '.'; then
             echo "Uncommitted changes detected."
+            git diff
+            echo "---"
+            git status --porcelain
             exit 1
           else
             echo "No uncommitted changes detected."

@@ -7,6 +7,7 @@ import (
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/mempool"
+	"github.com/0xsequence/bundler/proto"
 	"github.com/go-chi/httplog/v2"
 )
 
@@ -73,44 +74,52 @@ func (s *Pruner) Run(ctx context.Context) {
 			return oldops
 		})
 
-		failedOps := make([]*mempool.TrackedOperation, 0, len(ops))
-		discartOps := make([]*mempool.TrackedOperation, 0, len(ops))
-		releaseOps := make([]*mempool.TrackedOperation, 0, len(ops))
+		failedOps := make([]string, 0, len(ops))
+		discartOps := make([]string, 0, len(ops))
+		releaseOps := make([]string, 0, len(ops))
 
 		// TODO: Batch this
 		for _, op := range ops {
-			nextState, err := s.Endorser.DependencyState(ctx, op.EndorserResult)
-			if err != nil {
-				s.logger.Error("pruner: error getting state", "error", err)
-				failedOps = append(failedOps, op)
-				continue
+			var needsReevaluation bool
+
+			if op.EndorserResult.WildcardOnly {
+				// Wildcard operations always require validation, as we can't
+				// validate the dependencies of them
+				needsReevaluation = true
+			} else {
+				nextState, err := s.Endorser.DependencyState(ctx, op.EndorserResult)
+				if err != nil {
+					s.logger.Error("pruner: error getting state", "error", err)
+					failedOps = append(failedOps, op.Hash())
+					continue
+				}
+
+				needsReevaluation, err = op.EndorserResult.HasChanged(op.EndorserResultState, nextState)
+				if err != nil {
+					s.logger.Error("pruner: error comparing state", "error", err)
+					failedOps = append(failedOps, op.Hash())
+					continue
+				}
 			}
 
-			changed, err := op.EndorserResult.HasChanged(op.EndorserResultState, nextState)
-			if err != nil {
-				s.logger.Error("pruner: error comparing state", "error", err)
-				failedOps = append(failedOps, op)
-				continue
-			}
-
-			if changed {
+			if needsReevaluation {
 				// We need to re-validate the operation
 				// NOTICE that the endorser may revert instead of returning false
 				res, err := s.Endorser.IsOperationReady(ctx, &op.Operation)
 				if err != nil {
-					discartOps = append(discartOps, op)
+					discartOps = append(discartOps, op.Hash())
 					continue
 				}
 
 				if !res.Readiness {
-					discartOps = append(discartOps, op)
+					discartOps = append(discartOps, op.Hash())
 				} else {
 					// TODO: handle the new set of dependencies
-					releaseOps = append(releaseOps, op)
+					releaseOps = append(releaseOps, op.Hash())
 				}
 			} else {
 				// Release the operation
-				releaseOps = append(releaseOps, op)
+				releaseOps = append(releaseOps, op.Hash())
 			}
 		}
 
@@ -118,7 +127,7 @@ func (s *Pruner) Run(ctx context.Context) {
 
 		if len(releaseOps) != 0 {
 			s.logger.Debug("pruner: releasing operations", "operations", len(releaseOps))
-			s.Mempool.ReleaseOps(ctx, releaseOps, mempool.ReadyAtChangeNow)
+			s.Mempool.ReleaseOps(ctx, releaseOps, proto.ReadyAtChange_Now)
 		}
 
 		if len(discartOps) != 0 {

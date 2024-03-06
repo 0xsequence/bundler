@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/0xsequence/bundler"
+	"github.com/0xsequence/bundler/calldata"
 	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/endorser"
@@ -99,8 +100,21 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		return nil, err
 	}
 
+	// Gas model
+	var calldataModel calldata.CostModel
+	if cfg.LinearCalldataModel != nil {
+		calldataModel = calldata.NewLinearModel(
+			cfg.LinearCalldataModel.FixedCost,
+			cfg.LinearCalldataModel.ZeroByteCost,
+			cfg.LinearCalldataModel.NonZeroByteCost,
+		)
+	} else {
+		logger.Info("=> using default calldata model")
+		calldataModel = calldata.DefaultModel()
+	}
+
 	// Mempool
-	mempool, err := mempool.NewMempool(&cfg.MempoolConfig, logger, endorser, host, collector, ipfs)
+	mempool, err := mempool.NewMempool(&cfg.MempoolConfig, logger, endorser, host, collector, ipfs, calldataModel)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +126,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	archive := bundler.NewArchive(&cfg.ArchiveConfig, host, logger, ipfs, mempool)
 
 	// RPC
-	rpc, err := rpc.NewRPC(cfg, logger, host, mempool, archive, provider, collector, endorser, ipfs)
+	rpc, err := rpc.NewRPC(cfg, logger, host, mempool, archive, provider, collector, endorser, ipfs, calldataModel)
 	if err != nil {
 		return nil, err
 	}

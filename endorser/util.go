@@ -263,13 +263,23 @@ func FromExecutorResult(r *abivalidator.OperationValidatorSimulationResult) *End
 
 	dependencies := make([]abiendorser.EndorserDependency, len(r.Dependencies))
 	for i, d := range r.Dependencies {
+		constraints := make([]abiendorser.EndorserConstraint, len(d.Constraints))
+		for j, c := range d.Constraints {
+			constraints[j] = abiendorser.EndorserConstraint{
+				Slot:     c.Slot,
+				MinValue: c.MinValue,
+				MaxValue: c.MaxValue,
+			}
+		}
+
 		dependencies[i] = abiendorser.EndorserDependency{
-			Addr:     d.Addr,
-			Balance:  d.Balance,
-			Code:     d.Code,
-			Nonce:    d.Nonce,
-			AllSlots: d.AllSlots,
-			Slots:    d.Slots,
+			Addr:        d.Addr,
+			Balance:     d.Balance,
+			Code:        d.Code,
+			Nonce:       d.Nonce,
+			AllSlots:    d.AllSlots,
+			Slots:       d.Slots,
+			Constraints: constraints,
 		}
 	}
 

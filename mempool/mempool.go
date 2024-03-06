@@ -3,14 +3,17 @@ package mempool
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/0xsequence/bundler/calldata"
 	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/ipfs"
+	"github.com/0xsequence/bundler/mempool/partitioner"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/types"
@@ -20,33 +23,62 @@ import (
 type Mempool struct {
 	logger *httplog.Logger
 
-	Ipfs      ipfs.Interface
-	Host      p2p.Interface
-	Collector collector.Interface
-	Endorser  endorser.Interface
+	Ipfs          ipfs.Interface
+	Host          p2p.Interface
+	Collector     collector.Interface
+	Endorser      endorser.Interface
+	CalldataModel calldata.CostModel
 
-	MaxSize uint
+	MaxSize int
 
 	lock       sync.Mutex
 	Operations []*TrackedOperation
 
-	known *KnownOperations
+	partitioner *partitioner.Partitioner
+	known       *KnownOperations
 }
 
 var _ Interface = &Mempool{}
 
-func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, endorser endorser.Interface, host p2p.Interface, collector collector.Interface, ipfs ipfs.Interface) (*Mempool, error) {
+func NewMempool(
+	cfg *config.MempoolConfig,
+	logger *httplog.Logger,
+	endorser endorser.Interface,
+	host p2p.Interface,
+	collector collector.Interface,
+	ipfs ipfs.Interface,
+	calldataModel calldata.CostModel,
+) (*Mempool, error) {
+	if cfg.Size <= 1 {
+		return nil, fmt.Errorf("mempool: size must be greater than 1")
+	}
+
+	overLapLimit := cfg.OverlapLimit
+	if overLapLimit <= 0 {
+		logger.Warn("mempool: overlap limit is less than 1, setting to 1")
+		overLapLimit = 1
+	}
+
+	wildcardLimit := cfg.WildcardLimit
+	if wildcardLimit <= 0 {
+		logger.Warn("mempool: wildcard limit is less than 1, setting to 1")
+		wildcardLimit = 1
+	}
+
 	mp := &Mempool{
 		logger: logger,
 
-		Ipfs:      ipfs,
-		Host:      host,
-		Endorser:  endorser,
-		Collector: collector,
+		Ipfs:          ipfs,
+		Host:          host,
+		Endorser:      endorser,
+		Collector:     collector,
+		CalldataModel: calldataModel,
 
-		MaxSize: cfg.Size,
+		MaxSize: int(cfg.Size),
 
 		Operations: []*TrackedOperation{},
+
+		partitioner: partitioner.NewPartitioner(overLapLimit, wildcardLimit),
 
 		known: &KnownOperations{
 			lock:    sync.RWMutex{},
@@ -65,12 +97,12 @@ func (mp *Mempool) IsKnownOp(op *types.Operation) bool {
 	mp.known.lock.RLock()
 	defer mp.known.lock.RUnlock()
 
-	_, ok := mp.known.digests[op.Digest()]
+	_, ok := mp.known.digests[op.Hash()]
 	return ok
 }
 
 func (mp *Mempool) mustBeUniqueOp(op *types.Operation) error {
-	digest := op.Digest()
+	digest := op.Hash()
 
 	mp.known.lock.Lock()
 	defer mp.known.lock.Unlock()
@@ -134,20 +166,20 @@ func (mp *Mempool) ReserveOps(ctx context.Context, selectFn func([]*TrackedOpera
 	return resOps
 }
 
-func (mp *Mempool) ReleaseOps(ctx context.Context, ops []*TrackedOperation, updateReadyAt ReadyAtChange) {
+func (mp *Mempool) ReleaseOps(ctx context.Context, ops []string, updateReadyAt proto.ReadyAtChange) {
 	mp.lock.Lock()
 	defer mp.lock.Unlock()
 
 	for _, op := range mp.Operations {
 		for _, rop := range ops {
-			if op.Digest() == rop.Digest() {
-				rop.ReservedSince = nil
+			if op.Hash() == rop {
+				op.ReservedSince = nil
 
 				switch updateReadyAt {
-				case ReadyAtChangeNow:
-					rop.ReadyAt = time.Now()
-				case ReadyAtChangeZero:
-					rop.ReadyAt = time.Time{}
+				case proto.ReadyAtChange_Now:
+					op.ReadyAt = time.Now()
+				case proto.ReadyAtChange_Zero:
+					op.ReadyAt = time.Time{}
 				}
 			}
 		}
@@ -162,16 +194,19 @@ func (mp *Mempool) SortOperations() {
 	})
 }
 
-func (mp *Mempool) DiscardOps(ctx context.Context, ops []*TrackedOperation) {
+func (mp *Mempool) DiscardOps(ctx context.Context, ops []string) {
 	mp.lock.Lock()
 	defer mp.lock.Unlock()
+	mp.discardOpsUnlocked(ctx, ops)
+}
 
+func (mp *Mempool) discardOpsUnlocked(ctx context.Context, ops []string) {
 	var kops []*TrackedOperation
 	for _, op := range mp.Operations {
 		discard := false
 
 		for _, dop := range ops {
-			if op.Digest() == dop.Digest() {
+			if op.Hash() == dop {
 				discard = true
 				break
 			}
@@ -188,13 +223,56 @@ func (mp *Mempool) DiscardOps(ctx context.Context, ops []*TrackedOperation) {
 	}
 
 	mp.Operations = kops
+	mp.partitioner.Remove(ops)
 }
 
 func (mp *Mempool) markForForget(op *types.Operation) {
 	mp.known.lock.Lock()
 	defer mp.known.lock.Unlock()
 
-	mp.known.digests[op.Digest()] = time.Now()
+	mp.known.digests[op.Hash()] = time.Now()
+}
+
+func (mp *Mempool) evictLesser(ctx context.Context, cand *types.Operation, subsets *[][]*types.Operation) error {
+	var groups [][]*types.Operation
+	if subsets == nil {
+		// Having a standalone method for evicting lesser operations
+		// on the whole mempool *could* be faster, but we keep it simple for now
+		groups = make([][]*types.Operation, 1)
+		groups[0] = make([]*types.Operation, len(mp.Operations))
+		for i, op := range mp.Operations {
+			groups[0][i] = &op.Operation
+		}
+	} else {
+		groups = *subsets
+	}
+
+	evictions := make([]string, 0, len(groups))
+	for _, alts := range groups {
+		worst := cand
+		var secondWorstVal *big.Int = nil
+
+		for _, alt := range alts {
+			av := alt.Value(mp.CalldataModel)
+			if av.Cmp(worst.Value(mp.CalldataModel)) < 0 {
+				secondWorstVal = worst.Value(mp.CalldataModel)
+				worst = alt
+			} else if secondWorstVal == nil || av.Cmp(secondWorstVal) < 0 {
+				secondWorstVal = av
+			}
+		}
+
+		// Don't evict if the worst is the candidate
+		if worst == cand {
+			return fmt.Errorf("candidate is the worst operation: %s - %s < %s", worst.Hash(), worst.Value(mp.CalldataModel), secondWorstVal)
+		}
+
+		evictions = append(evictions, worst.Hash())
+	}
+
+	mp.discardOpsUnlocked(ctx, evictions)
+
+	return nil
 }
 
 func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation) error {
@@ -230,11 +308,36 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 	// If the operation is ready
 	// then we add it to the mempool
 
-	mp.logger.Info("operation added to mempool", "op", op.Digest())
-	mp.ReportToIPFS(op)
+	mp.logger.Info("operation added to mempool", "op", op.Hash())
+	go mp.ReportToIPFS(op)
 
 	mp.lock.Lock()
 	defer mp.lock.Unlock()
+
+	// Check the dependency overlap
+	ok, overlaps := mp.partitioner.Add(op, res)
+	if !ok {
+		// Evict lesser operations among the overlaps and see if we can
+		// make room for the new operation
+		err := mp.evictLesser(ctx, op, &overlaps)
+		if err != nil {
+			return err
+		}
+
+		// Try again, now we should have room
+		// notice that a race condition could happen here
+		// but in that case we fail
+		ok, _ = mp.partitioner.Add(op, res)
+		if !ok {
+			return fmt.Errorf("operation dependency constraints not met")
+		}
+	} else if len(mp.Operations) >= mp.MaxSize {
+		// We need to evict *something* to make room
+		err := mp.evictLesser(ctx, op, nil)
+		if err != nil {
+			return err
+		}
+	}
 
 	mp.Operations = append(mp.Operations, &TrackedOperation{
 		Operation: *op,
@@ -249,13 +352,12 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 	// Broadcast the operation to the network
 	// ONLY now, since we are sure it's ready
 	if mp.Host != nil {
-		messageType := proto.MessageType_NEW_OPERATION
 		err = mp.Host.Broadcast(proto.Message{
-			Type:    &messageType,
+			Type:    proto.MessageType_NEW_OPERATION,
 			Message: op.ToProto(),
 		})
 		if err != nil {
-			mp.logger.Warn("error broadcasting operation to the network", "op", op.Digest(), "err", err)
+			mp.logger.Warn("error broadcasting operation to the network", "op", op.Hash(), "err", err)
 		}
 	}
 
@@ -271,7 +373,7 @@ func (mp *Mempool) ReportToIPFS(op *types.Operation) {
 	go func() {
 		err := op.ReportToIPFS(mp.Ipfs)
 		if err != nil {
-			mp.logger.Warn("error reporting operation to IPFS", "op", op.Digest(), "err", err)
+			mp.logger.Warn("error reporting operation to IPFS", "op", op.Hash(), "err", err)
 		}
 	}()
 }

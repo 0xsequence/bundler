@@ -11,8 +11,17 @@ boot_nodes = [
   "/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
 ]
 
+[collector]
+  min_priority_fee = 1000000000
+  priority_fee_mul = 1
+
+  [[collector.references]]
+    token = "0x0000000000000000000000000000000000000000"
+
 [senders]
   num_senders = 1
+  random_wait = 1000
+  sleep_wait  = 1000
 
 [network]
   ipfs_url = "http://localhost:5001"

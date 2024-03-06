@@ -77,10 +77,26 @@ struct Operation
   # If true, the operation may have untrusted code paths. These should be treated differently by the bundler (see untrusted environment).
   - hasUntrustedContext: bool
 
+  # Chain ID of the network where the operation is intended to be executed.
+  - chainId: string
+    + go.field.name = ChainID
+    + go.field.type = prototyp.BigInt
+
+  - hash?: string
+
 enum MessageType: int
   - DEBUG
   - NEW_OPERATION
   - ARCHIVE
+
+enum OperationStrategy: int
+  - Fresh
+  - Greedy
+
+enum ReadyAtChange: int
+  - None
+  - Now
+  - Zero
 
 struct Message
   - type: MessageType
@@ -98,18 +114,40 @@ struct Operations
   - archive: string
     + go.tag.json = archive,omitempty
 
+struct BaseFeeRate
+  - scalingFactor: string
+    + go.field.type = prototyp.BigInt
+  - normalizationFactor: string
+    + go.field.type = prototyp.BigInt
+
+struct FeeAsks
+  - minBaseFee: string
+    + go.field.type = prototyp.BigInt
+  - minPriorityFee: string
+    + go.field.type = prototyp.BigInt
+  - acceptedTokens: map<string, BaseFeeRate>
+    + go.field.type = map[string]BaseFeeRate
+
 error 1000 NotFound "Not found" HTTP 404
 error 2000 Unauthorized "Unauthorized access" HTTP 401
 error 3000 PermissionDenied "Permission denied" HTTP 403
-
 
 service Bundler
   - Ping() => (status: bool)
   - Status() => (status: Status)
   - Peers() => (peers: []string, priorityPeers: []string)
   - Mempool() => (mempool: MempoolView)
-  - SendOperation(operation: Operation) => (status: bool)
+  - SendOperation(operation: Operation) => (operation: string)
   - Operations() => (operations: Operations)
+  - FeeAsks() => (feeAsks: FeeAsks)
 
 service Debug
   - Broadcast(message: any) => (status: bool)
+
+service Admin
+  - SendOperation(operation: Operation, ignorePayment?: bool) => (operation: string)
+  - ReserveOperations(num: int, skip: int, strategy?: OperationStrategy) => (operations: []Operation)
+  - ReleaseOperations(operations: []string, readyAtChange?: ReadyAtChange)
+  - DiscardOperations(operations: []string)
+  - BanEndorser(endorser: string, duration: int)
+  - BannedEndorsers() => (endorser: []string)

@@ -4,18 +4,22 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"sync"
 	"time"
 
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/pricefeed"
+	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
+	"github.com/0xsequence/go-sequence/lib/prototyp"
 	"github.com/go-chi/httplog/v2"
 )
 
 type Collector struct {
-	cfg *config.CollectorConfig
+	cfg  *config.CollectorConfig
+	lock sync.Mutex
 
 	listening   bool
 	lastBaseFee *big.Int
@@ -37,6 +41,7 @@ func NewCollector(cfg *config.CollectorConfig, logger *httplog.Logger, provider 
 
 	c := &Collector{
 		cfg:         cfg,
+		lock:        sync.Mutex{},
 		feeds:       feeds,
 		logger:      logger,
 		priorityFee: priorityFee,
@@ -58,10 +63,10 @@ func NewCollector(cfg *config.CollectorConfig, logger *httplog.Logger, provider 
 }
 
 func (c *Collector) AddFeed(tokenAddr string, feed pricefeed.Feed) error {
-	addr := common.HexToAddress(tokenAddr)
-	if addr == (common.Address{}) {
-		return fmt.Errorf("collector: invalid token address: %s", tokenAddr)
+	if !common.IsHexAddress(tokenAddr) {
+		return fmt.Errorf("\"%v\" is not a token address", tokenAddr)
 	}
+	addr := common.HexToAddress(tokenAddr)
 
 	if _, ok := c.feeds[addr]; ok {
 		return fmt.Errorf("collector: duplicate token address: %s", tokenAddr)
@@ -135,12 +140,6 @@ func (c *Collector) MinFeePerGas(feeToken common.Address) (*big.Int, error) {
 		}
 	}
 
-	if c.cfg.PriorityFeeMul != 0 {
-		scalar := new(big.Float).SetFloat64(c.cfg.PriorityFeeMul)
-		applied := new(big.Float).Mul(new(big.Float).SetInt(minFeePerGas), scalar)
-		minFeePerGas, _ = applied.Int(nil)
-	}
-
 	return minFeePerGas, nil
 }
 
@@ -155,4 +154,30 @@ func (c *Collector) ValidatePayment(op *types.Operation) error {
 	}
 
 	return nil
+}
+
+func (c *Collector) FeeAsks() (*proto.FeeAsks, error) {
+	if c.lastBaseFee == nil {
+		return nil, fmt.Errorf("collector: base fee not fetched")
+	}
+
+	acceptedTokens := make(map[string]proto.BaseFeeRate, len(c.feeds))
+	for token, feed := range c.feeds {
+		s, n, err := feed.Factors()
+		if err != nil {
+			c.logger.Warn("collector: error fetching feed factors", "token", token.Hex(), "error", err)
+			continue
+		}
+
+		acceptedTokens[token.String()] = proto.BaseFeeRate{
+			ScalingFactor:       prototyp.ToBigInt(s),
+			NormalizationFactor: prototyp.ToBigInt(n),
+		}
+	}
+
+	return &proto.FeeAsks{
+		MinBaseFee:     prototyp.ToBigInt(c.lastBaseFee),
+		MinPriorityFee: prototyp.ToBigInt(c.priorityFee),
+		AcceptedTokens: acceptedTokens,
+	}, nil
 }

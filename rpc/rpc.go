@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/0xsequence/bundler"
+	"github.com/0xsequence/bundler/admin"
+	"github.com/0xsequence/bundler/calldata"
 	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
@@ -17,6 +19,7 @@ import (
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
+	"github.com/0xsequence/bundler/sender"
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
@@ -32,19 +35,21 @@ type RPC struct {
 	Host   *p2p.Host
 	HTTP   *http.Server
 
-	mempool   mempool.Interface
-	pruner    *bundler.Pruner
-	archive   *bundler.Archive
-	collector *collector.Collector
-	senders   []*bundler.Sender
-	executor  *abivalidator.OperationValidator
-	ipfs      ipfs.Interface
+	mempool       mempool.Interface
+	pruner        *bundler.Pruner
+	archive       *bundler.Archive
+	collector     *collector.Collector
+	senders       []sender.Interface
+	executor      *abivalidator.OperationValidator
+	ipfs          ipfs.Interface
+	admin         *admin.Admin
+	calldataModel calldata.CostModel
 
 	running   int32
 	startTime time.Time
 }
 
-func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool mempool.Interface, archive *bundler.Archive, provider *ethrpc.Provider, collector *collector.Collector, endorser endorser.Interface, ipfs ipfs.Interface) (*RPC, error) {
+func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool mempool.Interface, archive *bundler.Archive, provider *ethrpc.Provider, collector *collector.Collector, endorser endorser.Interface, ipfs ipfs.Interface, calldataModel calldata.CostModel) (*RPC, error) {
 	if !common.IsHexAddress(cfg.NetworkConfig.ValidatorContract) {
 		return nil, fmt.Errorf("\"%v\" is not a valid operation validator contract", cfg.NetworkConfig.ValidatorContract)
 	}
@@ -65,13 +70,7 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		return nil, fmt.Errorf("unable to connect to validator contract")
 	}
 
-	// Get the chain ID
-	chainID, err := provider.ChainID(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("unable to get chain ID: %w", err)
-	}
-
-	senders := make([]*bundler.Sender, 0, cfg.SendersConfig.NumSenders)
+	senders := make([]sender.Interface, 0, cfg.SendersConfig.NumSenders)
 	for i := 0; i < int(cfg.SendersConfig.NumSenders); i++ {
 		wallet, err := SetupWallet(cfg.Mnemonic, uint32(1+i), provider)
 		if err != nil {
@@ -79,10 +78,21 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		}
 		logger.Info(fmt.Sprintf("sender %v: %v", i, wallet.Address()))
 		slogger := logger.With("sender", i)
-		senders = append(senders, bundler.NewSender(slogger, uint32(i), wallet, mempool, endorser, executor, collector, chainID))
+		senders = append(senders, sender.NewSender(
+			&cfg.SendersConfig,
+			slogger,
+			uint32(i),
+			wallet,
+			mempool,
+			endorser,
+			executor,
+			calldataModel,
+		))
 	}
 
 	pruner := bundler.NewPruner(cfg.PrunerConfig, mempool, endorser, logger)
+
+	admin := admin.NewAdmin(logger, ipfs, mempool)
 
 	s := &RPC{
 		archive:   archive,
@@ -92,6 +102,7 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		executor:  executor,
 		pruner:    pruner,
 		ipfs:      ipfs,
+		admin:     admin,
 
 		Config:    cfg,
 		Log:       logger,
@@ -209,6 +220,10 @@ func (s *RPC) handler() http.Handler {
 	debugRPCHandler := proto.NewDebugServer(&Debug{RPC: s})
 	r.Post("/rpc/Debug/*", debugRPCHandler.ServeHTTP)
 
+	// TODO: Add JWT for Admin space
+	adminRPCHandler := proto.NewAdminServer(s.admin)
+	r.Post("/rpc/Admin/*", adminRPCHandler.ServeHTTP)
+
 	return r
 }
 
@@ -221,10 +236,10 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("."))
 }
 
-func (s *RPC) SendOperation(ctx context.Context, pop *proto.Operation) (bool, error) {
+func (s *RPC) SendOperation(ctx context.Context, pop *proto.Operation) (string, error) {
 	op, err := types.NewOperationFromProto(pop)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 
 	// Always PIN these operations to IPFS
@@ -234,10 +249,10 @@ func (s *RPC) SendOperation(ctx context.Context, pop *proto.Operation) (bool, er
 
 	err = s.mempool.AddOperation(ctx, op, true)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 
-	return true, nil
+	return op.Hash(), nil
 }
 
 func (s RPC) Mempool(ctx context.Context) (*proto.MempoolView, error) {
@@ -248,8 +263,14 @@ func (s RPC) Operations(ctx context.Context) (*proto.Operations, error) {
 	return s.archive.Operations(ctx), nil
 }
 
+func (s *RPC) FeeAsks(ctx context.Context) (*proto.FeeAsks, error) {
+	return s.collector.FeeAsks()
+}
+
 func stubHandler(respBody string) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(respBody))
 	})
 }
+
+var _ proto.Bundler = &RPC{}

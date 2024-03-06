@@ -73,7 +73,7 @@ func (i *Ingress) registerHanler() {
 
 		err = i.Add(operation)
 		if err != nil {
-			i.logger.Warn("failed to add operation", "err", err, "op", operation.Digest())
+			i.logger.Warn("failed to add operation", "err", err, "op", operation.Hash())
 		}
 	})
 }
@@ -100,13 +100,13 @@ func (i *Ingress) Add(op *types.Operation) error {
 	defer i.lock.Unlock()
 
 	// If in transit we should ignore it
-	if _, ok := i.intransit[op.Digest()]; ok {
+	if _, ok := i.intransit[op.Hash()]; ok {
 		return nil
 	}
 
 	select {
 	case i.buffer <- op:
-		i.intransit[op.Digest()] = struct{}{}
+		i.intransit[op.Hash()] = struct{}{}
 		return nil
 	default:
 		return fmt.Errorf("ingress: buffer full")
@@ -121,11 +121,11 @@ func (i *Ingress) Run(ctx context.Context) {
 		case op := <-i.buffer:
 			err := i.Mempool.AddOperation(ctx, op, false)
 			if err != nil {
-				i.logger.Warn("ingress: failed to promote operation", "error", err, "op", op.Digest())
+				i.logger.Warn("ingress: failed to promote operation", "error", err, "op", op.Hash())
 			}
 
 			i.lock.Lock()
-			delete(i.intransit, op.Digest())
+			delete(i.intransit, op.Hash())
 			i.lock.Unlock()
 		case <-ctx.Done():
 			return

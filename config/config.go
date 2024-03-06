@@ -19,12 +19,13 @@ type Config struct {
 
 	Logging LoggingConfig `toml:"logging"`
 
-	NetworkConfig   NetworkConfig   `toml:"network"`
-	MempoolConfig   MempoolConfig   `toml:"mempool"`
-	SendersConfig   SendersConfig   `toml:"senders"`
-	CollectorConfig CollectorConfig `toml:"collector"`
-	PrunerConfig    PrunerConfig    `toml:"pruner"`
-	ArchiveConfig   ArchiveConfig   `toml:"archive"`
+	NetworkConfig       NetworkConfig        `toml:"network"`
+	MempoolConfig       MempoolConfig        `toml:"mempool"`
+	SendersConfig       SendersConfig        `toml:"senders"`
+	CollectorConfig     CollectorConfig      `toml:"collector"`
+	PrunerConfig        PrunerConfig         `toml:"pruner"`
+	ArchiveConfig       ArchiveConfig        `toml:"archive"`
+	LinearCalldataModel *LinearCalldataModel `toml:"linear_calldata_model"`
 
 	BootNodeAddrs []multiaddr.Multiaddr `toml:"-"`
 }
@@ -46,9 +47,18 @@ type NetworkConfig struct {
 	ValidatorContract string `toml:"validator_contract"`
 }
 
+type LinearCalldataModel struct {
+	FixedCost       uint64 `toml:"fixed_cost"`
+	ZeroByteCost    uint64 `toml:"zero_byte_cost"`
+	NonZeroByteCost uint64 `toml:"non_zero_byte_cost"`
+}
+
 type MempoolConfig struct {
 	Size        uint `toml:"max_size"`
 	IngressSize uint `toml:"max_ingress_size"`
+
+	OverlapLimit  uint `toml:"overlap_limit"`
+	WildcardLimit uint `toml:"wildcard_limit"`
 
 	MaxEndorserGasLimit uint `toml:"max_endorser_gas_limit"`
 }
@@ -60,6 +70,10 @@ type PrunerConfig struct {
 
 type SendersConfig struct {
 	NumSenders uint `toml:"num_senders"`
+
+	PriorityFee int `toml:"priority_fee"`
+	RandomWait  int `toml:"random_wait"`
+	SleepWait   int `toml:"sleep_wait"`
 }
 
 type ArchiveConfig struct {
@@ -68,8 +82,7 @@ type ArchiveConfig struct {
 }
 
 type CollectorConfig struct {
-	PriorityFee    int64   `toml:"min_priority_fee"`
-	PriorityFeeMul float64 `toml:"priority_fee_mul"`
+	PriorityFee int64 `toml:"min_priority_fee"`
 
 	References []PriceReference `toml:"references"`
 }
