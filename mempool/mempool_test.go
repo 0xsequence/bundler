@@ -1,6 +1,7 @@
 package mempool_test
 
 import (
+	"math/big"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/0xsequence/bundler/mocks"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/types"
+	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/httplog/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -366,4 +368,105 @@ func TestReportToIPFS(t *testing.T) {
 	mockIpfs.AssertExpectations(t)
 
 	cancel()
+}
+
+func TestRejectOverlappingDependency(t *testing.T) {
+	logger := httplog.NewLogger("")
+	mockP2p := &mocks.MockP2p{}
+	mockCollector := &mocks.MockCollector{}
+	mockEndorser := &mocks.MockEndorser{}
+
+	mempool, err := mempool.NewMempool(&config.MempoolConfig{
+		Size:         10,
+		OverlapLimit: 1,
+	}, logger, mockEndorser, mockP2p, mockCollector, nil)
+
+	assert.NoError(t, err)
+
+	op1 := &types.Operation{
+		Calldata:                   []byte{0x01},
+		GasLimit:                   big.NewInt(2),
+		MaxFeePerGas:               big.NewInt(1),
+		BaseFeeScalingFactor:       big.NewInt(1),
+		BaseFeeNormalizationFactor: big.NewInt(1),
+	}
+
+	op2 := &types.Operation{
+		Calldata:                   []byte{0x02},
+		GasLimit:                   big.NewInt(1),
+		MaxFeePerGas:               big.NewInt(1),
+		BaseFeeScalingFactor:       big.NewInt(1),
+		BaseFeeNormalizationFactor: big.NewInt(1),
+	}
+
+	mockEndorser.On("ConstraintsMet", mock.Anything, mock.Anything).Return(true, nil).Maybe()
+	mockEndorser.On("DependencyState", mock.Anything, mock.Anything).Return(&endorser.EndorserResultState{}, nil).Maybe()
+	mockCollector.On("ValidatePayment", mock.Anything).Return(nil).Maybe()
+	mockP2p.On("Broadcast", mock.Anything).Return(nil).Maybe()
+
+	mockEndorser.On("IsOperationReady", mock.Anything, mock.Anything).Return(&endorser.EndorserResult{
+		Readiness: true,
+		Dependencies: []endorser.Dependency{{
+			Addr:    common.HexToAddress("0x5887Ea54AE1308Bb7A697FdE87bA3D2E2d3952Ad"),
+			Balance: true,
+		}},
+	}, nil).Twice()
+
+	res := mempool.AddOperation(context.Background(), op1, false)
+	assert.NoError(t, res)
+
+	res = mempool.AddOperation(context.Background(), op2, false)
+	assert.Error(t, res)
+}
+
+func TestReplaceOverlappingDependency(t *testing.T) {
+	logger := httplog.NewLogger("")
+	mockP2p := &mocks.MockP2p{}
+	mockCollector := &mocks.MockCollector{}
+	mockEndorser := &mocks.MockEndorser{}
+
+	mempool, err := mempool.NewMempool(&config.MempoolConfig{
+		Size:         10,
+		OverlapLimit: 1,
+	}, logger, mockEndorser, mockP2p, mockCollector, nil)
+
+	assert.NoError(t, err)
+
+	op1 := &types.Operation{
+		Calldata:                   []byte{0x01},
+		GasLimit:                   big.NewInt(1),
+		MaxFeePerGas:               big.NewInt(1),
+		BaseFeeScalingFactor:       big.NewInt(1),
+		BaseFeeNormalizationFactor: big.NewInt(1),
+	}
+
+	op2 := &types.Operation{
+		Calldata:                   []byte{0x02},
+		GasLimit:                   big.NewInt(2),
+		MaxFeePerGas:               big.NewInt(1),
+		BaseFeeScalingFactor:       big.NewInt(1),
+		BaseFeeNormalizationFactor: big.NewInt(1),
+	}
+
+	mockEndorser.On("ConstraintsMet", mock.Anything, mock.Anything).Return(true, nil).Maybe()
+	mockEndorser.On("DependencyState", mock.Anything, mock.Anything).Return(&endorser.EndorserResultState{}, nil).Maybe()
+	mockCollector.On("ValidatePayment", mock.Anything).Return(nil).Maybe()
+	mockP2p.On("Broadcast", mock.Anything).Return(nil).Maybe()
+
+	mockEndorser.On("IsOperationReady", mock.Anything, mock.Anything).Return(&endorser.EndorserResult{
+		Readiness: true,
+		Dependencies: []endorser.Dependency{{
+			Addr:    common.HexToAddress("0x5887Ea54AE1308Bb7A697FdE87bA3D2E2d3952Ad"),
+			Balance: true,
+		}},
+	}, nil).Twice()
+
+	res := mempool.AddOperation(context.Background(), op1, false)
+	assert.NoError(t, res)
+
+	res = mempool.AddOperation(context.Background(), op2, false)
+	assert.NoError(t, res)
+
+	assert.Equal(t, len(mempool.Operations), 1)
+	assert.Equal(t, mempool.Operations[0].ToProto(), op2.ToProto())
 }

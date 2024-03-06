@@ -43,6 +43,18 @@ func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, endorser endo
 		return nil, fmt.Errorf("mempool: size must be greater than 1")
 	}
 
+	overLapLimit := cfg.OverlapLimit
+	if overLapLimit <= 0 {
+		logger.Warn("mempool: overlap limit is less than 1, setting to 1")
+		overLapLimit = 1
+	}
+
+	wildcardLimit := cfg.WildcardLimit
+	if wildcardLimit <= 0 {
+		logger.Warn("mempool: wildcard limit is less than 1, setting to 1")
+		wildcardLimit = 1
+	}
+
 	mp := &Mempool{
 		logger: logger,
 
@@ -55,7 +67,7 @@ func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, endorser endo
 
 		Operations: []*TrackedOperation{},
 
-		partitioner: partitioner.NewPartitioner(cfg.OverlapLimit, cfg.WildcardLimit),
+		partitioner: partitioner.NewPartitioner(overLapLimit, wildcardLimit),
 
 		known: &KnownOperations{
 			lock:    sync.RWMutex{},
@@ -228,9 +240,10 @@ func (mp *Mempool) evictLesser(ctx context.Context, cand *types.Operation, subse
 	for _, alts := range groups {
 		worst := cand
 		var secondWorstVal *big.Int = nil
+
 		for _, alt := range alts {
 			av := alt.Value()
-			if worst == cand || av.Cmp(worst.Value()) < 0 {
+			if av.Cmp(worst.Value()) < 0 {
 				secondWorstVal = worst.Value()
 				worst = alt
 			} else if secondWorstVal == nil || av.Cmp(secondWorstVal) < 0 {
