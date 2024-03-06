@@ -15,7 +15,7 @@ func NewLinearModel(fixedCost, perByteCost, perByteZeroCost uint64) *LinearModel
 }
 
 func DefaultModel() *LinearModel {
-	return NewLinearModel(4, 16, 2100)
+	return NewLinearModel(21000, 16, 4)
 }
 
 var _ CostModel = &LinearModel{}

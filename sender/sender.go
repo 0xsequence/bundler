@@ -6,8 +6,10 @@ import (
 	"log/slog"
 	"math/big"
 	"math/rand"
+	"sort"
 	"time"
 
+	"github.com/0xsequence/bundler/calldata"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
 	"github.com/0xsequence/bundler/endorser"
@@ -26,10 +28,11 @@ type Sender struct {
 	randomWait  int
 	sleepWait   time.Duration
 
-	Wallet    WalletInterface
-	Validator ValidatorInterface
-	Mempool   mempool.Interface
-	Endorser  endorser.Interface
+	Wallet        WalletInterface
+	Validator     ValidatorInterface
+	Mempool       mempool.Interface
+	Endorser      endorser.Interface
+	CalldataModel calldata.CostModel
 }
 
 var _ Interface = &Sender{}
@@ -42,6 +45,7 @@ func NewSender(
 	mempool mempool.Interface,
 	endorser endorser.Interface,
 	validator ValidatorInterface,
+	calldataModel calldata.CostModel,
 ) *Sender {
 	return &Sender{
 		ID:     id,
@@ -51,21 +55,27 @@ func NewSender(
 		randomWait:  cfg.RandomWait,
 		sleepWait:   time.Duration(cfg.SleepWait),
 
-		Wallet:    wallet,
-		Mempool:   mempool,
-		Endorser:  endorser,
-		Validator: validator,
+		Wallet:        wallet,
+		Mempool:       mempool,
+		Endorser:      endorser,
+		Validator:     validator,
+		CalldataModel: calldataModel,
 	}
 }
 
 func (s *Sender) Run(ctx context.Context) {
 	for ctx.Err() == nil {
 		ops := s.Mempool.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
-			if len(to) != 0 {
-				return []*mempool.TrackedOperation{to[0]}
+			if len(to) == 0 {
+				return nil
 			}
 
-			return nil
+			// Sort them by highest value and pick the first one
+			sort.Slice(to, func(i, j int) bool {
+				return to[i].Value(s.CalldataModel).Cmp(to[j].Value(s.CalldataModel)) > 0
+			})
+
+			return to[:1]
 		})
 
 		if len(ops) == 0 {
@@ -102,12 +112,15 @@ func (s *Sender) Run(ctx context.Context) {
 			continue
 		}
 
+		// Add the calldataGasLimit to the gasLimit of the op
+		cgl := s.CalldataModel.CostFor(op.Calldata)
+
 		signedTx, err := s.Wallet.NewTransaction(
 			ctx,
 			&ethtxn.TransactionRequest{
 				GasPrice: op.MaxFeePerGas,
 				GasTip:   s.priorityFee,
-				GasLimit: op.GasLimit.Uint64(),
+				GasLimit: op.GasLimit.Uint64() + cgl,
 				To:       &op.Entrypoint,
 				ETHValue: big.NewInt(0),
 				Data:     op.Calldata,

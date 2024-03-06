@@ -10,6 +10,7 @@ import (
 
 	"github.com/0xsequence/bundler"
 	"github.com/0xsequence/bundler/admin"
+	"github.com/0xsequence/bundler/calldata"
 	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
@@ -34,20 +35,21 @@ type RPC struct {
 	Host   *p2p.Host
 	HTTP   *http.Server
 
-	mempool   mempool.Interface
-	pruner    *bundler.Pruner
-	archive   *bundler.Archive
-	collector *collector.Collector
-	senders   []sender.Interface
-	executor  *abivalidator.OperationValidator
-	ipfs      ipfs.Interface
-	admin     *admin.Admin
+	mempool       mempool.Interface
+	pruner        *bundler.Pruner
+	archive       *bundler.Archive
+	collector     *collector.Collector
+	senders       []sender.Interface
+	executor      *abivalidator.OperationValidator
+	ipfs          ipfs.Interface
+	admin         *admin.Admin
+	calldataModel calldata.CostModel
 
 	running   int32
 	startTime time.Time
 }
 
-func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool mempool.Interface, archive *bundler.Archive, provider *ethrpc.Provider, collector *collector.Collector, endorser endorser.Interface, ipfs ipfs.Interface) (*RPC, error) {
+func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool mempool.Interface, archive *bundler.Archive, provider *ethrpc.Provider, collector *collector.Collector, endorser endorser.Interface, ipfs ipfs.Interface, calldataModel calldata.CostModel) (*RPC, error) {
 	if !common.IsHexAddress(cfg.NetworkConfig.ValidatorContract) {
 		return nil, fmt.Errorf("\"%v\" is not a valid operation validator contract", cfg.NetworkConfig.ValidatorContract)
 	}
@@ -84,6 +86,7 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 			mempool,
 			endorser,
 			executor,
+			calldataModel,
 		))
 	}
 
