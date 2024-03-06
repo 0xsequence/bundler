@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/0xsequence/bundler/calldata"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
@@ -39,6 +40,7 @@ func TestReservePullOps(t *testing.T) {
 		mockMempool,
 		mockEndorser,
 		mockValidator,
+		calldata.DefaultModel(),
 	)
 
 	done := make(chan struct{})
@@ -77,6 +79,7 @@ func TestSimulateOpErr(t *testing.T) {
 		mockMempool,
 		mockEndorser,
 		mockValidator,
+		calldata.DefaultModel(),
 	)
 
 	done := make(chan struct{})
@@ -142,6 +145,7 @@ func TestSimulatePaidNotPaid(t *testing.T) {
 		mockMempool,
 		mockEndorser,
 		mockValidator,
+		calldata.DefaultModel(),
 	)
 
 	done := make(chan struct{})
@@ -210,6 +214,7 @@ func TestSimulatePaidNotPaidConstraintsUnmet(t *testing.T) {
 		mockMempool,
 		mockEndorser,
 		mockValidator,
+		calldata.DefaultModel(),
 	)
 
 	done := make(chan struct{})
@@ -303,6 +308,7 @@ func TestSimulatePaidNotPaidAndLied(t *testing.T) {
 		mockMempool,
 		mockEndorser,
 		mockValidator,
+		calldata.DefaultModel(),
 	)
 
 	done := make(chan struct{})
@@ -388,6 +394,7 @@ func TestSend(t *testing.T) {
 		mockMempool,
 		mockEndorser,
 		mockValidator,
+		calldata.DefaultModel(),
 	)
 
 	done := make(chan struct{})
@@ -420,7 +427,7 @@ func TestSend(t *testing.T) {
 		To:       &op.Operation.Entrypoint,
 		GasPrice: op.Operation.MaxFeePerGas,
 		GasTip:   big.NewInt(13),
-		GasLimit: op.Operation.GasLimit.Uint64(),
+		GasLimit: 22000,
 		Data:     op.Operation.Calldata,
 		ETHValue: big.NewInt(0),
 	}).Return(&rtx, nil).Once()
