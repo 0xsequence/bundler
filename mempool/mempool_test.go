@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/0xsequence/bundler/calldata"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/mempool"
@@ -26,7 +27,7 @@ func TestAddOperation(t *testing.T) {
 
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size: 10,
-	}, logger, mockEndorser, mockP2p, mockCollector, nil)
+	}, logger, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel())
 
 	assert.NoError(t, err)
 
@@ -70,7 +71,7 @@ func TestForceIncludeKnownOp(t *testing.T) {
 
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size: 10,
-	}, logger, mockEndorser, mockP2p, mockCollector, nil)
+	}, logger, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel())
 
 	assert.NoError(t, err)
 
@@ -109,7 +110,7 @@ func TestSkipAddingKnownOperation(t *testing.T) {
 
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size: 10,
-	}, logger, mockEndorser, mockP2p, mockCollector, nil)
+	}, logger, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel())
 
 	assert.NoError(t, err)
 
@@ -144,7 +145,7 @@ func TestNotReadyOperation(t *testing.T) {
 
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size: 10,
-	}, logger, mockEndorser, mockP2p, mockCollector, nil)
+	}, logger, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel())
 
 	assert.NoError(t, err)
 
@@ -220,7 +221,7 @@ func TestReserveOps(t *testing.T) {
 
 	mem, err := mempool.NewMempool(&config.MempoolConfig{
 		Size: 10,
-	}, logger, mockEndorser, mockP2p, mockCollector, nil)
+	}, logger, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel())
 
 	assert.NoError(t, err)
 
@@ -320,7 +321,7 @@ func TestReportToIPFS(t *testing.T) {
 
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size: 10,
-	}, logger, mockEndorser, mockP2p, mockCollector, mockIpfs)
+	}, logger, mockEndorser, mockP2p, mockCollector, mockIpfs, calldata.DefaultModel())
 
 	assert.NoError(t, err)
 
@@ -379,7 +380,7 @@ func TestRejectOverlappingDependency(t *testing.T) {
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size:         10,
 		OverlapLimit: 1,
-	}, logger, mockEndorser, mockP2p, mockCollector, nil)
+	}, logger, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel())
 
 	assert.NoError(t, err)
 
@@ -428,7 +429,7 @@ func TestReplaceOverlappingDependency(t *testing.T) {
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size:         10,
 		OverlapLimit: 1,
-	}, logger, mockEndorser, mockP2p, mockCollector, nil)
+	}, logger, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel())
 
 	assert.NoError(t, err)
 
@@ -436,6 +437,7 @@ func TestReplaceOverlappingDependency(t *testing.T) {
 		Calldata:                   []byte{0x01},
 		GasLimit:                   big.NewInt(1),
 		MaxFeePerGas:               big.NewInt(1),
+		PriorityFeePerGas:          big.NewInt(1),
 		BaseFeeScalingFactor:       big.NewInt(1),
 		BaseFeeNormalizationFactor: big.NewInt(1),
 	}
@@ -444,6 +446,7 @@ func TestReplaceOverlappingDependency(t *testing.T) {
 		Calldata:                   []byte{0x02},
 		GasLimit:                   big.NewInt(2),
 		MaxFeePerGas:               big.NewInt(1),
+		PriorityFeePerGas:          big.NewInt(1),
 		BaseFeeScalingFactor:       big.NewInt(1),
 		BaseFeeNormalizationFactor: big.NewInt(1),
 	}

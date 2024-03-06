@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/0xsequence/bundler/calldata"
 	"github.com/0xsequence/bundler/ipfs"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
@@ -34,17 +35,36 @@ func NewOperation() *Operation {
 	return &Operation{}
 }
 
-func (o *Operation) Value() *big.Int {
+func (o *Operation) Value(cmodel calldata.CostModel) *big.Int {
 	val := new(big.Int)
 
-	if o.MaxFeePerGas == nil || o.GasLimit == nil || o.BaseFeeScalingFactor == nil || o.BaseFeeNormalizationFactor == nil {
+	if o.MaxFeePerGas == nil ||
+		o.GasLimit == nil ||
+		o.BaseFeeScalingFactor == nil ||
+		o.BaseFeeNormalizationFactor == nil ||
+		o.PriorityFeePerGas == nil {
 		return val
 	}
 
-	// TODO: Account for calldata cost
-	val.Mul(o.MaxFeePerGas, o.GasLimit)
+	// Use the minimum of the two fees
+	var feePerGas *big.Int
+	if o.MaxFeePerGas.Cmp(o.PriorityFeePerGas) < 0 {
+		feePerGas = o.MaxFeePerGas
+	} else {
+		feePerGas = o.PriorityFeePerGas
+	}
+
+	// The operation doesn't directly pay for the calldata cost
+	// so we need to subtract it from the value.
+	// This can go negative, but it is fine as we only want this
+	// as a relative value to compare operations.
+	calldataCost := new(big.Int).SetUint64(cmodel.CostFor(o.Calldata))
+	val.Sub(o.GasLimit, calldataCost)
+
+	val.Mul(val, feePerGas)
 	val.Mul(val, o.BaseFeeScalingFactor)
 	val.Div(val, o.BaseFeeNormalizationFactor)
+
 	return val
 }
 

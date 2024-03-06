@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/0xsequence/bundler/calldata"
 	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/endorser"
@@ -22,10 +23,11 @@ import (
 type Mempool struct {
 	logger *httplog.Logger
 
-	Ipfs      ipfs.Interface
-	Host      p2p.Interface
-	Collector collector.Interface
-	Endorser  endorser.Interface
+	Ipfs          ipfs.Interface
+	Host          p2p.Interface
+	Collector     collector.Interface
+	Endorser      endorser.Interface
+	CalldataModel calldata.CostModel
 
 	MaxSize int
 
@@ -38,7 +40,15 @@ type Mempool struct {
 
 var _ Interface = &Mempool{}
 
-func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, endorser endorser.Interface, host p2p.Interface, collector collector.Interface, ipfs ipfs.Interface) (*Mempool, error) {
+func NewMempool(
+	cfg *config.MempoolConfig,
+	logger *httplog.Logger,
+	endorser endorser.Interface,
+	host p2p.Interface,
+	collector collector.Interface,
+	ipfs ipfs.Interface,
+	calldataModel calldata.CostModel,
+) (*Mempool, error) {
 	if cfg.Size <= 1 {
 		return nil, fmt.Errorf("mempool: size must be greater than 1")
 	}
@@ -58,10 +68,11 @@ func NewMempool(cfg *config.MempoolConfig, logger *httplog.Logger, endorser endo
 	mp := &Mempool{
 		logger: logger,
 
-		Ipfs:      ipfs,
-		Host:      host,
-		Endorser:  endorser,
-		Collector: collector,
+		Ipfs:          ipfs,
+		Host:          host,
+		Endorser:      endorser,
+		Collector:     collector,
+		CalldataModel: calldataModel,
 
 		MaxSize: int(cfg.Size),
 
@@ -242,18 +253,18 @@ func (mp *Mempool) evictLesser(ctx context.Context, cand *types.Operation, subse
 		var secondWorstVal *big.Int = nil
 
 		for _, alt := range alts {
-			av := alt.Value()
-			if av.Cmp(worst.Value()) < 0 {
-				secondWorstVal = worst.Value()
+			av := alt.Value(mp.CalldataModel)
+			if av.Cmp(worst.Value(mp.CalldataModel)) < 0 {
+				secondWorstVal = worst.Value(mp.CalldataModel)
 				worst = alt
 			} else if secondWorstVal == nil || av.Cmp(secondWorstVal) < 0 {
-				secondWorstVal = alt.Value()
+				secondWorstVal = av
 			}
 		}
 
 		// Don't evict if the worst is the candidate
 		if worst == cand {
-			return fmt.Errorf("candidate is the worst operation: %s - %s < %s", worst.Hash(), worst.Value(), secondWorstVal)
+			return fmt.Errorf("candidate is the worst operation: %s - %s < %s", worst.Hash(), worst.Value(mp.CalldataModel), secondWorstVal)
 		}
 
 		evictions = append(evictions, worst.Hash())

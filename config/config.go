@@ -19,12 +19,13 @@ type Config struct {
 
 	Logging LoggingConfig `toml:"logging"`
 
-	NetworkConfig   NetworkConfig   `toml:"network"`
-	MempoolConfig   MempoolConfig   `toml:"mempool"`
-	SendersConfig   SendersConfig   `toml:"senders"`
-	CollectorConfig CollectorConfig `toml:"collector"`
-	PrunerConfig    PrunerConfig    `toml:"pruner"`
-	ArchiveConfig   ArchiveConfig   `toml:"archive"`
+	NetworkConfig       NetworkConfig        `toml:"network"`
+	MempoolConfig       MempoolConfig        `toml:"mempool"`
+	SendersConfig       SendersConfig        `toml:"senders"`
+	CollectorConfig     CollectorConfig      `toml:"collector"`
+	PrunerConfig        PrunerConfig         `toml:"pruner"`
+	ArchiveConfig       ArchiveConfig        `toml:"archive"`
+	LinearCalldataModel *LinearCalldataModel `toml:"linear_calldata_model"`
 
 	BootNodeAddrs []multiaddr.Multiaddr `toml:"-"`
 }
@@ -44,6 +45,12 @@ type NetworkConfig struct {
 	IpfsUrl string `toml:"ipfs_url"`
 
 	ValidatorContract string `toml:"validator_contract"`
+}
+
+type LinearCalldataModel struct {
+	FixedCost       uint64 `toml:"fixed_cost"`
+	ZeroByteCost    uint64 `toml:"zero_byte_cost"`
+	NonZeroByteCost uint64 `toml:"non_zero_byte_cost"`
 }
 
 type MempoolConfig struct {
