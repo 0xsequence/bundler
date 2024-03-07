@@ -83,6 +83,7 @@ struct Operation
     + go.field.type = prototyp.BigInt
 
   - hash?: string
+    + go.tag.json = hash,omitempty
 
 enum MessageType: int
   - DEBUG

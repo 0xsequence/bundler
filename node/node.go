@@ -12,6 +12,7 @@ import (
 	"github.com/0xsequence/bundler/calldata"
 	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
+	"github.com/0xsequence/bundler/debugger"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/ipfs"
 	"github.com/0xsequence/bundler/mempool"
@@ -75,8 +76,15 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		return nil, err
 	}
 
+	// Debugger
+	// TODO: More options
+	debugger, err := debugger.NewAnvilDebugger(context.Background(), logger, cfg.NetworkConfig.RpcUrl)
+	if err != nil {
+		return nil, err
+	}
+
 	// Endorser
-	endorser := endorser.NewEndorser(provider)
+	endorser := endorser.NewEndorser(logger, provider, debugger)
 
 	// wallet
 	wallet, err := rpc.SetupWallet(cfg.Mnemonic, 0, provider)
