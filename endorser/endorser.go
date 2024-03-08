@@ -2,10 +2,8 @@ package endorser
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math/big"
-	"os"
 
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/bundler/debugger"
@@ -232,23 +230,18 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 		return nil, fmt.Errorf("unable to trace call: %w", err)
 	}
 
-	er, err := e.parseIsOperationReadyRes(trace.ReturnValue)
+	er1, err := e.parseIsOperationReadyRes(trace.ReturnValue)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse result: %w", err)
 	}
 
-	// Write the whoe trace to /tmp/trace as a json file
-	jsonTrace, err := json.MarshalIndent(trace, "", "  ")
+	// Generate dependencies from untrusted context
+	er2, err := ParseUntrustedDebug(trace)
 	if err != nil {
-		e.logger.Warn("unable to marshal trace to json", "error", err)
-	}
-	err = os.WriteFile("/tmp/trace3.json", jsonTrace, 0644)
-	if err != nil {
-		e.logger.Warn("unable to write trace to /tmp/trace2", "error", err)
+		return nil, fmt.Errorf("unable to parse untrusted debug: %w", err)
 	}
 
-	// TODO: Handle untrusted context
-	return er, nil
+	return er1.Or(er2), nil
 }
 
 func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*EndorserResult, error) {
