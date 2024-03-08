@@ -236,29 +236,6 @@ type FeeAsks struct {
 	AcceptedTokens map[string]BaseFeeRate `json:"acceptedTokens"`
 }
 
-type Bundler interface {
-	Ping(ctx context.Context) (bool, error)
-	Status(ctx context.Context) (*Status, error)
-	Peers(ctx context.Context) ([]string, []string, error)
-	Mempool(ctx context.Context) (*MempoolView, error)
-	SendOperation(ctx context.Context, operation *Operation) (string, error)
-	Operations(ctx context.Context) (*Operations, error)
-	FeeAsks(ctx context.Context) (*FeeAsks, error)
-}
-
-type Debug interface {
-	Broadcast(ctx context.Context, message interface{}) (bool, error)
-}
-
-type Admin interface {
-	SendOperation(ctx context.Context, operation *Operation, ignorePayment *bool) (string, error)
-	ReserveOperations(ctx context.Context, num int, skip int, strategy *OperationStrategy) ([]*Operation, error)
-	ReleaseOperations(ctx context.Context, operations []string, readyAtChange *ReadyAtChange) error
-	DiscardOperations(ctx context.Context, operations []string) error
-	BanEndorser(ctx context.Context, endorser string, duration int) error
-	BannedEndorsers(ctx context.Context) ([]string, error)
-}
-
 var WebRPCServices = map[string][]string{
 	"Bundler": {
 		"Ping",
@@ -280,6 +257,58 @@ var WebRPCServices = map[string][]string{
 		"BanEndorser",
 		"BannedEndorsers",
 	},
+}
+
+//
+// Server types
+//
+
+type Bundler interface {
+	Ping(ctx context.Context) (bool, error)
+	Status(ctx context.Context) (*Status, error)
+	Peers(ctx context.Context) ([]string, []string, error)
+	Mempool(ctx context.Context) (*MempoolView, error)
+	SendOperation(ctx context.Context, operation *Operation) (string, error)
+	Operations(ctx context.Context) (*Operations, error)
+	FeeAsks(ctx context.Context) (*FeeAsks, error)
+}
+
+type Debug interface {
+	Broadcast(ctx context.Context, message interface{}) (bool, error)
+}
+type Admin interface {
+	SendOperation(ctx context.Context, operation *Operation, ignorePayment *bool) (string, error)
+	ReserveOperations(ctx context.Context, num int, skip int, strategy *OperationStrategy) ([]*Operation, error)
+	ReleaseOperations(ctx context.Context, operations []string, readyAtChange *ReadyAtChange) error
+	DiscardOperations(ctx context.Context, operations []string) error
+	BanEndorser(ctx context.Context, endorser string, duration int) error
+	BannedEndorsers(ctx context.Context) ([]string, error)
+}
+
+//
+// Client types
+//
+
+type BundlerClient interface {
+	Ping(ctx context.Context) (bool, error)
+	Status(ctx context.Context) (*Status, error)
+	Peers(ctx context.Context) ([]string, []string, error)
+	Mempool(ctx context.Context) (*MempoolView, error)
+	SendOperation(ctx context.Context, operation *Operation) (string, error)
+	Operations(ctx context.Context) (*Operations, error)
+	FeeAsks(ctx context.Context) (*FeeAsks, error)
+}
+
+type DebugClient interface {
+	Broadcast(ctx context.Context, message interface{}) (bool, error)
+}
+type AdminClient interface {
+	SendOperation(ctx context.Context, operation *Operation, ignorePayment *bool) (string, error)
+	ReserveOperations(ctx context.Context, num int, skip int, strategy *OperationStrategy) ([]*Operation, error)
+	ReleaseOperations(ctx context.Context, operations []string, readyAtChange *ReadyAtChange) error
+	DiscardOperations(ctx context.Context, operations []string) error
+	BanEndorser(ctx context.Context, endorser string, duration int) error
+	BannedEndorsers(ctx context.Context) ([]string, error)
 }
 
 //
@@ -994,6 +1023,7 @@ func (s *adminServer) sendErrorJSON(w http.ResponseWriter, r *http.Request, rpcE
 	respBody, _ := json.Marshal(rpcErr)
 	w.Write(respBody)
 }
+
 func RespondWithError(w http.ResponseWriter, err error) {
 	rpcErr, ok := err.(WebRPCError)
 	if !ok {
@@ -1020,7 +1050,7 @@ type bundlerClient struct {
 	urls   [7]string
 }
 
-func NewBundlerClient(addr string, client HTTPClient) Bundler {
+func NewBundlerClient(addr string, client HTTPClient) BundlerClient {
 	prefix := urlBase(addr) + BundlerPathPrefix
 	urls := [7]string{
 		prefix + "Ping",
@@ -1042,7 +1072,14 @@ func (c *bundlerClient) Ping(ctx context.Context) (bool, error) {
 		Ret0 bool `json:"status"`
 	}{}
 
-	err := doJSONRequest(ctx, c.client, c.urls[0], nil, &out)
+	resp, err := doHTTPRequest(ctx, c.client, c.urls[0], nil, &out)
+	if resp != nil {
+		cerr := resp.Body.Close()
+		if err == nil && cerr != nil {
+			err = ErrWebrpcRequestFailed.WithCause(fmt.Errorf("failed to close response body: %w", cerr))
+		}
+	}
+
 	return out.Ret0, err
 }
 
@@ -1051,7 +1088,14 @@ func (c *bundlerClient) Status(ctx context.Context) (*Status, error) {
 		Ret0 *Status `json:"status"`
 	}{}
 
-	err := doJSONRequest(ctx, c.client, c.urls[1], nil, &out)
+	resp, err := doHTTPRequest(ctx, c.client, c.urls[1], nil, &out)
+	if resp != nil {
+		cerr := resp.Body.Close()
+		if err == nil && cerr != nil {
+			err = ErrWebrpcRequestFailed.WithCause(fmt.Errorf("failed to close response body: %w", cerr))
+		}
+	}
+
 	return out.Ret0, err
 }
 
@@ -1061,7 +1105,14 @@ func (c *bundlerClient) Peers(ctx context.Context) ([]string, []string, error) {
 		Ret1 []string `json:"priorityPeers"`
 	}{}
 
-	err := doJSONRequest(ctx, c.client, c.urls[2], nil, &out)
+	resp, err := doHTTPRequest(ctx, c.client, c.urls[2], nil, &out)
+	if resp != nil {
+		cerr := resp.Body.Close()
+		if err == nil && cerr != nil {
+			err = ErrWebrpcRequestFailed.WithCause(fmt.Errorf("failed to close response body: %w", cerr))
+		}
+	}
+
 	return out.Ret0, out.Ret1, err
 }
 
@@ -1070,7 +1121,14 @@ func (c *bundlerClient) Mempool(ctx context.Context) (*MempoolView, error) {
 		Ret0 *MempoolView `json:"mempool"`
 	}{}
 
-	err := doJSONRequest(ctx, c.client, c.urls[3], nil, &out)
+	resp, err := doHTTPRequest(ctx, c.client, c.urls[3], nil, &out)
+	if resp != nil {
+		cerr := resp.Body.Close()
+		if err == nil && cerr != nil {
+			err = ErrWebrpcRequestFailed.WithCause(fmt.Errorf("failed to close response body: %w", cerr))
+		}
+	}
+
 	return out.Ret0, err
 }
 
@@ -1082,7 +1140,14 @@ func (c *bundlerClient) SendOperation(ctx context.Context, operation *Operation)
 		Ret0 string `json:"operation"`
 	}{}
 
-	err := doJSONRequest(ctx, c.client, c.urls[4], in, &out)
+	resp, err := doHTTPRequest(ctx, c.client, c.urls[4], in, &out)
+	if resp != nil {
+		cerr := resp.Body.Close()
+		if err == nil && cerr != nil {
+			err = ErrWebrpcRequestFailed.WithCause(fmt.Errorf("failed to close response body: %w", cerr))
+		}
+	}
+
 	return out.Ret0, err
 }
 
@@ -1091,7 +1156,14 @@ func (c *bundlerClient) Operations(ctx context.Context) (*Operations, error) {
 		Ret0 *Operations `json:"operations"`
 	}{}
 
-	err := doJSONRequest(ctx, c.client, c.urls[5], nil, &out)
+	resp, err := doHTTPRequest(ctx, c.client, c.urls[5], nil, &out)
+	if resp != nil {
+		cerr := resp.Body.Close()
+		if err == nil && cerr != nil {
+			err = ErrWebrpcRequestFailed.WithCause(fmt.Errorf("failed to close response body: %w", cerr))
+		}
+	}
+
 	return out.Ret0, err
 }
 
@@ -1100,7 +1172,14 @@ func (c *bundlerClient) FeeAsks(ctx context.Context) (*FeeAsks, error) {
 		Ret0 *FeeAsks `json:"feeAsks"`
 	}{}
 
-	err := doJSONRequest(ctx, c.client, c.urls[6], nil, &out)
+	resp, err := doHTTPRequest(ctx, c.client, c.urls[6], nil, &out)
+	if resp != nil {
+		cerr := resp.Body.Close()
+		if err == nil && cerr != nil {
+			err = ErrWebrpcRequestFailed.WithCause(fmt.Errorf("failed to close response body: %w", cerr))
+		}
+	}
+
 	return out.Ret0, err
 }
 
@@ -1109,7 +1188,7 @@ type debugClient struct {
 	urls   [1]string
 }
 
-func NewDebugClient(addr string, client HTTPClient) Debug {
+func NewDebugClient(addr string, client HTTPClient) DebugClient {
 	prefix := urlBase(addr) + DebugPathPrefix
 	urls := [1]string{
 		prefix + "Broadcast",
@@ -1128,7 +1207,14 @@ func (c *debugClient) Broadcast(ctx context.Context, message interface{}) (bool,
 		Ret0 bool `json:"status"`
 	}{}
 
-	err := doJSONRequest(ctx, c.client, c.urls[0], in, &out)
+	resp, err := doHTTPRequest(ctx, c.client, c.urls[0], in, &out)
+	if resp != nil {
+		cerr := resp.Body.Close()
+		if err == nil && cerr != nil {
+			err = ErrWebrpcRequestFailed.WithCause(fmt.Errorf("failed to close response body: %w", cerr))
+		}
+	}
+
 	return out.Ret0, err
 }
 
@@ -1137,7 +1223,7 @@ type adminClient struct {
 	urls   [6]string
 }
 
-func NewAdminClient(addr string, client HTTPClient) Admin {
+func NewAdminClient(addr string, client HTTPClient) AdminClient {
 	prefix := urlBase(addr) + AdminPathPrefix
 	urls := [6]string{
 		prefix + "SendOperation",
@@ -1162,7 +1248,14 @@ func (c *adminClient) SendOperation(ctx context.Context, operation *Operation, i
 		Ret0 string `json:"operation"`
 	}{}
 
-	err := doJSONRequest(ctx, c.client, c.urls[0], in, &out)
+	resp, err := doHTTPRequest(ctx, c.client, c.urls[0], in, &out)
+	if resp != nil {
+		cerr := resp.Body.Close()
+		if err == nil && cerr != nil {
+			err = ErrWebrpcRequestFailed.WithCause(fmt.Errorf("failed to close response body: %w", cerr))
+		}
+	}
+
 	return out.Ret0, err
 }
 
@@ -1176,7 +1269,14 @@ func (c *adminClient) ReserveOperations(ctx context.Context, num int, skip int, 
 		Ret0 []*Operation `json:"operations"`
 	}{}
 
-	err := doJSONRequest(ctx, c.client, c.urls[1], in, &out)
+	resp, err := doHTTPRequest(ctx, c.client, c.urls[1], in, &out)
+	if resp != nil {
+		cerr := resp.Body.Close()
+		if err == nil && cerr != nil {
+			err = ErrWebrpcRequestFailed.WithCause(fmt.Errorf("failed to close response body: %w", cerr))
+		}
+	}
+
 	return out.Ret0, err
 }
 
@@ -1185,7 +1285,15 @@ func (c *adminClient) ReleaseOperations(ctx context.Context, operations []string
 		Arg0 []string       `json:"operations"`
 		Arg1 *ReadyAtChange `json:"readyAtChange"`
 	}{operations, readyAtChange}
-	err := doJSONRequest(ctx, c.client, c.urls[2], in, nil)
+
+	resp, err := doHTTPRequest(ctx, c.client, c.urls[2], in, nil)
+	if resp != nil {
+		cerr := resp.Body.Close()
+		if err == nil && cerr != nil {
+			err = ErrWebrpcRequestFailed.WithCause(fmt.Errorf("failed to close response body: %w", cerr))
+		}
+	}
+
 	return err
 }
 
@@ -1193,7 +1301,15 @@ func (c *adminClient) DiscardOperations(ctx context.Context, operations []string
 	in := struct {
 		Arg0 []string `json:"operations"`
 	}{operations}
-	err := doJSONRequest(ctx, c.client, c.urls[3], in, nil)
+
+	resp, err := doHTTPRequest(ctx, c.client, c.urls[3], in, nil)
+	if resp != nil {
+		cerr := resp.Body.Close()
+		if err == nil && cerr != nil {
+			err = ErrWebrpcRequestFailed.WithCause(fmt.Errorf("failed to close response body: %w", cerr))
+		}
+	}
+
 	return err
 }
 
@@ -1202,7 +1318,15 @@ func (c *adminClient) BanEndorser(ctx context.Context, endorser string, duration
 		Arg0 string `json:"endorser"`
 		Arg1 int    `json:"duration"`
 	}{endorser, duration}
-	err := doJSONRequest(ctx, c.client, c.urls[4], in, nil)
+
+	resp, err := doHTTPRequest(ctx, c.client, c.urls[4], in, nil)
+	if resp != nil {
+		cerr := resp.Body.Close()
+		if err == nil && cerr != nil {
+			err = ErrWebrpcRequestFailed.WithCause(fmt.Errorf("failed to close response body: %w", cerr))
+		}
+	}
+
 	return err
 }
 
@@ -1211,7 +1335,14 @@ func (c *adminClient) BannedEndorsers(ctx context.Context) ([]string, error) {
 		Ret0 []string `json:"endorser"`
 	}{}
 
-	err := doJSONRequest(ctx, c.client, c.urls[5], nil, &out)
+	resp, err := doHTTPRequest(ctx, c.client, c.urls[5], nil, &out)
+	if resp != nil {
+		cerr := resp.Body.Close()
+		if err == nil && cerr != nil {
+			err = ErrWebrpcRequestFailed.WithCause(fmt.Errorf("failed to close response body: %w", cerr))
+		}
+	}
+
 	return out.Ret0, err
 }
 
@@ -1255,65 +1386,55 @@ func newRequest(ctx context.Context, url string, reqBody io.Reader, contentType 
 	return req, nil
 }
 
-// doJSONRequest is common code to make a request to the remote service.
-func doJSONRequest(ctx context.Context, client HTTPClient, url string, in, out interface{}) error {
+// doHTTPRequest is common code to make a request to the remote service.
+func doHTTPRequest(ctx context.Context, client HTTPClient, url string, in, out interface{}) (*http.Response, error) {
 	reqBody, err := json.Marshal(in)
 	if err != nil {
-		return ErrWebrpcRequestFailed.WithCause(fmt.Errorf("failed to marshal JSON body: %w", err))
+		return nil, ErrWebrpcRequestFailed.WithCause(fmt.Errorf("failed to marshal JSON body: %w", err))
 	}
 	if err = ctx.Err(); err != nil {
-		return ErrWebrpcRequestFailed.WithCause(fmt.Errorf("aborted because context was done: %w", err))
+		return nil, ErrWebrpcRequestFailed.WithCause(fmt.Errorf("aborted because context was done: %w", err))
 	}
 
 	req, err := newRequest(ctx, url, bytes.NewBuffer(reqBody), "application/json")
 	if err != nil {
-		return ErrWebrpcRequestFailed.WithCause(fmt.Errorf("could not build request: %w", err))
+		return nil, ErrWebrpcRequestFailed.WithCause(fmt.Errorf("could not build request: %w", err))
 	}
+
 	resp, err := client.Do(req)
 	if err != nil {
-		return ErrWebrpcRequestFailed.WithCause(err)
-	}
-
-	defer func() {
-		cerr := resp.Body.Close()
-		if err == nil && cerr != nil {
-			err = ErrWebrpcRequestFailed.WithCause(fmt.Errorf("failed to close response body: %w", cerr))
-		}
-	}()
-
-	if err = ctx.Err(); err != nil {
-		return ErrWebrpcRequestFailed.WithCause(fmt.Errorf("aborted because context was done: %w", err))
+		return nil, ErrWebrpcRequestFailed.WithCause(err)
 	}
 
 	if resp.StatusCode != 200 {
 		respBody, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return ErrWebrpcBadResponse.WithCause(fmt.Errorf("failed to read server error response body: %w", err))
+			return nil, ErrWebrpcBadResponse.WithCause(fmt.Errorf("failed to read server error response body: %w", err))
 		}
 
 		var rpcErr WebRPCError
 		if err := json.Unmarshal(respBody, &rpcErr); err != nil {
-			return ErrWebrpcBadResponse.WithCause(fmt.Errorf("failed to unmarshal server error: %w", err))
+			return nil, ErrWebrpcBadResponse.WithCause(fmt.Errorf("failed to unmarshal server error: %w", err))
 		}
 		if rpcErr.Cause != "" {
 			rpcErr.cause = errors.New(rpcErr.Cause)
 		}
-		return rpcErr
+		return nil, rpcErr
 	}
 
 	if out != nil {
 		respBody, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return ErrWebrpcBadResponse.WithCause(fmt.Errorf("failed to read response body: %w", err))
+			return nil, ErrWebrpcBadResponse.WithCause(fmt.Errorf("failed to read response body: %w", err))
 		}
 
 		err = json.Unmarshal(respBody, &out)
 		if err != nil {
-			return ErrWebrpcBadResponse.WithCause(fmt.Errorf("failed to unmarshal JSON response body: %w", err))
+			return nil, ErrWebrpcBadResponse.WithCause(fmt.Errorf("failed to unmarshal JSON response body: %w", err))
 		}
 	}
 
-	return nil
+	return resp, nil
 }
 
 func WithHTTPRequestHeaders(ctx context.Context, h http.Header) (context.Context, error) {
