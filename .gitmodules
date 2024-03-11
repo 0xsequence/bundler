@@ -4,3 +4,6 @@
 [submodule "contracts/lib/solady"]
 	path = contracts/lib/solady
 	url = https://github.com/vectorized/solady
+[submodule "contracts/lib/erc5189-libs"]
+	path = contracts/lib/erc5189-libs
+	url = https://github.com/0xsequence/erc5189-libs
