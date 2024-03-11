@@ -155,7 +155,7 @@ func newType(t string, internalType string, components []abi.ArgumentMarshaling)
 	return type_
 }
 
-func HasChanged(d *abiendorser.EndorserDependency, x, y *AddrDependencyState) (bool, error) {
+func HasChanged(d *Dependency, x, y *AddrDependencyState) (bool, error) {
 	if err := Validate(d, x); err != nil {
 		return false, fmt.Errorf("x is not a valid state for dependency on %v: %w", d.Addr, err)
 	}
@@ -184,7 +184,7 @@ func HasChanged(d *abiendorser.EndorserDependency, x, y *AddrDependencyState) (b
 	return false, nil
 }
 
-func Validate(d *abiendorser.EndorserDependency, state *AddrDependencyState) error {
+func Validate(d *Dependency, state *AddrDependencyState) error {
 	if (state.Balance != nil) != d.Balance {
 		return fmt.Errorf("balance existence does not match dependency")
 	}
@@ -245,12 +245,28 @@ func (r *EndorserResult) Validate(state *EndorserResultState) error {
 	return nil
 }
 
+func ToExecutorInput(r *abiendorser.IEndorserOperation) *abivalidator.IEndorserOperation {
+	return &abivalidator.IEndorserOperation{
+		Entrypoint:             r.Entrypoint,
+		Data:                   r.Data,
+		EndorserCallData:       r.EndorserCallData,
+		FixedGas:               r.FixedGas,
+		GasLimit:               r.GasLimit,
+		MaxFeePerGas:           r.MaxFeePerGas,
+		MaxPriorityFeePerGas:   r.MaxPriorityFeePerGas,
+		FeeToken:               r.FeeToken,
+		FeeScalingFactor:       r.FeeScalingFactor,
+		FeeNormalizationFactor: r.FeeNormalizationFactor,
+		HasUntrustedContext:    r.HasUntrustedContext,
+	}
+}
+
 func FromExecutorResult(r *abivalidator.OperationValidatorSimulationResult) *EndorserResult {
-	globalDependency := abiendorser.EndorserGlobalDependency{
-		Basefee:           r.GlobalDependency.Basefee,
-		Blobbasefee:       r.GlobalDependency.Blobbasefee,
-		Chainid:           r.GlobalDependency.Chainid,
-		Coinbase:          r.GlobalDependency.Coinbase,
+	globalDependency := abiendorser.IEndorserGlobalDependency{
+		BaseFee:           r.GlobalDependency.BaseFee,
+		BlobBaseFee:       r.GlobalDependency.BlobBaseFee,
+		ChainId:           r.GlobalDependency.ChainId,
+		CoinBase:          r.GlobalDependency.CoinBase,
 		Difficulty:        r.GlobalDependency.Difficulty,
 		GasLimit:          r.GlobalDependency.GasLimit,
 		Number:            r.GlobalDependency.Number,
@@ -261,18 +277,18 @@ func FromExecutorResult(r *abivalidator.OperationValidatorSimulationResult) *End
 		MaxBlockTimestamp: r.GlobalDependency.MaxBlockTimestamp,
 	}
 
-	dependencies := make([]abiendorser.EndorserDependency, len(r.Dependencies))
+	dependencies := make([]abiendorser.IEndorserDependency, len(r.Dependencies))
 	for i, d := range r.Dependencies {
-		constraints := make([]abiendorser.EndorserConstraint, len(d.Constraints))
+		constraints := make([]abiendorser.IEndorserConstraint, len(d.Constraints))
 		for j, c := range d.Constraints {
-			constraints[j] = abiendorser.EndorserConstraint{
+			constraints[j] = abiendorser.IEndorserConstraint{
 				Slot:     c.Slot,
 				MinValue: c.MinValue,
 				MaxValue: c.MaxValue,
 			}
 		}
 
-		dependencies[i] = abiendorser.EndorserDependency{
+		dependencies[i] = abiendorser.IEndorserDependency{
 			Addr:        d.Addr,
 			Balance:     d.Balance,
 			Code:        d.Code,

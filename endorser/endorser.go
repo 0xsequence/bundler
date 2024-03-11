@@ -54,14 +54,14 @@ func (e *Endorser) buildIsOperationReadyCalldata(op *types.Operation) (common.Ad
 	calldata, err := endorser.Encode(
 		"isOperationReady",
 		op.Entrypoint,
-		op.Calldata,
+		op.Data,
 		op.EndorserCallData,
 		op.GasLimit,
 		op.MaxFeePerGas,
-		op.PriorityFeePerGas,
+		op.MaxPriorityFeePerGas,
 		op.FeeToken,
-		op.BaseFeeScalingFactor,
-		op.BaseFeeNormalizationFactor,
+		op.FeeScalingFactor,
+		op.FeeNormalizationFactor,
 		op.HasUntrustedContext,
 	)
 
@@ -114,11 +114,11 @@ func (e *Endorser) parseIsOperationReadyRes(res string) (*EndorserResult, error)
 		return nil, fmt.Errorf("invalid block dependency")
 	}
 
-	endorserResult.GlobalDependency = abiendorser.EndorserGlobalDependency{
-		Basefee:           dec2.Basefee,
-		Blobbasefee:       dec2.Blobbasefee,
-		Chainid:           dec2.Chainid,
-		Coinbase:          dec2.Coinbase,
+	endorserResult.GlobalDependency = abiendorser.IEndorserGlobalDependency{
+		BaseFee:           dec2.Basefee,
+		BlobBaseFee:       dec2.Blobbasefee,
+		ChainId:           dec2.Chainid,
+		CoinBase:          dec2.Coinbase,
 		Difficulty:        dec2.Difficulty,
 		GasLimit:          dec2.GasLimit,
 		Number:            dec2.Number,
@@ -147,9 +147,9 @@ func (e *Endorser) parseIsOperationReadyRes(res string) (*EndorserResult, error)
 		return nil, fmt.Errorf("invalid dependencies")
 	}
 
-	endorserResult.Dependencies = make([]abiendorser.EndorserDependency, 0, len(dec3))
+	endorserResult.Dependencies = make([]abiendorser.IEndorserDependency, 0, len(dec3))
 	for _, dep := range dec3 {
-		dependency := abiendorser.EndorserDependency{
+		dependency := abiendorser.IEndorserDependency{
 			Addr:     dep.Addr,
 			Balance:  dep.Balance,
 			Code:     dep.Code,
@@ -157,9 +157,9 @@ func (e *Endorser) parseIsOperationReadyRes(res string) (*EndorserResult, error)
 			AllSlots: dep.AllSlots,
 			Slots:    dep.Slots,
 		}
-		dependency.Constraints = make([]abiendorser.EndorserConstraint, 0, len(dep.Constraints))
+		dependency.Constraints = make([]abiendorser.IEndorserConstraint, 0, len(dep.Constraints))
 		for _, c := range dep.Constraints {
-			dependency.Constraints = append(dependency.Constraints, abiendorser.EndorserConstraint{
+			dependency.Constraints = append(dependency.Constraints, abiendorser.IEndorserConstraint{
 				Slot:     c.Slot,
 				MinValue: c.MinValue,
 				MaxValue: c.MaxValue,

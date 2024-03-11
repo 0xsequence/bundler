@@ -113,7 +113,7 @@ func (s *Sender) Run(ctx context.Context) {
 		}
 
 		// Add the calldataGasLimit to the gasLimit of the op
-		cgl := s.CalldataModel.CostFor(op.Calldata)
+		cgl := s.CalldataModel.CostFor(op.Data)
 
 		signedTx, err := s.Wallet.NewTransaction(
 			ctx,
@@ -123,7 +123,7 @@ func (s *Sender) Run(ctx context.Context) {
 				GasLimit: op.GasLimit.Uint64() + cgl,
 				To:       &op.Entrypoint,
 				ETHValue: big.NewInt(0),
-				Data:     op.Calldata,
+				Data:     op.Data,
 			},
 		)
 
@@ -187,17 +187,8 @@ func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (*S
 			Context: ctx,
 			From:    s.Wallet.Address(),
 		},
-		op.Entrypoint,
-		op.Calldata,
-		op.EndorserCallData,
-		op.GasLimit,
-		op.MaxFeePerGas,
-		op.PriorityFeePerGas,
-		op.FeeToken,
-		op.BaseFeeScalingFactor,
-		op.BaseFeeNormalizationFactor,
-		op.HasUntrustedContext,
 		op.Endorser,
+		*endorser.ToExecutorInput(&op.IEndorserOperation),
 	)
 
 	if err != nil {

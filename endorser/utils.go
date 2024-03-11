@@ -9,7 +9,7 @@ import (
 
 func (e *EndorserResult) MustHaveDeps() {
 	if e.Dependencies == nil {
-		e.Dependencies = make([]abiendorser.EndorserDependency, 0)
+		e.Dependencies = make([]abiendorser.IEndorserDependency, 0)
 	}
 }
 
@@ -25,7 +25,7 @@ func (e *EndorserResult) UseDependency(address common.Address) *Dependency {
 	}
 
 	// Create a new dependency
-	dep := abiendorser.EndorserDependency{
+	dep := abiendorser.IEndorserDependency{
 		Addr: address,
 	}
 	e.Dependencies = append(e.Dependencies, dep)
@@ -69,7 +69,7 @@ func (e *EndorserResult) SetGasPrice(enabled bool) {
 
 func (e *EndorserResult) SetCoinbase(enabled bool) {
 	dep := e.UseGlobalDependency()
-	dep.Coinbase = enabled
+	dep.CoinBase = enabled
 }
 
 func (e *EndorserResult) SetTimestamp(enabled bool) {
@@ -89,12 +89,12 @@ func (e *EndorserResult) SetDifficulty(enabled bool) {
 
 func (e *EndorserResult) SetChainID(enabled bool) {
 	dep := e.UseGlobalDependency()
-	dep.Chainid = enabled
+	dep.ChainId = enabled
 }
 
 func (e *EndorserResult) SetBasefee(enabled bool) {
 	dep := e.UseGlobalDependency()
-	dep.Basefee = enabled
+	dep.BaseFee = enabled
 }
 
 func (e1 *EndorserResult) Or(e2 *EndorserResult) *EndorserResult {
@@ -132,10 +132,10 @@ func CombineGlobalDependency(d1 GlobalDependency, d2 GlobalDependency) GlobalDep
 	}
 
 	return GlobalDependency{
-		Basefee:           d1.Basefee || d2.Basefee,
-		Blobbasefee:       d1.Blobbasefee || d2.Blobbasefee,
-		Chainid:           d1.Chainid || d2.Chainid,
-		Coinbase:          d1.Coinbase || d2.Coinbase,
+		BaseFee:           d1.BaseFee || d2.BaseFee,
+		BlobBaseFee:       d1.BlobBaseFee || d2.BlobBaseFee,
+		ChainId:           d1.ChainId || d2.ChainId,
+		CoinBase:          d1.CoinBase || d2.CoinBase,
 		Difficulty:        d1.Difficulty || d2.Difficulty,
 		GasLimit:          d1.GasLimit || d2.GasLimit,
 		Number:            d1.Number || d2.Number,

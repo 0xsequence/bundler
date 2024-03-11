@@ -240,9 +240,9 @@ func TestSimulatePaidNotPaidConstraintsUnmet(t *testing.T) {
 	).Return(abivalidator.OperationValidatorSimulationResult{
 		Paid:      false,
 		Readiness: true,
-		Dependencies: []abivalidator.EndorserDependency{{
+		Dependencies: []abivalidator.IEndorserDependency{{
 			Addr: common.HexToAddress("0x7537713a54d2506b36eFa389F9341d63815ddE48"),
-			Constraints: []abivalidator.EndorserConstraint{{
+			Constraints: []abivalidator.IEndorserConstraint{{
 				Slot:     [32]byte(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000001")),
 				MinValue: [32]byte(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000002")),
 				MaxValue: [32]byte(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000003")),
@@ -255,10 +255,10 @@ func TestSimulatePaidNotPaidConstraintsUnmet(t *testing.T) {
 		mock.Anything,
 		&endorser.EndorserResult{
 			Readiness:        true,
-			GlobalDependency: abiendorser.EndorserGlobalDependency{},
-			Dependencies: []abiendorser.EndorserDependency{{
+			GlobalDependency: abiendorser.IEndorserGlobalDependency{},
+			Dependencies: []abiendorser.IEndorserDependency{{
 				Addr: common.HexToAddress("0x7537713a54d2506b36eFa389F9341d63815ddE48"),
-				Constraints: []abiendorser.EndorserConstraint{{
+				Constraints: []abiendorser.IEndorserConstraint{{
 					Slot:     [32]byte(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000001")),
 					MinValue: [32]byte(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000002")),
 					MaxValue: [32]byte(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000003")),
@@ -339,7 +339,7 @@ func TestSimulatePaidNotPaidAndLied(t *testing.T) {
 	).Return(abivalidator.OperationValidatorSimulationResult{
 		Paid:         false,
 		Readiness:    true,
-		Dependencies: []abivalidator.EndorserDependency{},
+		Dependencies: []abivalidator.IEndorserDependency{},
 		Err:          common.Hex2Bytes(simErr),
 	}, nil).Once()
 
@@ -376,10 +376,12 @@ func TestSend(t *testing.T) {
 
 	op := mempool.TrackedOperation{
 		Operation: types.Operation{
-			GasLimit:     big.NewInt(1000),
-			MaxFeePerGas: big.NewInt(2000),
-			Entrypoint:   common.HexToAddress("0xB0e4BDF60bC80cbCAaC52DF8796e579870d2fd00"),
-			Calldata:     common.Hex2Bytes("0x1234"),
+			IEndorserOperation: abiendorser.IEndorserOperation{
+				GasLimit:     big.NewInt(1000),
+				MaxFeePerGas: big.NewInt(2000),
+				Entrypoint:   common.HexToAddress("0xB0e4BDF60bC80cbCAaC52DF8796e579870d2fd00"),
+				Calldata:     common.Hex2Bytes("0x1234"),
+			},
 		},
 	}
 

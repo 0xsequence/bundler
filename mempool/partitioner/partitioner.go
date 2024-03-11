@@ -72,10 +72,10 @@ func depsOfResult(res *endorser.EndorserResult) []string {
 	// Global dependencies are always a wildcard
 	// TODO: Some of these may not be wildcards
 	if res.WildcardOnly ||
-		res.GlobalDependency.Basefee ||
-		res.GlobalDependency.Blobbasefee ||
-		res.GlobalDependency.Chainid ||
-		res.GlobalDependency.Coinbase ||
+		res.GlobalDependency.BaseFee ||
+		res.GlobalDependency.BlobBaseFee ||
+		res.GlobalDependency.ChainId ||
+		res.GlobalDependency.CoinBase ||
 		res.GlobalDependency.Difficulty ||
 		res.GlobalDependency.GasLimit ||
 		res.GlobalDependency.Number ||
