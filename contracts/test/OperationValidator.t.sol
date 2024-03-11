@@ -26,22 +26,13 @@ contract TestERC20 is ERC20 {
 }
 
 contract TestEndorser is Endorser {
-  function isOperationReady(
-    address,
-    bytes calldata,
-    bytes calldata,
-    uint256,
-    uint256,
-    uint256,
-    address,
-    uint256,
-    uint256,
-    bool
-  ) external pure returns (
+  function isOperationReady(Endorser.Operation calldata _op) external pure returns (
     bool readiness,
     GlobalDependency memory globalDependency,
     Dependency[] memory dependencies
   ) {}
+
+  function simulationSettings() external view returns (Endorser.Replacement[] memory replacements) {}
 }
 
 contract StubWallet {
@@ -52,7 +43,6 @@ contract StubWallet {
       SafeTransferLib.safeTransfer(_token, address(tx.origin), _amount);
     }
   }
-
   receive() external payable {}
 }
 
@@ -78,20 +68,15 @@ contract OperationValidatorTest is Test {
       feePayment
     );
 
-    OperationValidator.SimulationResult memory result = 
-      ov.simulateOperation(
-        address(w),
-        data,
-        bytes(""),
-        gasLimit,
-        gasPrice,
-        gasPrice,
-        address(0),
-        1,
-        1,
-        false,
-        address(0)
-      );
+    Endorser.Operation memory op;
+    op.entrypoint = address(w);
+    op.data = data;
+    op.gasLimit = gasLimit;
+    op.maxFeePerGas = gasPrice;
+    op.feeScalingFactor = 1;
+    op.feeNormalizationFactor = 1;
+
+    OperationValidator.SimulationResult memory result = ov.simulateOperation(Endorser(address(0)), op);
   
     assertTrue(result.paid);
   }
@@ -112,21 +97,18 @@ contract OperationValidatorTest is Test {
       feePayment
     );
 
-    OperationValidator.SimulationResult memory result = 
-      ov.simulateOperation(
-        address(w),
-        data,
-        bytes(""),
-        gasLimit,
-        gasPrice,
-        gasPrice,
-        address(t),
-        1,
-        1,
-        false,
-        address(0)
-      );
-  
+    Endorser.Operation memory op;
+    op.entrypoint = address(w);
+    op.data = data;
+    op.gasLimit = gasLimit;
+    op.maxFeePerGas = gasPrice;
+    op.maxPriorityFeePerGas = gasPrice;
+    op.feeToken = address(t);
+    op.feeScalingFactor = 1;
+    op.feeNormalizationFactor = 1;
+
+    OperationValidator.SimulationResult memory result = ov.simulateOperation(Endorser(address(0)), op);
+
     assertTrue(result.paid);
   }
 
@@ -146,21 +128,18 @@ contract OperationValidatorTest is Test {
       feePayment / 2
     );
 
-    OperationValidator.SimulationResult memory result = 
-      ov.simulateOperation(
-        address(w),
-        data,
-        bytes(""),
-        gasLimit,
-        gasPrice,
-        gasPrice,
-        address(t),
-        1,
-        2,
-        false,
-        address(0)
-      );
-  
+    Endorser.Operation memory op;
+    op.entrypoint = address(w);
+    op.data = data;
+    op.gasLimit = gasLimit;
+    op.maxFeePerGas = gasPrice;
+    op.maxPriorityFeePerGas = gasPrice;
+    op.feeToken = address(t);
+    op.feeScalingFactor = 1;
+    op.feeNormalizationFactor = 2;
+
+    OperationValidator.SimulationResult memory result = ov.simulateOperation(Endorser(address(0)), op);
+
     assertTrue(result.paid);
   }
 
@@ -181,20 +160,16 @@ contract OperationValidatorTest is Test {
 
     TestEndorser e = new TestEndorser();
 
-    OperationValidator.SimulationResult memory result = 
-      ov.simulateOperation(
-        address(w),
-        data,
-        bytes(""),
-        gasLimit,
-        gasPrice,
-        gasPrice,
-        address(0),
-        1,
-        1,
-        false,
-        address(e)
-      );
+    Endorser.Operation memory op;
+    op.entrypoint = address(w);
+    op.data = data;
+    op.gasLimit = gasLimit;
+    op.maxFeePerGas = gasPrice;
+    op.maxPriorityFeePerGas = gasPrice;
+    op.feeScalingFactor = 1;
+    op.feeNormalizationFactor = 1;
+
+    OperationValidator.SimulationResult memory result = ov.simulateOperation(Endorser(address(e)), op);
   
     assertFalse(result.paid);
   }
