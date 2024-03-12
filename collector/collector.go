@@ -78,6 +78,15 @@ func (c *Collector) AddFeed(tokenAddr string, feed pricefeed.Feed) error {
 	return nil
 }
 
+func (c *Collector) Feed(tokenStr string) (pricefeed.Feed, error) {
+	token := common.HexToAddress(tokenStr)
+	feed, ok := c.feeds[token]
+	if !ok {
+		return nil, fmt.Errorf("collector: no feed for token: %s", tokenStr)
+	}
+	return feed, nil
+}
+
 func (c *Collector) BaseFee() *big.Int {
 	return c.lastBaseFee
 }
@@ -154,6 +163,60 @@ func (c *Collector) ValidatePayment(op *types.Operation) error {
 	}
 
 	return nil
+}
+
+// Compares two operations and returns which one has the highest relay value
+func (c *Collector) Cmp(a, b *types.Operation) int {
+	maxFeeA, priorityFeeA := c.NativeFeesPerGas(a)
+	maxFeeB, priorityFeeB := c.NativeFeesPerGas(b)
+
+	// If the difference of maxFeeA is above 10%, then it takes priority
+	// difference: abs(maxFeeA - maxFeeB) / maxFeeA
+	diffBase := new(big.Int).Abs(new(big.Int).Sub(maxFeeA, maxFeeB))
+	diffBase.Mul(diffBase, big.NewInt(100))
+	diffBase.Div(diffBase, maxFeeA)
+
+	if diffBase.Cmp(big.NewInt(10)) >= 0 {
+		return maxFeeA.Cmp(maxFeeB)
+	}
+
+	// The difference of baseFee is too small
+	// we use the priorityFee to compare
+	return priorityFeeA.Cmp(priorityFeeB)
+}
+
+func (c *Collector) NativeFeesPerGas(op *types.Operation) (*big.Int, *big.Int) {
+	maxFee := new(big.Int)
+	maxFee.Set(op.MaxFeePerGas)
+
+	priorityFee := new(big.Int)
+	priorityFee.Set(op.MaxPriorityFeePerGas)
+
+	if op.NativePayment() {
+		feed, err := c.Feed(op.FixedGas.String())
+		if err == nil {
+			fs, fn, err := feed.Factors()
+			if err == nil {
+				maxFee.Mul(maxFee, op.FeeScalingFactor)
+				maxFee.Mul(maxFee, fn)
+
+				d := new(big.Int).Set(fs)
+				d.Mul(d, op.FeeNormalizationFactor)
+
+				maxFee.Div(maxFee, d)
+
+				priorityFee.Mul(priorityFee, op.FeeScalingFactor)
+				priorityFee.Mul(priorityFee, fn)
+
+				d = new(big.Int).Set(fs)
+				d.Mul(d, op.FeeNormalizationFactor)
+
+				priorityFee.Div(priorityFee, d)
+			}
+		}
+	}
+
+	return maxFee, priorityFee
 }
 
 func (c *Collector) FeeAsks() (*proto.FeeAsks, error) {

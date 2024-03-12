@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/0xsequence/bundler/calldata"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/bundler/ipfs"
 	"github.com/0xsequence/bundler/proto"
@@ -26,39 +25,6 @@ type Operation struct {
 
 func NewOperation() *Operation {
 	return &Operation{}
-}
-
-func (o *Operation) Value(cmodel calldata.CostModel) *big.Int {
-	val := new(big.Int)
-
-	if o.MaxFeePerGas == nil ||
-		o.GasLimit == nil ||
-		o.FeeScalingFactor == nil ||
-		o.FeeNormalizationFactor == nil ||
-		o.MaxPriorityFeePerGas == nil {
-		return val
-	}
-
-	// Use the minimum of the two fees
-	var feePerGas *big.Int
-	if o.MaxFeePerGas.Cmp(o.MaxPriorityFeePerGas) < 0 {
-		feePerGas = o.MaxFeePerGas
-	} else {
-		feePerGas = o.MaxPriorityFeePerGas
-	}
-
-	// The operation doesn't directly pay for the calldata cost
-	// so we need to subtract it from the value.
-	// This can go negative, but it is fine as we only want this
-	// as a relative value to compare operations.
-	calldataCost := new(big.Int).SetUint64(cmodel.CostFor(o.Data))
-	val.Sub(o.GasLimit, calldataCost)
-
-	val.Mul(val, feePerGas)
-	val.Mul(val, o.FeeScalingFactor)
-	val.Div(val, o.FeeNormalizationFactor)
-
-	return val
 }
 
 func (o *Operation) ToProto() *proto.Operation {
@@ -137,6 +103,10 @@ func NewOperationFromProto(op *proto.Operation) (*Operation, error) {
 		EndorserGasLimit: op.EndorserGasLimit.Int(),
 		ChainId:          op.ChainID.Int(),
 	}, nil
+}
+
+func (op *Operation) NativePayment() bool {
+	return op.FeeToken == common.Address{}
 }
 
 func (op *Operation) Hash() string {

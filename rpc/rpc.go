@@ -83,10 +83,11 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 			slogger,
 			uint32(i),
 			wallet,
+			provider,
 			mempool,
 			endorser,
 			executor,
-			calldataModel,
+			collector,
 		))
 	}
 

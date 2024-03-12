@@ -418,6 +418,7 @@ func TestRejectOverlappingDependency(t *testing.T) {
 	mockEndorser.On("ConstraintsMet", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	mockEndorser.On("DependencyState", mock.Anything, mock.Anything).Return(&endorser.EndorserResultState{}, nil).Maybe()
 	mockCollector.On("ValidatePayment", mock.Anything).Return(nil).Maybe()
+	mockCollector.On("Cmp", mock.Anything, mock.Anything).Return(0).Maybe()
 	mockP2p.On("Broadcast", mock.Anything).Return(nil).Maybe()
 
 	mockEndorser.On("IsOperationReady", mock.Anything, mock.Anything).Return(&endorser.EndorserResult{
@@ -473,6 +474,8 @@ func TestReplaceOverlappingDependency(t *testing.T) {
 	mockEndorser.On("ConstraintsMet", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	mockEndorser.On("DependencyState", mock.Anything, mock.Anything).Return(&endorser.EndorserResultState{}, nil).Maybe()
 	mockCollector.On("ValidatePayment", mock.Anything).Return(nil).Maybe()
+	mockCollector.On("Cmp", op1, op2).Return(-1).Maybe()
+	mockCollector.On("Cmp", op2, op1).Return(1).Maybe()
 	mockP2p.On("Broadcast", mock.Anything).Return(nil).Maybe()
 
 	mockEndorser.On("IsOperationReady", mock.Anything, mock.Anything).Return(&endorser.EndorserResult{

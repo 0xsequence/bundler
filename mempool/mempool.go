@@ -3,7 +3,6 @@ package mempool
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"sort"
 	"sync"
 	"time"
@@ -233,7 +232,7 @@ func (mp *Mempool) markForForget(op *types.Operation) {
 	mp.known.digests[op.Hash()] = time.Now()
 }
 
-func (mp *Mempool) evictLesser(ctx context.Context, cand *types.Operation, subsets *[][]*types.Operation) error {
+func (mp *Mempool) evictLesser(ctx context.Context, candidate *types.Operation, subsets *[][]*types.Operation) error {
 	var groups [][]*types.Operation
 	if subsets == nil {
 		// Having a standalone method for evicting lesser operations
@@ -249,22 +248,28 @@ func (mp *Mempool) evictLesser(ctx context.Context, cand *types.Operation, subse
 
 	evictions := make([]string, 0, len(groups))
 	for _, alts := range groups {
-		worst := cand
-		var secondWorstVal *big.Int = nil
+		worst := candidate
+		var secondWorst *types.Operation
 
 		for _, alt := range alts {
-			av := alt.Value(mp.CalldataModel)
-			if av.Cmp(worst.Value(mp.CalldataModel)) < 0 {
-				secondWorstVal = worst.Value(mp.CalldataModel)
+			if mp.Collector.Cmp(alt, worst) < 0 {
+				secondWorst = worst
 				worst = alt
-			} else if secondWorstVal == nil || av.Cmp(secondWorstVal) < 0 {
-				secondWorstVal = av
+			} else if secondWorst == nil || mp.Collector.Cmp(alt, secondWorst) < 0 {
+				secondWorst = alt
 			}
 		}
 
 		// Don't evict if the worst is the candidate
-		if worst == cand {
-			return fmt.Errorf("candidate is the worst operation: %s - %s < %s", worst.Hash(), worst.Value(mp.CalldataModel), secondWorstVal)
+		if worst == candidate {
+			return fmt.Errorf(
+				"candidate is the worst operation: %s vs maxFee: %s maxPriority: %s (%s/%s)",
+				worst.Hash(),
+				secondWorst.MaxFeePerGas.String(),
+				secondWorst.MaxPriorityFeePerGas.String(),
+				secondWorst.FeeScalingFactor.String(),
+				secondWorst.FeeNormalizationFactor.String(),
+			)
 		}
 
 		evictions = append(evictions, worst.Hash())

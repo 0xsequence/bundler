@@ -4,6 +4,7 @@ import (
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
 	"github.com/0xsequence/ethkit/ethtxn"
 	"github.com/0xsequence/ethkit/ethwallet"
+	"github.com/0xsequence/ethkit/go-ethereum"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi/bind"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	ethtypes "github.com/0xsequence/ethkit/go-ethereum/core/types"
@@ -27,4 +28,8 @@ var _ ValidatorInterface = &abivalidator.OperationValidator{}
 
 type Interface interface {
 	Run(ctx context.Context)
+}
+
+type GasEstimator interface {
+	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 }

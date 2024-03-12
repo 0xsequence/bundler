@@ -6,7 +6,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/0xsequence/bundler/calldata"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
@@ -29,6 +28,8 @@ func TestReservePullOps(t *testing.T) {
 	mockValidator := &mocks.MockValidator{}
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
+	mockEstimator := &mocks.MockGasEstimator{}
+	mockCollector := &mocks.MockCollector{}
 
 	sender := sender.NewSender(
 		&config.SendersConfig{
@@ -37,10 +38,11 @@ func TestReservePullOps(t *testing.T) {
 		logger,
 		0,
 		mockWallet,
+		mockEstimator,
 		mockMempool,
 		mockEndorser,
 		mockValidator,
-		calldata.DefaultModel(),
+		mockCollector,
 	)
 
 	done := make(chan struct{})
@@ -64,6 +66,8 @@ func TestSimulateOpErr(t *testing.T) {
 	mockValidator := &mocks.MockValidator{}
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
+	mockEstimator := &mocks.MockGasEstimator{}
+	mockCollector := &mocks.MockCollector{}
 
 	op := mempool.TrackedOperation{
 		Operation: types.Operation{},
@@ -76,10 +80,11 @@ func TestSimulateOpErr(t *testing.T) {
 		logger,
 		0,
 		mockWallet,
+		mockEstimator,
 		mockMempool,
 		mockEndorser,
 		mockValidator,
-		calldata.DefaultModel(),
+		mockCollector,
 	)
 
 	done := make(chan struct{})
@@ -130,6 +135,8 @@ func TestSimulatePaidNotPaid(t *testing.T) {
 	mockValidator := &mocks.MockValidator{}
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
+	mockEstimator := &mocks.MockGasEstimator{}
+	mockCollector := &mocks.MockCollector{}
 
 	op := mempool.TrackedOperation{
 		Operation: types.Operation{},
@@ -142,10 +149,11 @@ func TestSimulatePaidNotPaid(t *testing.T) {
 		logger,
 		0,
 		mockWallet,
+		mockEstimator,
 		mockMempool,
 		mockEndorser,
 		mockValidator,
-		calldata.DefaultModel(),
+		mockCollector,
 	)
 
 	done := make(chan struct{})
@@ -199,6 +207,8 @@ func TestSimulatePaidNotPaidConstraintsUnmet(t *testing.T) {
 	mockValidator := &mocks.MockValidator{}
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
+	mockEstimator := &mocks.MockGasEstimator{}
+	mockCollector := &mocks.MockCollector{}
 
 	op := mempool.TrackedOperation{
 		Operation: types.Operation{},
@@ -211,10 +221,11 @@ func TestSimulatePaidNotPaidConstraintsUnmet(t *testing.T) {
 		logger,
 		0,
 		mockWallet,
+		mockEstimator,
 		mockMempool,
 		mockEndorser,
 		mockValidator,
-		calldata.DefaultModel(),
+		mockCollector,
 	)
 
 	done := make(chan struct{})
@@ -293,6 +304,8 @@ func TestSimulatePaidNotPaidAndLied(t *testing.T) {
 	mockValidator := &mocks.MockValidator{}
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
+	mockEstimator := &mocks.MockGasEstimator{}
+	mockCollector := &mocks.MockCollector{}
 
 	op := mempool.TrackedOperation{
 		Operation: types.Operation{},
@@ -305,10 +318,11 @@ func TestSimulatePaidNotPaidAndLied(t *testing.T) {
 		logger,
 		0,
 		mockWallet,
+		mockEstimator,
 		mockMempool,
 		mockEndorser,
 		mockValidator,
-		calldata.DefaultModel(),
+		mockCollector,
 	)
 
 	done := make(chan struct{})
@@ -373,12 +387,14 @@ func TestSend(t *testing.T) {
 	mockValidator := &mocks.MockValidator{}
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
+	mockEstimator := &mocks.MockGasEstimator{}
+	mockCollector := &mocks.MockCollector{}
 
 	op := mempool.TrackedOperation{
 		Operation: types.Operation{
 			IEndorserOperation: abiendorser.IEndorserOperation{
 				GasLimit:     big.NewInt(1000),
-				MaxFeePerGas: big.NewInt(2000),
+				MaxFeePerGas: big.NewInt(213),
 				Entrypoint:   common.HexToAddress("0xB0e4BDF60bC80cbCAaC52DF8796e579870d2fd00"),
 				Data:         common.Hex2Bytes("0x1234"),
 			},
@@ -393,10 +409,11 @@ func TestSend(t *testing.T) {
 		logger,
 		0,
 		mockWallet,
+		mockEstimator,
 		mockMempool,
 		mockEndorser,
 		mockValidator,
-		calldata.DefaultModel(),
+		mockCollector,
 	)
 
 	done := make(chan struct{})
@@ -429,7 +446,7 @@ func TestSend(t *testing.T) {
 		To:       &op.Operation.Entrypoint,
 		GasPrice: op.Operation.MaxFeePerGas,
 		GasTip:   big.NewInt(13),
-		GasLimit: 22000,
+		GasLimit: 1010,
 		Data:     op.Operation.Data,
 		ETHValue: big.NewInt(0),
 	}).Return(&rtx, nil).Once()
@@ -448,6 +465,10 @@ func TestSend(t *testing.T) {
 		Run(func(args mock.Arguments) {
 			done <- struct{}{}
 		}).Return(nil).Once()
+
+	mockEstimator.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(10), nil).Once()
+	mockCollector.On("NativeFeesPerGas", &op.Operation).Return(big.NewInt(2), big.NewInt(1))
+	mockCollector.On("BaseFee").Return(big.NewInt(100), nil).Once()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
