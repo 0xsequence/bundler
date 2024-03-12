@@ -6,12 +6,14 @@ import (
 	"math/big"
 
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
+	"github.com/0xsequence/bundler/debugger"
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethcontract"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
+	"github.com/go-chi/httplog/v2"
 )
 
 var parsedEndorserABI *abi.ABI
@@ -28,57 +30,49 @@ func useEndorserAbi() *abi.ABI {
 
 type Endorser struct {
 	parsedEndorserABI *abi.ABI
+	logger            *httplog.Logger
 
+	Debugger debugger.Interface
 	Provider *ethrpc.Provider
 }
 
 var _ Interface = (*Endorser)(nil)
 
-func NewEndorser(provider *ethrpc.Provider) *Endorser {
+func NewEndorser(logger *httplog.Logger, provider *ethrpc.Provider, debugger debugger.Interface) *Endorser {
 	return &Endorser{
 		parsedEndorserABI: useEndorserAbi(),
-		Provider:          provider,
+
+		logger:   logger,
+		Debugger: debugger,
+		Provider: provider,
 	}
 }
 
-func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*EndorserResult, error) {
+func (e *Endorser) buildIsOperationReadyCalldata(op *types.Operation) (common.Address, string, error) {
 	endorser := ethcontract.NewContractCaller(op.Endorser, *e.parsedEndorserABI, e.Provider)
 
 	calldata, err := endorser.Encode(
 		"isOperationReady",
 		op.Entrypoint,
-		op.Calldata,
+		op.Data,
 		op.EndorserCallData,
 		op.GasLimit,
 		op.MaxFeePerGas,
-		op.PriorityFeePerGas,
+		op.MaxPriorityFeePerGas,
 		op.FeeToken,
-		op.BaseFeeScalingFactor,
-		op.BaseFeeNormalizationFactor,
+		op.FeeScalingFactor,
+		op.FeeNormalizationFactor,
 		op.HasUntrustedContext,
 	)
 
 	if err != nil {
-		return nil, err
+		return common.Address{}, "", err
 	}
 
-	type Call struct {
-		To   common.Address `json:"to"`
-		Data string         `json:"data"`
-	}
+	return op.Endorser, "0x" + common.Bytes2Hex(calldata), nil
+}
 
-	endorserCall := &Call{
-		To:   op.Endorser,
-		Data: "0x" + common.Bytes2Hex(calldata),
-	}
-
-	var res string
-	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall, nil, nil)
-	_, err = e.Provider.Do(ctx, rpcCall.Into(&res))
-	if err != nil {
-		return nil, err
-	}
-
+func (e *Endorser) parseIsOperationReadyRes(res string) (*EndorserResult, error) {
 	resBytes := common.FromHex(res)
 
 	endorserResult := &EndorserResult{}
@@ -120,11 +114,11 @@ func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*
 		return nil, fmt.Errorf("invalid block dependency")
 	}
 
-	endorserResult.GlobalDependency = abiendorser.EndorserGlobalDependency{
-		Basefee:           dec2.Basefee,
-		Blobbasefee:       dec2.Blobbasefee,
-		Chainid:           dec2.Chainid,
-		Coinbase:          dec2.Coinbase,
+	endorserResult.GlobalDependency = abiendorser.IEndorserGlobalDependency{
+		BaseFee:           dec2.Basefee,
+		BlobBaseFee:       dec2.Blobbasefee,
+		ChainId:           dec2.Chainid,
+		CoinBase:          dec2.Coinbase,
 		Difficulty:        dec2.Difficulty,
 		GasLimit:          dec2.GasLimit,
 		Number:            dec2.Number,
@@ -153,9 +147,9 @@ func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*
 		return nil, fmt.Errorf("invalid dependencies")
 	}
 
-	endorserResult.Dependencies = make([]abiendorser.EndorserDependency, 0, len(dec3))
+	endorserResult.Dependencies = make([]abiendorser.IEndorserDependency, 0, len(dec3))
 	for _, dep := range dec3 {
-		dependency := abiendorser.EndorserDependency{
+		dependency := abiendorser.IEndorserDependency{
 			Addr:     dep.Addr,
 			Balance:  dep.Balance,
 			Code:     dep.Code,
@@ -163,9 +157,9 @@ func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*
 			AllSlots: dep.AllSlots,
 			Slots:    dep.Slots,
 		}
-		dependency.Constraints = make([]abiendorser.EndorserConstraint, 0, len(dep.Constraints))
+		dependency.Constraints = make([]abiendorser.IEndorserConstraint, 0, len(dep.Constraints))
 		for _, c := range dep.Constraints {
-			dependency.Constraints = append(dependency.Constraints, abiendorser.EndorserConstraint{
+			dependency.Constraints = append(dependency.Constraints, abiendorser.IEndorserConstraint{
 				Slot:     c.Slot,
 				MinValue: c.MinValue,
 				MaxValue: c.MaxValue,
@@ -174,13 +168,96 @@ func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*
 		endorserResult.Dependencies = append(endorserResult.Dependencies, dependency)
 	}
 
-	// NOTICE: Untrusted context is not supported yet
-	// so we MUST Use wildcard only
+	return endorserResult, nil
+}
+
+func (e *Endorser) isOperationReadyCall(ctx context.Context, op *types.Operation) (*EndorserResult, error) {
+	to, data, err := e.buildIsOperationReadyCalldata(op)
+	if err != nil {
+		return nil, fmt.Errorf("unable to build calldata: %w", err)
+	}
+
+	endorserCall := &struct {
+		To   common.Address `json:"to"`
+		Data string         `json:"data"`
+	}{
+		To:   to,
+		Data: data,
+	}
+
+	var res string
+	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall, nil, nil)
+	_, err = e.Provider.Do(ctx, rpcCall.Into(&res))
+	if err != nil {
+		return nil, err
+	}
+
+	endorserResult, err := e.parseIsOperationReadyRes(res)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse result: %w", err)
+	}
+
+	// NOTICE: Untruted context operations should be handled
+	// by the debugger, but if it's not available we still handle
+	// them, we just mark them as wildcard only.
 	if op.HasUntrustedContext {
 		endorserResult.WildcardOnly = true
 	}
 
 	return endorserResult, nil
+}
+
+func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Operation) (*EndorserResult, error) {
+	if e.Debugger == nil {
+		return nil, fmt.Errorf("debugger is not available")
+	}
+
+	to, data, err := e.buildIsOperationReadyCalldata(op)
+	if err != nil {
+		return nil, fmt.Errorf("unable to build calldata: %w", err)
+	}
+
+	// Use random caller
+	// NOTICE: This is a temporary solution
+	debugCallArgs := &debugger.DebugCallArgs{
+		From: common.HexToAddress("0xFD095316B59e6224dC84f83E68F9603A684AD8df"),
+		To:   to,
+		Data: common.FromHex(data),
+	}
+
+	trace, err := e.Debugger.DebugTraceCall(ctx, debugCallArgs)
+	if err != nil {
+		return nil, fmt.Errorf("unable to trace call: %w", err)
+	}
+
+	er1, err := e.parseIsOperationReadyRes(trace.ReturnValue)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse result: %w", err)
+	}
+
+	// Generate dependencies from untrusted context
+	er2, err := ParseUntrustedDebug(trace)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse untrusted debug: %w", err)
+	}
+
+	return er1.Or(er2), nil
+}
+
+func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*EndorserResult, error) {
+	if e.Debugger != nil && (op.HasUntrustedContext || true) {
+		// TODO: Sometimes the endorser reverts instead of failing,
+		// we should have a different sort of error for these, or else
+		// we will have to verify them twice.
+		res, err := e.isOperationReadyDebugger(ctx, op)
+		if err == nil {
+			return res, nil
+		}
+
+		e.logger.Warn("unable to use debugger, falling back to eth_call", "error", err)
+	}
+
+	return e.isOperationReadyCall(ctx, op)
 }
 
 func (e *Endorser) DependencyState(ctx context.Context, result *EndorserResult) (*EndorserResultState, error) {

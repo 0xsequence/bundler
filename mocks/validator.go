@@ -1,8 +1,6 @@
 package mocks
 
 import (
-	"math/big"
-
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
 	"github.com/0xsequence/bundler/sender"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi/bind"
@@ -16,31 +14,13 @@ type MockValidator struct {
 
 func (m *MockValidator) SimulateOperation(
 	opts *bind.CallOpts,
-	_entrypoint common.Address,
-	_data []byte,
-	_endorserCallData []byte,
-	_gasLimit *big.Int,
-	_maxFeePerGas *big.Int,
-	_maxPriorityFeePerGas *big.Int,
-	_feeToken common.Address,
-	_baseFeeScalingFactor *big.Int,
-	_baseFeeNormalizationFactor *big.Int,
-	_hasUntrustedContext bool,
 	_endorser common.Address,
+	_operation abivalidator.IEndorserOperation,
 ) (abivalidator.OperationValidatorSimulationResult, error) {
 	args := m.Called(
 		opts,
-		_entrypoint,
-		_data,
-		_endorserCallData,
-		_gasLimit,
-		_maxFeePerGas,
-		_maxPriorityFeePerGas,
-		_feeToken,
-		_baseFeeScalingFactor,
-		_baseFeeNormalizationFactor,
-		_hasUntrustedContext,
 		_endorser,
+		_operation,
 	)
 	err := args.Error(1)
 	if err != nil {

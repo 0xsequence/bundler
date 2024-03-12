@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func TestIddlePull(t *testing.T) {
+func TestIdlePull(t *testing.T) {
 	mockMempool := &mocks.MockMempool{}
 
 	done := make(chan bool, 2)
@@ -45,7 +45,7 @@ func TestIddlePull(t *testing.T) {
 	cancel()
 }
 
-func TestPullAndDiscartStateErr(t *testing.T) {
+func TestPullAndDiscardStateErr(t *testing.T) {
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
 	logger := httplog.NewLogger("")
@@ -79,13 +79,13 @@ func TestPullAndDiscartStateErr(t *testing.T) {
 	cancel()
 }
 
-func TestPullAndDiscartHasChangedErr(t *testing.T) {
+func TestPullAndDiscardHasChangedErr(t *testing.T) {
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
 	logger := httplog.NewLogger("")
 
 	er1 := &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{},
+		Dependencies: []abiendorser.IEndorserDependency{},
 	}
 	er2 := &endorser.EndorserResultState{
 		AddrDependencies: make(map[common.Address]*endorser.AddrDependencyState),
@@ -129,7 +129,7 @@ func TestPullAndReleaseNotChanged(t *testing.T) {
 	logger := httplog.NewLogger("")
 
 	er1 := &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{},
+		Dependencies: []abiendorser.IEndorserDependency{},
 	}
 	er2 := &endorser.EndorserResultState{
 		AddrDependencies: make(map[common.Address]*endorser.AddrDependencyState),
@@ -179,7 +179,7 @@ func TestDiscardNotReady(t *testing.T) {
 
 	da := common.HexToAddress("0x999999cf1046e68e36E1aA2E0E07105eDDD1f08E")
 	er1 := &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:    da,
 				Balance: true,
@@ -222,8 +222,8 @@ func TestDiscardNotReady(t *testing.T) {
 	mockEndorser.On("IsOperationReady", mock.Anything, &op1.Operation).Return(
 		&endorser.EndorserResult{
 			Readiness:        false,
-			Dependencies:     []abiendorser.EndorserDependency{},
-			GlobalDependency: abiendorser.EndorserGlobalDependency{},
+			Dependencies:     []abiendorser.IEndorserDependency{},
+			GlobalDependency: abiendorser.IEndorserGlobalDependency{},
 		}, nil,
 	).Once()
 
@@ -252,7 +252,7 @@ func TestKeepReady(t *testing.T) {
 
 	da := common.HexToAddress("0x999999cf1046e68e36E1aA2E0E07105eDDD1f08E")
 	er1 := &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:    da,
 				Balance: true,
@@ -295,8 +295,8 @@ func TestKeepReady(t *testing.T) {
 	mockEndorser.On("IsOperationReady", mock.Anything, &op1.Operation).Return(
 		&endorser.EndorserResult{
 			Readiness:        true,
-			Dependencies:     []abiendorser.EndorserDependency{},
-			GlobalDependency: abiendorser.EndorserGlobalDependency{},
+			Dependencies:     []abiendorser.IEndorserDependency{},
+			GlobalDependency: abiendorser.IEndorserGlobalDependency{},
 		}, nil,
 	).Once()
 

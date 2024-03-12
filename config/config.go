@@ -74,6 +74,7 @@ type SendersConfig struct {
 	PriorityFee int `toml:"priority_fee"`
 	RandomWait  int `toml:"random_wait"`
 	SleepWait   int `toml:"sleep_wait"`
+	ChillWait   int `toml:"chill_wait"`
 }
 
 type ArchiveConfig struct {

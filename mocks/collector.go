@@ -14,6 +14,24 @@ type MockCollector struct {
 	mock.Mock
 }
 
+func (m *MockCollector) Cmp(a *types.Operation, b *types.Operation) int {
+	args := m.Called(a, b)
+	return args.Int(0)
+}
+
+func (m *MockCollector) Feed(token string) (pricefeed.Feed, error) {
+	args := m.Called(token)
+	if args.Get(1) != nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(pricefeed.Feed), nil
+}
+
+func (m *MockCollector) NativeFeesPerGas(a *types.Operation) (*collector.NativeFees, *pricefeed.Snapshot) {
+	args := m.Called(a)
+	return args.Get(0).(*collector.NativeFees), args.Get(1).(*pricefeed.Snapshot)
+}
+
 func (m *MockCollector) FeeAsks() (*proto.FeeAsks, error) {
 	args := m.Called()
 	return args.Get(0).(*proto.FeeAsks), args.Error(1)

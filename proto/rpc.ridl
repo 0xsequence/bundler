@@ -35,23 +35,23 @@ struct Operation
     + go.field.type = prototyp.Hash
 
   # data (in hex) that must be passed to the entrypoint call to execute the operation.
-  - callData: string
+  - data: string
     + go.field.type = prototyp.Hash
+
+  # additional data that must be passed to the endorser when calling isOperationReady().
+  - endorserCallData: string
+    + go.field.type = prototyp.Hash
+
+  # fixed gas to be paid regardless used gas GasLimit
+  - fixedGas: string
+    + go.field.type = prototyp.BigInt
 
   # minimum gasLimit that must be passed when executing the operation.
   - gasLimit: string
     + go.field.type = prototyp.BigInt
 
-  # contract address of the ERC-20 token used to repay the bundler. (address(0) for the native token).
-  - feeToken: string
-    + go.field.type = prototyp.Hash
-
   # address of the endorser contract that should be used to validate the operation.
   - endorser: string
-    + go.field.type = prototyp.Hash
-
-  # additional data that must be passed to the endorser when calling isOperationReady().
-  - endorserCallData: string
     + go.field.type = prototyp.Hash
 
   # amount of gas that should be passed to the endorser when validating the operation.
@@ -63,15 +63,19 @@ struct Operation
     + go.field.type = prototyp.BigInt
 
   # uint256	fixed amount of fees that the operation execution is expected to pay to the bundler. (Similar to EIP-1559 max_priority_fee_per_gas).
-  - priorityFeePerGas: string	# TODO: can we use BigInt in JS later..? check webrpc..	
+  - maxPriorityFeePerGas: string	# TODO: can we use BigInt in JS later..? check webrpc..	
     + go.field.type = prototyp.BigInt
 
+  # contract address of the ERC-20 token used to repay the bundler. (address(0) for the native token).
+  - feeToken: string
+    + go.field.type = prototyp.Hash
+
   # Scaling factor to convert block.basefee into the feeToken unit.
-  - baseFeeScalingFactor: string
+  - feeScalingFactor: string
     + go.field.type = prototyp.BigInt
 
   # Normalization factor to convert block.basefee into the feeToken unit.
-  - baseFeeNormalizationFactor: string
+  - feeNormalizationFactor: string
     + go.field.type = prototyp.BigInt
 
   # If true, the operation may have untrusted code paths. These should be treated differently by the bundler (see untrusted environment).
@@ -83,6 +87,7 @@ struct Operation
     + go.field.type = prototyp.BigInt
 
   - hash?: string
+    + go.tag.json = hash,omitempty
 
 enum MessageType: int
   - DEBUG

@@ -59,11 +59,12 @@ func TestUniswapV2Feed(t *testing.T) {
 		time.Sleep(time.Second)
 	}
 
-	microUSDC, err := feed.FromNative(big.NewInt(1000000000000000000))
+	snap, err := feed.Snapshot()
 	require.NoError(t, err)
+
+	microUSDC := snap.FromNative(big.NewInt(1000000000000000000))
 	require.Zero(t, microUSDC.Cmp(big.NewInt(3000000000)))
 
-	wei, err := feed.ToNative(microUSDC)
-	require.NoError(t, err)
+	wei := snap.ToNative(microUSDC)
 	require.Zero(t, wei.Cmp(big.NewInt(1000000000000000000)))
 }

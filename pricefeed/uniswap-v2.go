@@ -125,8 +125,10 @@ func (f *UniswapV2Feed) Start(ctx context.Context) error {
 		f.lastUpdate = time.Now()
 		f.mutex.Unlock()
 
-		r, _ := f.FromNative(big.NewInt(1))
-		f.logger.Debug("uniswap-v2: fetched token rate", "rate", r.String())
+		s, _ := f.Snapshot()
+		if s != nil {
+			f.logger.Debug("uniswap-v2: fetched token rate", "rate", s.FromNative(big.NewInt(1)))
+		}
 
 		time.Sleep(5 * time.Second)
 	}
@@ -149,39 +151,16 @@ func (f *UniswapV2Feed) getReservesNative0() (r0, r1 *big.Int, err error) {
 	return f.reserve1, f.reserve0, nil
 }
 
-func (f *UniswapV2Feed) FromNative(native *big.Int) (*big.Int, error) {
+func (f *UniswapV2Feed) Snapshot() (*Snapshot, error) {
 	r0, r1, err := f.getReservesNative0()
 	if err != nil {
 		return nil, err
 	}
 
-	if native == nil {
-		return nil, fmt.Errorf("uniswap-v2: native value is nil")
-	}
-
-	return new(big.Int).Div(new(big.Int).Mul(native, r0), r1), nil
-}
-
-func (f *UniswapV2Feed) ToNative(value *big.Int) (*big.Int, error) {
-	r0, r1, err := f.getReservesNative0()
-	if err != nil {
-		return nil, err
-	}
-
-	return new(big.Int).Div(new(big.Int).Mul(value, r1), r0), nil
-}
-
-func (f *UniswapV2Feed) Factors() (*big.Int, *big.Int, error) {
-	r0, r1, err := f.getReservesNative0()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return r0, r1, nil
-	// // Find the lowest representation for the price
-	// gdc := new(big.Int).GCD(nil, nil, r0, r1)
-
-	// return new(big.Int).Div(r0, gdc), new(big.Int).Div(r1, gdc), nil
+	return &Snapshot{
+		ScalingFactor:       r0,
+		NormalizationFactor: r1,
+	}, nil
 }
 
 var _ Feed = (*UniswapV2Feed)(nil)

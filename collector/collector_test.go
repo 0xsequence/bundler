@@ -10,7 +10,9 @@ import (
 
 	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
+	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/bundler/mocks"
+	"github.com/0xsequence/bundler/pricefeed"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
@@ -53,10 +55,12 @@ func TestValidatePayment(t *testing.T) {
 	}
 
 	op := types.Operation{
-		MaxFeePerGas:               big.NewInt(100000000000),
-		PriorityFeePerGas:          big.NewInt(1000000000),
-		BaseFeeScalingFactor:       big.NewInt(3),
-		BaseFeeNormalizationFactor: big.NewInt(1000000000),
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			MaxFeePerGas:           big.NewInt(100000000000),
+			MaxPriorityFeePerGas:   big.NewInt(1000000000),
+			FeeScalingFactor:       big.NewInt(3),
+			FeeNormalizationFactor: big.NewInt(1000000000),
+		},
 	}
 
 	err = c.ValidatePayment(&op)
@@ -113,8 +117,14 @@ func TestFeeAsks(t *testing.T) {
 	for c.BaseFee() == nil {
 	}
 
-	mockFeed1.On("Factors").Return(big.NewInt(2), big.NewInt(3), nil).Once()
-	mockFeed2.On("Factors").Return(big.NewInt(4), big.NewInt(5), nil).Once()
+	mockFeed1.On("Snapshot").Return(&pricefeed.Snapshot{
+		ScalingFactor:       big.NewInt(2),
+		NormalizationFactor: big.NewInt(3),
+	}, nil).Once()
+	mockFeed2.On("Snapshot").Return(&pricefeed.Snapshot{
+		ScalingFactor:       big.NewInt(4),
+		NormalizationFactor: big.NewInt(5),
+	}, nil).Once()
 
 	res, err := c.FeeAsks()
 	require.NoError(t, err)
@@ -135,8 +145,11 @@ func TestFeeAsks(t *testing.T) {
 	})
 
 	// Must ignore the token if one of them fails
-	mockFeed1.On("Factors").Return(big.NewInt(10), big.NewInt(11), nil).Once()
-	mockFeed2.On("Factors").Return(nil, nil, fmt.Errorf("mock error")).Once()
+	mockFeed1.On("Snapshot").Return(&pricefeed.Snapshot{
+		ScalingFactor:       big.NewInt(10),
+		NormalizationFactor: big.NewInt(11),
+	}, nil).Once()
+	mockFeed2.On("Snapshot").Return(nil, fmt.Errorf("mock error")).Once()
 
 	res, err = c.FeeAsks()
 	require.NoError(t, err)

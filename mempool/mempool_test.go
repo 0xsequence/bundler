@@ -7,6 +7,7 @@ import (
 
 	"github.com/0xsequence/bundler/calldata"
 	"github.com/0xsequence/bundler/config"
+	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/mocks"
@@ -226,13 +227,19 @@ func TestReserveOps(t *testing.T) {
 	assert.NoError(t, err)
 
 	op1 := &types.Operation{
-		Calldata: []byte{0x01},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{0x01},
+		},
 	}
 	op2 := &types.Operation{
-		Calldata: []byte{0x02},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{0x02},
+		},
 	}
 	op3 := &types.Operation{
-		Calldata: []byte{0x03},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{0x03},
+		},
 	}
 	er := &endorser.EndorserResult{
 		Readiness: true,
@@ -326,7 +333,9 @@ func TestReportToIPFS(t *testing.T) {
 	assert.NoError(t, err)
 
 	op1 := &types.Operation{
-		Calldata: []byte{0x01},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{0x01},
+		},
 	}
 
 	// Should report to IPFS if the operation is valid
@@ -356,7 +365,9 @@ func TestReportToIPFS(t *testing.T) {
 
 	// Do not report to IPFS if it fails
 	op2 := &types.Operation{
-		Calldata: []byte{0x02},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{0x02},
+		},
 	}
 
 	mockEndorser.On("IsOperationReady", mock.Anything, op2).Return(&endorser.EndorserResult{
@@ -385,24 +396,29 @@ func TestRejectOverlappingDependency(t *testing.T) {
 	assert.NoError(t, err)
 
 	op1 := &types.Operation{
-		Calldata:                   []byte{0x01},
-		GasLimit:                   big.NewInt(2),
-		MaxFeePerGas:               big.NewInt(1),
-		BaseFeeScalingFactor:       big.NewInt(1),
-		BaseFeeNormalizationFactor: big.NewInt(1),
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data:                   []byte{0x01},
+			GasLimit:               big.NewInt(2),
+			MaxFeePerGas:           big.NewInt(1),
+			FeeScalingFactor:       big.NewInt(1),
+			FeeNormalizationFactor: big.NewInt(1),
+		},
 	}
 
 	op2 := &types.Operation{
-		Calldata:                   []byte{0x02},
-		GasLimit:                   big.NewInt(1),
-		MaxFeePerGas:               big.NewInt(1),
-		BaseFeeScalingFactor:       big.NewInt(1),
-		BaseFeeNormalizationFactor: big.NewInt(1),
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data:                   []byte{0x02},
+			GasLimit:               big.NewInt(1),
+			MaxFeePerGas:           big.NewInt(1),
+			FeeScalingFactor:       big.NewInt(1),
+			FeeNormalizationFactor: big.NewInt(1),
+		},
 	}
 
 	mockEndorser.On("ConstraintsMet", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	mockEndorser.On("DependencyState", mock.Anything, mock.Anything).Return(&endorser.EndorserResultState{}, nil).Maybe()
 	mockCollector.On("ValidatePayment", mock.Anything).Return(nil).Maybe()
+	mockCollector.On("Cmp", mock.Anything, mock.Anything).Return(0).Maybe()
 	mockP2p.On("Broadcast", mock.Anything).Return(nil).Maybe()
 
 	mockEndorser.On("IsOperationReady", mock.Anything, mock.Anything).Return(&endorser.EndorserResult{
@@ -434,26 +450,32 @@ func TestReplaceOverlappingDependency(t *testing.T) {
 	assert.NoError(t, err)
 
 	op1 := &types.Operation{
-		Calldata:                   []byte{0x01},
-		GasLimit:                   big.NewInt(1),
-		MaxFeePerGas:               big.NewInt(1),
-		PriorityFeePerGas:          big.NewInt(1),
-		BaseFeeScalingFactor:       big.NewInt(1),
-		BaseFeeNormalizationFactor: big.NewInt(1),
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data:                   []byte{0x01},
+			GasLimit:               big.NewInt(1),
+			MaxFeePerGas:           big.NewInt(1),
+			MaxPriorityFeePerGas:   big.NewInt(1),
+			FeeScalingFactor:       big.NewInt(1),
+			FeeNormalizationFactor: big.NewInt(1),
+		},
 	}
 
 	op2 := &types.Operation{
-		Calldata:                   []byte{0x02},
-		GasLimit:                   big.NewInt(2),
-		MaxFeePerGas:               big.NewInt(1),
-		PriorityFeePerGas:          big.NewInt(1),
-		BaseFeeScalingFactor:       big.NewInt(1),
-		BaseFeeNormalizationFactor: big.NewInt(1),
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data:                   []byte{0x02},
+			GasLimit:               big.NewInt(2),
+			MaxFeePerGas:           big.NewInt(1),
+			MaxPriorityFeePerGas:   big.NewInt(1),
+			FeeScalingFactor:       big.NewInt(1),
+			FeeNormalizationFactor: big.NewInt(1),
+		},
 	}
 
 	mockEndorser.On("ConstraintsMet", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	mockEndorser.On("DependencyState", mock.Anything, mock.Anything).Return(&endorser.EndorserResultState{}, nil).Maybe()
 	mockCollector.On("ValidatePayment", mock.Anything).Return(nil).Maybe()
+	mockCollector.On("Cmp", op1, op2).Return(-1).Maybe()
+	mockCollector.On("Cmp", op2, op1).Return(1).Maybe()
 	mockP2p.On("Broadcast", mock.Anything).Return(nil).Maybe()
 
 	mockEndorser.On("IsOperationReady", mock.Anything, mock.Anything).Return(&endorser.EndorserResult{
