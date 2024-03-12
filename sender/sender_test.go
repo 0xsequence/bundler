@@ -546,8 +546,9 @@ func TestSend(t *testing.T) {
 
 	waitFn = func(context.Context) (*ethtypes.Receipt, error) {
 		return &ethtypes.Receipt{
-			TxHash:      common.HexToHash("0x1234"),
-			BlockNumber: big.NewInt(100),
+			TxHash:            common.HexToHash("0x1234"),
+			BlockNumber:       big.NewInt(100),
+			EffectiveGasPrice: big.NewInt(213),
 		}, nil
 	}
 
@@ -563,6 +564,7 @@ func TestSend(t *testing.T) {
 		MaxPriorityFeePerGas: big.NewInt(50),
 	}, &pricefeed.Snapshot{}).Once()
 	mockCollector.On("BaseFee").Return(big.NewInt(100), nil).Once()
+	mockProvider.On("BalanceAt", mock.Anything, mock.Anything, mock.Anything).Return(big.NewInt(1000000000000000000), nil).Twice()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
