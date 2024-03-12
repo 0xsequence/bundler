@@ -57,13 +57,30 @@ func NewSender(
 	validator ValidatorInterface,
 	Collector collector.Interface,
 ) *Sender {
+	var chillWait time.Duration
+	if cfg.ChillWait > 0 {
+		chillWait = time.Duration(cfg.ChillWait) * time.Second
+	} else {
+		chillWait = 1 * time.Second
+		logger.Warn("sender: chill wait not set, using default", "chillWait", chillWait)
+	}
+
+	var sleepWait time.Duration
+	if cfg.SleepWait > 0 {
+		sleepWait = time.Duration(cfg.SleepWait) * time.Millisecond
+	} else {
+		sleepWait = 100 * time.Millisecond
+		logger.Warn("sender: sleep wait not set, using default", "sleepWait", sleepWait)
+	}
+
 	return &Sender{
 		ID:     id,
 		logger: logger,
 
 		priorityFee: big.NewInt(int64(cfg.PriorityFee)),
 		randomWait:  cfg.RandomWait,
-		sleepWait:   time.Duration(cfg.SleepWait),
+		sleepWait:   sleepWait,
+		chillWait:   chillWait,
 
 		chilledOps: make(map[string]time.Time),
 		blockedOps: make(map[string]struct{}),
@@ -79,11 +96,13 @@ func NewSender(
 
 func (s *Sender) Run(ctx context.Context) {
 	for ctx.Err() == nil {
-		s.onRun(ctx)
+		if !s.onRun(ctx) {
+			time.Sleep(s.sleepWait)
+		}
 	}
 }
 
-func (s *Sender) onRun(ctx context.Context) {
+func (s *Sender) onRun(ctx context.Context) bool {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -123,8 +142,7 @@ func (s *Sender) onRun(ctx context.Context) {
 	})
 
 	if len(ops) == 0 {
-		time.Sleep(s.sleepWait * time.Millisecond)
-		return
+		return false
 	}
 
 	// Random delay reduces the chances to collide with other senders
@@ -140,7 +158,7 @@ func (s *Sender) onRun(ctx context.Context) {
 	if err != nil {
 		s.logger.Warn("sender: error simulating operation", "op", opDigest, "error", err)
 		s.Mempool.DiscardOps(ctx, []string{opDigest})
-		return
+		return true
 	}
 
 	// If the endorser lied to us, we should discard the operation
@@ -152,7 +170,7 @@ func (s *Sender) onRun(ctx context.Context) {
 			s.logger.Info("sender: stale operation", "op", opDigest)
 		}
 		s.Mempool.DiscardOps(ctx, []string{opDigest})
-		return
+		return true
 	}
 
 	// Estimate the fixed calldata cost of the operation
@@ -166,7 +184,7 @@ func (s *Sender) onRun(ctx context.Context) {
 	if err != nil {
 		s.logger.Warn("sender: error estimating gas", "op", opDigest, "error", err)
 		s.Mempool.DiscardOps(ctx, []string{opDigest})
-		return
+		return true
 	}
 
 	// See if it is profitable to execute the operation, for this we need to compute
@@ -196,11 +214,11 @@ func (s *Sender) onRun(ctx context.Context) {
 	// If we can't make profit from the operation, we should
 	// chill it for a while. There are many ever-changing factors
 	// that may make the operation profitable in the future
-	if ourPayment.Cmp(payment) < 0 {
+	if ourPayment.Cmp(payment) > 0 {
 		s.logger.Info("sender: operation not profitable", "op", opDigest, "payment", payment.String(), "ourPayment", ourPayment.String())
 		s.chilledOps[opDigest] = time.Now()
 		s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_None)
-		return
+		return true
 	}
 
 	signedTx, err := s.Wallet.NewTransaction(
@@ -218,7 +236,7 @@ func (s *Sender) onRun(ctx context.Context) {
 	if err != nil {
 		s.logger.Warn("sender: error signing transaction", "op", opDigest, "error", err)
 		s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_None)
-		return
+		return true
 	}
 
 	// Try sending the transaction
@@ -226,14 +244,14 @@ func (s *Sender) onRun(ctx context.Context) {
 	if err != nil {
 		s.logger.Warn("sender: error sending transaction", "op", opDigest, "error", err)
 		s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_None)
-		return
+		return true
 	}
 
 	receipt, err := wait(ctx)
 	if err != nil {
 		s.logger.Warn("sender: error waiting for receipt", "op", opDigest, "error", err)
 		s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_None)
-		return
+		return true
 	}
 
 	s.logger.Info("sender: operation executed", "op", opDigest, "tx", receipt.TxHash.String())
@@ -242,6 +260,24 @@ func (s *Sender) onRun(ctx context.Context) {
 	s.blockedOps[opDigest] = struct{}{}
 
 	s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_Zero)
+	return true
+}
+
+func (s *Sender) IsChilled(op *types.Operation) bool {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	_, ok := s.chilledOps[op.Hash()]
+	fmt.Println("IsChilled?", op.Hash(), ok)
+	return ok
+}
+
+func (s *Sender) IsBlocked(op *types.Operation) bool {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	_, ok := s.blockedOps[op.Hash()]
+	return ok
 }
 
 type SimulateResult struct {
