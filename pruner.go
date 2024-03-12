@@ -75,7 +75,7 @@ func (s *Pruner) Run(ctx context.Context) {
 		})
 
 		failedOps := make([]string, 0, len(ops))
-		discartOps := make([]string, 0, len(ops))
+		DiscardOps := make([]string, 0, len(ops))
 		releaseOps := make([]string, 0, len(ops))
 
 		// TODO: Batch this
@@ -107,12 +107,12 @@ func (s *Pruner) Run(ctx context.Context) {
 				// NOTICE that the endorser may revert instead of returning false
 				res, err := s.Endorser.IsOperationReady(ctx, &op.Operation)
 				if err != nil {
-					discartOps = append(discartOps, op.Hash())
+					DiscardOps = append(DiscardOps, op.Hash())
 					continue
 				}
 
 				if !res.Readiness {
-					discartOps = append(discartOps, op.Hash())
+					DiscardOps = append(DiscardOps, op.Hash())
 				} else {
 					// TODO: handle the new set of dependencies
 					releaseOps = append(releaseOps, op.Hash())
@@ -130,9 +130,9 @@ func (s *Pruner) Run(ctx context.Context) {
 			s.Mempool.ReleaseOps(ctx, releaseOps, proto.ReadyAtChange_Now)
 		}
 
-		if len(discartOps) != 0 {
-			s.logger.Info("pruner: discarding operations", "operations", len(discartOps))
-			s.Mempool.DiscardOps(ctx, discartOps)
+		if len(DiscardOps) != 0 {
+			s.logger.Info("pruner: discarding operations", "operations", len(DiscardOps))
+			s.Mempool.DiscardOps(ctx, DiscardOps)
 		}
 
 		// TODO: Handle error operations, ideally

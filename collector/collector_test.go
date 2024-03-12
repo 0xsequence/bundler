@@ -10,6 +10,7 @@ import (
 
 	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
+	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/bundler/mocks"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/types"
@@ -53,10 +54,12 @@ func TestValidatePayment(t *testing.T) {
 	}
 
 	op := types.Operation{
-		MaxFeePerGas:               big.NewInt(100000000000),
-		PriorityFeePerGas:          big.NewInt(1000000000),
-		BaseFeeScalingFactor:       big.NewInt(3),
-		BaseFeeNormalizationFactor: big.NewInt(1000000000),
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			MaxFeePerGas:           big.NewInt(100000000000),
+			MaxPriorityFeePerGas:   big.NewInt(1000000000),
+			FeeScalingFactor:       big.NewInt(3),
+			FeeNormalizationFactor: big.NewInt(1000000000),
+		},
 	}
 
 	err = c.ValidatePayment(&op)

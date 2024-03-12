@@ -380,7 +380,7 @@ func TestSend(t *testing.T) {
 				GasLimit:     big.NewInt(1000),
 				MaxFeePerGas: big.NewInt(2000),
 				Entrypoint:   common.HexToAddress("0xB0e4BDF60bC80cbCAaC52DF8796e579870d2fd00"),
-				Calldata:     common.Hex2Bytes("0x1234"),
+				Data:         common.Hex2Bytes("0x1234"),
 			},
 		},
 	}
@@ -430,7 +430,7 @@ func TestSend(t *testing.T) {
 		GasPrice: op.Operation.MaxFeePerGas,
 		GasTip:   big.NewInt(13),
 		GasLimit: 22000,
-		Data:     op.Operation.Calldata,
+		Data:     op.Operation.Data,
 		ETHValue: big.NewInt(0),
 	}).Return(&rtx, nil).Once()
 

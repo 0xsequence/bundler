@@ -23,13 +23,17 @@ func TestAdd2Independent(t *testing.T) {
 	p := partitioner.NewPartitioner(2, 2)
 
 	ok, deps := p.Add(&types.Operation{
-		Calldata: []byte{2},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{2},
+		},
 	}, &endorser.EndorserResult{})
 	assert.True(t, ok)
 	assert.Nil(t, deps)
 
 	ok, deps = p.Add(&types.Operation{
-		Calldata: []byte{1},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{1},
+		},
 	}, &endorser.EndorserResult{})
 	assert.True(t, ok)
 	assert.Nil(t, deps)
@@ -39,9 +43,11 @@ func TestAdd2IndependentWithDependencies(t *testing.T) {
 	p := partitioner.NewPartitioner(2, 2)
 
 	ok, deps := p.Add(&types.Operation{
-		Calldata: []byte{2},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{2},
+		},
 	}, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:    common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				Balance: true,
@@ -52,9 +58,11 @@ func TestAdd2IndependentWithDependencies(t *testing.T) {
 	assert.Nil(t, deps)
 
 	ok, deps = p.Add(&types.Operation{
-		Calldata: []byte{1},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{1},
+		},
 	}, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:    common.HexToAddress("0x2e417D097fF04E4F532A7856a1b4c62a34988E16"),
 				Balance: true,
@@ -69,9 +77,11 @@ func TestAdd2IndependentWithDependenciesButRoom(t *testing.T) {
 	p := partitioner.NewPartitioner(2, 2)
 
 	ok, deps := p.Add(&types.Operation{
-		Calldata: []byte{2},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{2},
+		},
 	}, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:    common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				Balance: true,
@@ -82,9 +92,11 @@ func TestAdd2IndependentWithDependenciesButRoom(t *testing.T) {
 	assert.Nil(t, deps)
 
 	ok, deps = p.Add(&types.Operation{
-		Calldata: []byte{1},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{1},
+		},
 	}, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:    common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				Balance: true,
@@ -99,15 +111,19 @@ func TestBlockAddTwoWithDependencies(t *testing.T) {
 	p := partitioner.NewPartitioner(1, 1)
 
 	op1 := &types.Operation{
-		Calldata: []byte{2},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{2},
+		},
 	}
 
 	op2 := &types.Operation{
-		Calldata: []byte{1},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{1},
+		},
 	}
 
 	ok, deps := p.Add(op1, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:    common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				Balance: true,
@@ -118,7 +134,7 @@ func TestBlockAddTwoWithDependencies(t *testing.T) {
 	assert.Nil(t, deps)
 
 	ok, deps = p.Add(op2, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:    common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				Balance: true,
@@ -133,15 +149,19 @@ func TestBlockAddTwoWithWildcard(t *testing.T) {
 	p := partitioner.NewPartitioner(1, 1)
 
 	op1 := &types.Operation{
-		Calldata: []byte{2},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{2},
+		},
 	}
 
 	op2 := &types.Operation{
-		Calldata: []byte{1},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{1},
+		},
 	}
 
 	ok, deps := p.Add(op1, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:     common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				AllSlots: true,
@@ -160,15 +180,19 @@ func TestAddTwoWithWildcardWithRoom(t *testing.T) {
 	p := partitioner.NewPartitioner(2, 2)
 
 	op1 := &types.Operation{
-		Calldata: []byte{2},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{2},
+		},
 	}
 
 	op2 := &types.Operation{
-		Calldata: []byte{1},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{1},
+		},
 	}
 
 	ok, deps := p.Add(op1, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:     common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				AllSlots: true,
@@ -187,23 +211,31 @@ func TestMultipleOverlap(t *testing.T) {
 	p := partitioner.NewPartitioner(2, 2)
 
 	op1 := &types.Operation{
-		Calldata: []byte{1},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{1},
+		},
 	}
 
 	op2 := &types.Operation{
-		Calldata: []byte{2},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{2},
+		},
 	}
 
 	op3 := &types.Operation{
-		Calldata: []byte{3},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{3},
+		},
 	}
 
 	op4 := &types.Operation{
-		Calldata: []byte{4},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{4},
+		},
 	}
 
 	ok, deps := p.Add(op1, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:  common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				Slots: [][32]byte{{1}},
@@ -215,7 +247,7 @@ func TestMultipleOverlap(t *testing.T) {
 	assert.Nil(t, deps)
 
 	ok, deps = p.Add(op2, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:  common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				Slots: [][32]byte{{1}},
@@ -227,7 +259,7 @@ func TestMultipleOverlap(t *testing.T) {
 	assert.Nil(t, deps)
 
 	ok, deps = p.Add(op3, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:  common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				Slots: [][32]byte{{2}},
@@ -239,7 +271,7 @@ func TestMultipleOverlap(t *testing.T) {
 	assert.Nil(t, deps)
 
 	ok, deps = p.Add(op4, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:  common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				Slots: [][32]byte{{2}, {1}},
@@ -255,27 +287,37 @@ func TestMultidimentionalOverlap(t *testing.T) {
 	p := partitioner.NewPartitioner(2, 2)
 
 	op1 := &types.Operation{
-		Calldata: []byte{1},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{1},
+		},
 	}
 
 	op2 := &types.Operation{
-		Calldata: []byte{2},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{2},
+		},
 	}
 
 	op3 := &types.Operation{
-		Calldata: []byte{3},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{3},
+		},
 	}
 
 	op4 := &types.Operation{
-		Calldata: []byte{4},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{4},
+		},
 	}
 
 	op5 := &types.Operation{
-		Calldata: []byte{5},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{5},
+		},
 	}
 
 	ok, deps := p.Add(op1, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:  common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				Slots: [][32]byte{{1}},
@@ -287,7 +329,7 @@ func TestMultidimentionalOverlap(t *testing.T) {
 	assert.Nil(t, deps)
 
 	ok, deps = p.Add(op2, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:  common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				Slots: [][32]byte{{1}},
@@ -299,7 +341,7 @@ func TestMultidimentionalOverlap(t *testing.T) {
 	assert.Nil(t, deps)
 
 	ok, deps = p.Add(op3, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:  common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				Slots: [][32]byte{{2}},
@@ -311,7 +353,7 @@ func TestMultidimentionalOverlap(t *testing.T) {
 	assert.Nil(t, deps)
 
 	ok, deps = p.Add(op4, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:  common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				Slots: [][32]byte{{2}},
@@ -323,7 +365,7 @@ func TestMultidimentionalOverlap(t *testing.T) {
 	assert.Nil(t, deps)
 
 	ok, deps = p.Add(op5, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:  common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				Slots: [][32]byte{{1}, {2}},
@@ -339,27 +381,37 @@ func TestRemoveOps(t *testing.T) {
 	p := partitioner.NewPartitioner(2, 2)
 
 	op1 := &types.Operation{
-		Calldata: []byte{1},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{1},
+		},
 	}
 
 	op2 := &types.Operation{
-		Calldata: []byte{2},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{2},
+		},
 	}
 
 	op3 := &types.Operation{
-		Calldata: []byte{3},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{3},
+		},
 	}
 
 	op4 := &types.Operation{
-		Calldata: []byte{4},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{4},
+		},
 	}
 
 	op5 := &types.Operation{
-		Calldata: []byte{5},
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Data: []byte{5},
+		},
 	}
 
 	ok, deps := p.Add(op1, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:  common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				Slots: [][32]byte{{1}},
@@ -371,7 +423,7 @@ func TestRemoveOps(t *testing.T) {
 	assert.Nil(t, deps)
 
 	ok, deps = p.Add(op2, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:  common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				Slots: [][32]byte{{1}},
@@ -383,7 +435,7 @@ func TestRemoveOps(t *testing.T) {
 	assert.Nil(t, deps)
 
 	ok, deps = p.Add(op3, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:  common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				Slots: [][32]byte{{2}},
@@ -395,7 +447,7 @@ func TestRemoveOps(t *testing.T) {
 	assert.Nil(t, deps)
 
 	ok, deps = p.Add(op4, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:  common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				Slots: [][32]byte{{2}},
@@ -412,7 +464,7 @@ func TestRemoveOps(t *testing.T) {
 	})
 
 	ok, deps = p.Add(op5, &endorser.EndorserResult{
-		Dependencies: []abiendorser.EndorserDependency{
+		Dependencies: []abiendorser.IEndorserDependency{
 			{
 				Addr:  common.HexToAddress("0x3B377376F325AbA4a5f2E5E3d143FD8cd15afCEd"),
 				Slots: [][32]byte{{1}, {2}},
