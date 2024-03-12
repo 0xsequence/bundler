@@ -6,12 +6,14 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/mocks"
+	"github.com/0xsequence/bundler/pricefeed"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/sender"
 	"github.com/0xsequence/bundler/types"
@@ -29,7 +31,7 @@ func TestReservePullOps(t *testing.T) {
 	mockValidator := &mocks.MockValidator{}
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
-	mockEstimator := &mocks.MockGasEstimator{}
+	mockProvider := &mocks.MockProvider{}
 	mockCollector := &mocks.MockCollector{}
 
 	sender := sender.NewSender(
@@ -39,7 +41,7 @@ func TestReservePullOps(t *testing.T) {
 		logger,
 		0,
 		mockWallet,
-		mockEstimator,
+		mockProvider,
 		mockMempool,
 		mockEndorser,
 		mockValidator,
@@ -67,7 +69,7 @@ func TestSimulateOpErr(t *testing.T) {
 	mockValidator := &mocks.MockValidator{}
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
-	mockEstimator := &mocks.MockGasEstimator{}
+	mockProvider := &mocks.MockProvider{}
 	mockCollector := &mocks.MockCollector{}
 
 	op := mempool.TrackedOperation{
@@ -81,7 +83,7 @@ func TestSimulateOpErr(t *testing.T) {
 		logger,
 		0,
 		mockWallet,
-		mockEstimator,
+		mockProvider,
 		mockMempool,
 		mockEndorser,
 		mockValidator,
@@ -136,7 +138,7 @@ func TestSimulatePaidNotPaid(t *testing.T) {
 	mockValidator := &mocks.MockValidator{}
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
-	mockEstimator := &mocks.MockGasEstimator{}
+	mockProvider := &mocks.MockProvider{}
 	mockCollector := &mocks.MockCollector{}
 
 	op := mempool.TrackedOperation{
@@ -150,7 +152,7 @@ func TestSimulatePaidNotPaid(t *testing.T) {
 		logger,
 		0,
 		mockWallet,
-		mockEstimator,
+		mockProvider,
 		mockMempool,
 		mockEndorser,
 		mockValidator,
@@ -208,7 +210,7 @@ func TestSimulatePaidNotPaidConstraintsUnmet(t *testing.T) {
 	mockValidator := &mocks.MockValidator{}
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
-	mockEstimator := &mocks.MockGasEstimator{}
+	mockProvider := &mocks.MockProvider{}
 	mockCollector := &mocks.MockCollector{}
 
 	op := mempool.TrackedOperation{
@@ -222,7 +224,7 @@ func TestSimulatePaidNotPaidConstraintsUnmet(t *testing.T) {
 		logger,
 		0,
 		mockWallet,
-		mockEstimator,
+		mockProvider,
 		mockMempool,
 		mockEndorser,
 		mockValidator,
@@ -305,7 +307,7 @@ func TestSimulatePaidNotPaidAndLied(t *testing.T) {
 	mockValidator := &mocks.MockValidator{}
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
-	mockEstimator := &mocks.MockGasEstimator{}
+	mockProvider := &mocks.MockProvider{}
 	mockCollector := &mocks.MockCollector{}
 
 	op := mempool.TrackedOperation{
@@ -319,7 +321,7 @@ func TestSimulatePaidNotPaidAndLied(t *testing.T) {
 		logger,
 		0,
 		mockWallet,
-		mockEstimator,
+		mockProvider,
 		mockMempool,
 		mockEndorser,
 		mockValidator,
@@ -388,7 +390,7 @@ func TestChillIfDoesNotPay(t *testing.T) {
 	mockValidator := &mocks.MockValidator{}
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
-	mockEstimator := &mocks.MockGasEstimator{}
+	mockProvider := &mocks.MockProvider{}
 	mockCollector := &mocks.MockCollector{}
 
 	op := mempool.TrackedOperation{
@@ -411,7 +413,7 @@ func TestChillIfDoesNotPay(t *testing.T) {
 		logger,
 		0,
 		mockWallet,
-		mockEstimator,
+		mockProvider,
 		mockMempool,
 		mockEndorser,
 		mockValidator,
@@ -448,8 +450,11 @@ func TestChillIfDoesNotPay(t *testing.T) {
 			done <- struct{}{}
 		}).Return(nil).Once()
 
-	mockEstimator.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(300), nil).Once()
-	mockCollector.On("NativeFeesPerGas", &op.Operation).Return(big.NewInt(2), big.NewInt(1))
+	mockProvider.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(300), nil).Once()
+	mockCollector.On("NativeFeesPerGas", &op.Operation).Return(&collector.NativeFees{
+		MaxFeePerGas:         big.NewInt(2),
+		MaxPriorityFeePerGas: big.NewInt(1),
+	}, &pricefeed.Snapshot{}).Once()
 	mockCollector.On("BaseFee").Return(big.NewInt(10000), nil).Once()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -471,7 +476,7 @@ func TestSend(t *testing.T) {
 	mockValidator := &mocks.MockValidator{}
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
-	mockEstimator := &mocks.MockGasEstimator{}
+	mockProvider := &mocks.MockProvider{}
 	mockCollector := &mocks.MockCollector{}
 
 	op := mempool.TrackedOperation{
@@ -494,7 +499,7 @@ func TestSend(t *testing.T) {
 		logger,
 		0,
 		mockWallet,
-		mockEstimator,
+		mockProvider,
 		mockMempool,
 		mockEndorser,
 		mockValidator,
@@ -503,7 +508,7 @@ func TestSend(t *testing.T) {
 
 	done := make(chan struct{})
 
-	mockWallet.On("Address").Return(common.Address{}, nil).Once()
+	mockWallet.On("Address").Return(common.Address{}, nil).Maybe()
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{&op}, nil).Once()
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{}, nil).Maybe()
@@ -541,7 +546,8 @@ func TestSend(t *testing.T) {
 
 	waitFn = func(context.Context) (*ethtypes.Receipt, error) {
 		return &ethtypes.Receipt{
-			TxHash: common.HexToHash("0x1234"),
+			TxHash:      common.HexToHash("0x1234"),
+			BlockNumber: big.NewInt(100),
 		}, nil
 	}
 
@@ -551,11 +557,11 @@ func TestSend(t *testing.T) {
 			done <- struct{}{}
 		}).Return(nil).Once()
 
-	mockEstimator.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(10), nil).Once()
-	mockCollector.On("NativeFeesPerGas", &op.Operation).Return(
-		big.NewInt(213),
-		big.NewInt(50),
-	)
+	mockProvider.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(10), nil).Once()
+	mockCollector.On("NativeFeesPerGas", &op.Operation).Return(&collector.NativeFees{
+		MaxFeePerGas:         big.NewInt(213),
+		MaxPriorityFeePerGas: big.NewInt(50),
+	}, &pricefeed.Snapshot{}).Once()
 	mockCollector.On("BaseFee").Return(big.NewInt(100), nil).Once()
 
 	ctx, cancel := context.WithCancel(context.Background())

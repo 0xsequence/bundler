@@ -12,6 +12,7 @@ import (
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/bundler/mocks"
+	"github.com/0xsequence/bundler/pricefeed"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
@@ -116,8 +117,14 @@ func TestFeeAsks(t *testing.T) {
 	for c.BaseFee() == nil {
 	}
 
-	mockFeed1.On("Factors").Return(big.NewInt(2), big.NewInt(3), nil).Once()
-	mockFeed2.On("Factors").Return(big.NewInt(4), big.NewInt(5), nil).Once()
+	mockFeed1.On("Snapshot").Return(&pricefeed.Snapshot{
+		ScalingFactor:       big.NewInt(2),
+		NormalizationFactor: big.NewInt(3),
+	}, nil).Once()
+	mockFeed2.On("Snapshot").Return(&pricefeed.Snapshot{
+		ScalingFactor:       big.NewInt(4),
+		NormalizationFactor: big.NewInt(5),
+	}, nil).Once()
 
 	res, err := c.FeeAsks()
 	require.NoError(t, err)
@@ -138,8 +145,11 @@ func TestFeeAsks(t *testing.T) {
 	})
 
 	// Must ignore the token if one of them fails
-	mockFeed1.On("Factors").Return(big.NewInt(10), big.NewInt(11), nil).Once()
-	mockFeed2.On("Factors").Return(nil, nil, fmt.Errorf("mock error")).Once()
+	mockFeed1.On("Snapshot").Return(&pricefeed.Snapshot{
+		ScalingFactor:       big.NewInt(10),
+		NormalizationFactor: big.NewInt(11),
+	}, nil).Once()
+	mockFeed2.On("Snapshot").Return(nil, fmt.Errorf("mock error")).Once()
 
 	res, err = c.FeeAsks()
 	require.NoError(t, err)

@@ -12,15 +12,18 @@ import (
 
 	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
+	"github.com/0xsequence/bundler/contracts/gen/solabis/abierc20"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/mempool"
+	"github.com/0xsequence/bundler/pricefeed"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethtxn"
 	"github.com/0xsequence/ethkit/go-ethereum"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi/bind"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
+	ethtypes "github.com/0xsequence/ethkit/go-ethereum/core/types"
 )
 
 type Sender struct {
@@ -36,12 +39,12 @@ type Sender struct {
 	chilledOps map[string]time.Time
 	blockedOps map[string]struct{}
 
-	Wallet       WalletInterface
-	GasEstimator GasEstimator
-	Validator    ValidatorInterface
-	Mempool      mempool.Interface
-	Endorser     endorser.Interface
-	Collector    collector.Interface
+	Wallet    WalletInterface
+	Provider  Provider
+	Validator ValidatorInterface
+	Mempool   mempool.Interface
+	Endorser  endorser.Interface
+	Collector collector.Interface
 }
 
 var _ Interface = &Sender{}
@@ -51,7 +54,7 @@ func NewSender(
 	logger *slog.Logger,
 	id uint32,
 	wallet WalletInterface,
-	gasEstimator GasEstimator,
+	provider Provider,
 	mempool mempool.Interface,
 	endorser endorser.Interface,
 	validator ValidatorInterface,
@@ -85,12 +88,12 @@ func NewSender(
 		chilledOps: make(map[string]time.Time),
 		blockedOps: make(map[string]struct{}),
 
-		Wallet:       wallet,
-		GasEstimator: gasEstimator,
-		Mempool:      mempool,
-		Endorser:     endorser,
-		Validator:    validator,
-		Collector:    Collector,
+		Wallet:    wallet,
+		Provider:  provider,
+		Mempool:   mempool,
+		Endorser:  endorser,
+		Validator: validator,
+		Collector: Collector,
 	}
 }
 
@@ -177,7 +180,7 @@ func (s *Sender) onRun(ctx context.Context) bool {
 	// this can be done by doing an estimate gas call to any other
 	// address that is not a contract
 	estimateAddr := common.HexToAddress("0x586FA0B5145FB12956dAaBD3b832Cc532d59230a")
-	calldataGasLimit, err := s.GasEstimator.EstimateGas(ctx, ethereum.CallMsg{
+	calldataGasLimit, err := s.Provider.EstimateGas(ctx, ethereum.CallMsg{
 		To:   &estimateAddr,
 		Data: op.Data,
 	})
@@ -191,10 +194,10 @@ func (s *Sender) onRun(ctx context.Context) bool {
 	// the maximum gas price that we may pay for the operation
 	// and compare it with the payment we are going to receive
 	baseFee := s.Collector.BaseFee()
-	maxFeePerGas, priorityFeePerGas := s.Collector.NativeFeesPerGas(&op.Operation)
-	effectiveFeePerGas := new(big.Int).Add(baseFee, priorityFeePerGas)
-	if effectiveFeePerGas.Cmp(maxFeePerGas) > 0 {
-		effectiveFeePerGas.Set(maxFeePerGas)
+	native, priceSnap := s.Collector.NativeFeesPerGas(&op.Operation)
+	effectiveFeePerGas := new(big.Int).Add(baseFee, native.MaxPriorityFeePerGas)
+	if effectiveFeePerGas.Cmp(native.MaxFeePerGas) > 0 {
+		effectiveFeePerGas.Set(native.MaxFeePerGas)
 	}
 
 	// This defines what is the maximum fee per gas that we are going to pay
@@ -253,6 +256,9 @@ func (s *Sender) onRun(ctx context.Context) bool {
 		s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_None)
 		return true
 	}
+
+	// Now that we have the receipt, we fire and forget the inspection
+	go s.inspectReceipt(ctx, &op.Operation, receipt, priceSnap)
 
 	s.logger.Info("sender: operation executed", "op", opDigest, "tx", receipt.TxHash.String())
 
@@ -367,4 +373,144 @@ func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (*S
 		Lied: true,
 		Meta: meta,
 	}, nil
+}
+
+func (s *Sender) isOperationReady(
+	ctx context.Context,
+	op *types.Operation,
+) (bool, error) {
+	// We can check if the endorser is still returning `isValid == true`
+	// since that would be a clear lie
+	res, err := s.Endorser.IsOperationReady(ctx, op)
+	if err != nil {
+		return false, err
+	}
+
+	if !res.Readiness {
+		return false, nil
+	}
+
+	ok, err := s.Endorser.ConstraintsMet(ctx, res)
+	if err != nil {
+		return false, err
+	}
+
+	return ok, nil
+}
+
+func (s *Sender) inspectReceipt(
+	ctx context.Context,
+	op *types.Operation,
+	receipt *ethtypes.Receipt,
+	priceSnap *pricefeed.Snapshot,
+) {
+	// If the transaction wasn't successful, two things may have happened:
+	// - the operation was executed by someone else
+	// - the endorser "lied" to us, and the simulation was wrong
+	if receipt.Status == 1 {
+		isReady, err := s.isOperationReady(ctx, op)
+		if err != nil || !isReady {
+			s.logger.Warn("inspector: likely operation collision", "op", op.Hash(), "tx", receipt.TxHash.String())
+			// The operation was executed by someone else
+			return
+		}
+
+		// The endorser lied to us
+		// it is still marking the operation as ready
+		// but the operation failed to execute
+		// TODO: Ban endorser
+		s.logger.Error("inspector: endorser lied", "op", op.Hash(), "tx", receipt.TxHash.String())
+	}
+
+	// If the operation was successful, we should check if we got paid
+	// there are 3 possible outcomes:
+	// - we got paid the expected amount or more
+	// - we got paid less than expected
+	// - we didn't get paid at all
+
+	// For this check, we exploit the fact that the sender only sends a transaction
+	// on each block, so we can check the balance before and after the transaction
+	txBlockNum := receipt.BlockNumber
+
+	prevBlockNum := new(big.Int).Sub(txBlockNum, big.NewInt(1))
+
+	prevBalance, err := s.balanceOf(ctx, op.FeeToken, prevBlockNum)
+	if err != nil {
+		// We can't check the balance, so we can't do anything
+		s.logger.Warn("inspector: unable to check prev balance", "op", op.Hash(), "tx", receipt.TxHash.String(), "error", err)
+		return
+	}
+	nextBalance, err := s.balanceOf(ctx, op.FeeToken, txBlockNum)
+	if err != nil {
+		// We can't check the balance, so we can't do anything
+		s.logger.Warn("inspector: unable to check next balance", "op", op.Hash(), "tx", receipt.TxHash.String(), "error", err)
+		return
+	}
+
+	balanceDiff := new(big.Int).Sub(nextBalance, prevBalance)
+	nativeUsed := new(big.Int).Mul(receipt.EffectiveGasPrice, big.NewInt(int64(receipt.GasUsed)))
+
+	isNative := op.FeeToken == common.Address{}
+	if isNative {
+		if balanceDiff.Sign() == 1 {
+			// We got paid, end of story
+			s.logger.Info(
+				"inspector: operation paid",
+				"op", op.Hash(),
+				"tx", receipt.TxHash.String(),
+				"amount", balanceDiff.String(),
+			)
+			return
+		}
+		s.logger.Warn(
+			"inspector: operation not paid enough",
+			"op", op.Hash(),
+			"tx", receipt.TxHash.String(),
+			"amount", balanceDiff.String(),
+		)
+	} else {
+		// This is a bit more complicated, since we need to convert
+		// the balanceDiff to native token and compare it with the nativeUsed
+		nativePaid := priceSnap.ToNative(balanceDiff)
+		if nativePaid.Cmp(nativeUsed) >= 0 {
+			// We got paid, end of story
+			s.logger.Info(
+				"inspector: operation paid",
+				"op", op.Hash(),
+				"tx", receipt.TxHash.String(),
+				"token", op.FeeToken,
+				"amount", balanceDiff.String(),
+			)
+			return
+		}
+		s.logger.Warn(
+			"inspector: operation not paid enough",
+			"op", op.Hash(),
+			"tx", receipt.TxHash.String(),
+			"token", op.FeeToken,
+			"amount", balanceDiff.String(),
+			"nativePaid", nativePaid.String(),
+			"nativeUsed", nativeUsed.String(),
+		)
+	}
+
+	// The endorser lied to us
+	// TODO: Ban endorser
+}
+
+func (s *Sender) balanceOf(ctx context.Context, token common.Address, blockNum *big.Int) (*big.Int, error) {
+	isNative := token == common.Address{}
+	if isNative {
+		return s.Provider.BalanceAt(ctx, s.Wallet.Address(), blockNum)
+	}
+
+	// Fetch from ERC20 balanceOf
+	tokenContract, err := abierc20.NewERC20Caller(token, s.Provider)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create ERC20Caller: %w", err)
+	}
+
+	return tokenContract.BalanceOf(&bind.CallOpts{
+		BlockNumber: blockNum,
+	}, s.Wallet.Address())
 }

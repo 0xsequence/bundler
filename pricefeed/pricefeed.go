@@ -3,7 +3,6 @@ package pricefeed
 import (
 	"context"
 	"fmt"
-	"math/big"
 
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/ethkit/ethrpc"
@@ -14,9 +13,7 @@ import (
 type Feed interface {
 	Ready() bool
 	Name() string
-	FromNative(amount *big.Int) (*big.Int, error)
-	ToNative(amount *big.Int) (*big.Int, error)
-	Factors() (*big.Int, *big.Int, error)
+	Snapshot() (*Snapshot, error)
 	Start(ctx context.Context) error
 }
 

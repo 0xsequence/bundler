@@ -1,6 +1,8 @@
 package sender
 
 import (
+	"math/big"
+
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
 	"github.com/0xsequence/ethkit/ethtxn"
 	"github.com/0xsequence/ethkit/ethwallet"
@@ -30,6 +32,9 @@ type Interface interface {
 	Run(ctx context.Context)
 }
 
-type GasEstimator interface {
+type Provider interface {
+	CodeAt(ctx context.Context, contract common.Address, blockNumber *big.Int) ([]byte, error)
+	BalanceAt(ctx context.Context, account common.Address, blockNum *big.Int) (*big.Int, error)
+	CallContract(ctx context.Context, msg ethereum.CallMsg, blockNum *big.Int) ([]byte, error)
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 }

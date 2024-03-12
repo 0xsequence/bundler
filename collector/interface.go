@@ -9,11 +9,16 @@ import (
 	"github.com/0xsequence/bundler/types"
 )
 
+type NativeFees struct {
+	MaxFeePerGas         *big.Int
+	MaxPriorityFeePerGas *big.Int
+}
+
 type Interface interface {
 	BaseFee() *big.Int
 	PriorityFee() *big.Int
 	Cmp(a, b *types.Operation) int
-	NativeFeesPerGas(a *types.Operation) (*big.Int, *big.Int)
+	NativeFeesPerGas(a *types.Operation) (*NativeFees, *pricefeed.Snapshot)
 	Feed(token string) (pricefeed.Feed, error)
 	Feeds() []pricefeed.Feed
 	ValidatePayment(op *types.Operation) error

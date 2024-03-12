@@ -27,9 +27,9 @@ func (m *MockCollector) Feed(token string) (pricefeed.Feed, error) {
 	return args.Get(0).(pricefeed.Feed), nil
 }
 
-func (m *MockCollector) NativeFeesPerGas(a *types.Operation) (*big.Int, *big.Int) {
+func (m *MockCollector) NativeFeesPerGas(a *types.Operation) (*collector.NativeFees, *pricefeed.Snapshot) {
 	args := m.Called(a)
-	return args.Get(0).(*big.Int), args.Get(1).(*big.Int)
+	return args.Get(0).(*collector.NativeFees), args.Get(1).(*pricefeed.Snapshot)
 }
 
 func (m *MockCollector) FeeAsks() (*proto.FeeAsks, error) {

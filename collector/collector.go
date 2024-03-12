@@ -142,11 +142,11 @@ func (c *Collector) MinFeePerGas(feeToken common.Address) (*big.Int, error) {
 			return nil, fmt.Errorf("collector: unsupported fee token: %s", feeToken.Hex())
 		}
 
-		var err error
-		minFeePerGas, err = feed.FromNative(minFeePerGas)
+		snap, err := feed.Snapshot()
 		if err != nil {
-			return nil, fmt.Errorf("collector: error converting fee to native token: %w", err)
+			return nil, fmt.Errorf("collector: error fetching feed snapshot: %w", err)
 		}
+		minFeePerGas = snap.FromNative(minFeePerGas)
 	}
 
 	return minFeePerGas, nil
@@ -167,48 +167,50 @@ func (c *Collector) ValidatePayment(op *types.Operation) error {
 
 // Compares two operations and returns which one has the highest relay value
 func (c *Collector) Cmp(a, b *types.Operation) int {
-	maxFeeA, priorityFeeA := c.NativeFeesPerGas(a)
-	maxFeeB, priorityFeeB := c.NativeFeesPerGas(b)
+	nfA, _ := c.NativeFeesPerGas(a)
+	nfB, _ := c.NativeFeesPerGas(b)
 
 	// If the difference of maxFeeA is above 10%, then it takes priority
 	// difference: abs(maxFeeA - maxFeeB) / maxFeeA
-	diffBase := new(big.Int).Abs(new(big.Int).Sub(maxFeeA, maxFeeB))
+	diffBase := new(big.Int).Abs(new(big.Int).Sub(nfA.MaxFeePerGas, nfB.MaxFeePerGas))
 	diffBase.Mul(diffBase, big.NewInt(100))
-	diffBase.Div(diffBase, maxFeeA)
+	diffBase.Div(diffBase, nfA.MaxFeePerGas)
 
 	if diffBase.Cmp(big.NewInt(10)) >= 0 {
-		return maxFeeA.Cmp(maxFeeB)
+		return nfA.MaxFeePerGas.Cmp(nfB.MaxFeePerGas)
 	}
 
 	// The difference of baseFee is too small
 	// we use the priorityFee to compare
-	return priorityFeeA.Cmp(priorityFeeB)
+	return nfA.MaxPriorityFeePerGas.Cmp(nfB.MaxPriorityFeePerGas)
 }
 
-func (c *Collector) NativeFeesPerGas(op *types.Operation) (*big.Int, *big.Int) {
+func (c *Collector) NativeFeesPerGas(op *types.Operation) (*NativeFees, *pricefeed.Snapshot) {
 	maxFee := new(big.Int)
 	maxFee.Set(op.MaxFeePerGas)
 
 	priorityFee := new(big.Int)
 	priorityFee.Set(op.MaxPriorityFeePerGas)
 
-	if op.NativePayment() {
-		feed, err := c.Feed(op.FixedGas.String())
+	var snap *pricefeed.Snapshot
+
+	if !op.NativePayment() {
+		feed, err := c.Feed(op.FeeToken.String())
 		if err == nil {
-			fs, fn, err := feed.Factors()
+			snap, err = feed.Snapshot()
 			if err == nil {
 				maxFee.Mul(maxFee, op.FeeScalingFactor)
-				maxFee.Mul(maxFee, fn)
+				maxFee.Mul(maxFee, snap.NormalizationFactor)
 
-				d := new(big.Int).Set(fs)
+				d := new(big.Int).Set(snap.ScalingFactor)
 				d.Mul(d, op.FeeNormalizationFactor)
 
 				maxFee.Div(maxFee, d)
 
 				priorityFee.Mul(priorityFee, op.FeeScalingFactor)
-				priorityFee.Mul(priorityFee, fn)
+				priorityFee.Mul(priorityFee, snap.NormalizationFactor)
 
-				d = new(big.Int).Set(fs)
+				d = new(big.Int).Set(snap.ScalingFactor)
 				d.Mul(d, op.FeeNormalizationFactor)
 
 				priorityFee.Div(priorityFee, d)
@@ -216,7 +218,10 @@ func (c *Collector) NativeFeesPerGas(op *types.Operation) (*big.Int, *big.Int) {
 		}
 	}
 
-	return maxFee, priorityFee
+	return &NativeFees{
+		MaxFeePerGas:         maxFee,
+		MaxPriorityFeePerGas: priorityFee,
+	}, snap
 }
 
 func (c *Collector) FeeAsks() (*proto.FeeAsks, error) {
@@ -226,15 +231,15 @@ func (c *Collector) FeeAsks() (*proto.FeeAsks, error) {
 
 	acceptedTokens := make(map[string]proto.BaseFeeRate, len(c.feeds))
 	for token, feed := range c.feeds {
-		s, n, err := feed.Factors()
+		snap, err := feed.Snapshot()
 		if err != nil {
 			c.logger.Warn("collector: error fetching feed factors", "token", token.Hex(), "error", err)
 			continue
 		}
 
 		acceptedTokens[token.String()] = proto.BaseFeeRate{
-			ScalingFactor:       prototyp.ToBigInt(s),
-			NormalizationFactor: prototyp.ToBigInt(n),
+			ScalingFactor:       prototyp.ToBigInt(snap.ScalingFactor),
+			NormalizationFactor: prototyp.ToBigInt(snap.NormalizationFactor),
 		}
 	}
 
