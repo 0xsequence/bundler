@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	"github.com/0xsequence/bundler/calldata"
+	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/bundler/ipfs"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
@@ -16,19 +17,11 @@ import (
 )
 
 type Operation struct {
-	Entrypoint                 common.Address `json:"entrypoint"`
-	Calldata                   []byte         `json:"callData"`
-	GasLimit                   *big.Int       `json:"gasLimit"`
-	FeeToken                   common.Address `json:"feeToken"`
-	Endorser                   common.Address `json:"endorser"`
-	EndorserCallData           []byte         `json:"endorserCallData"`
-	EndorserGasLimit           *big.Int       `json:"endorserGasLimit"`
-	MaxFeePerGas               *big.Int       `json:"maxFeePerGas"`
-	PriorityFeePerGas          *big.Int       `json:"priorityFeePerGas"`
-	BaseFeeScalingFactor       *big.Int       `json:"baseFeeScalingFactor"`
-	BaseFeeNormalizationFactor *big.Int       `json:"baseFeeNormalizationFactor"`
-	HasUntrustedContext        bool           `json:"hasUntrustedContext"`
-	ChainID                    *big.Int       `json:"chainId"`
+	abiendorser.IEndorserOperation
+
+	Endorser         common.Address `json:"endorser"`
+	EndorserGasLimit *big.Int       `json:"endorserGasLimit"`
+	ChainId          *big.Int       `json:"chainId"`
 }
 
 func NewOperation() *Operation {
@@ -40,30 +33,30 @@ func (o *Operation) Value(cmodel calldata.CostModel) *big.Int {
 
 	if o.MaxFeePerGas == nil ||
 		o.GasLimit == nil ||
-		o.BaseFeeScalingFactor == nil ||
-		o.BaseFeeNormalizationFactor == nil ||
-		o.PriorityFeePerGas == nil {
+		o.FeeScalingFactor == nil ||
+		o.FeeNormalizationFactor == nil ||
+		o.MaxPriorityFeePerGas == nil {
 		return val
 	}
 
 	// Use the minimum of the two fees
 	var feePerGas *big.Int
-	if o.MaxFeePerGas.Cmp(o.PriorityFeePerGas) < 0 {
+	if o.MaxFeePerGas.Cmp(o.MaxPriorityFeePerGas) < 0 {
 		feePerGas = o.MaxFeePerGas
 	} else {
-		feePerGas = o.PriorityFeePerGas
+		feePerGas = o.MaxPriorityFeePerGas
 	}
 
 	// The operation doesn't directly pay for the calldata cost
 	// so we need to subtract it from the value.
 	// This can go negative, but it is fine as we only want this
 	// as a relative value to compare operations.
-	calldataCost := new(big.Int).SetUint64(cmodel.CostFor(o.Calldata))
+	calldataCost := new(big.Int).SetUint64(cmodel.CostFor(o.Data))
 	val.Sub(o.GasLimit, calldataCost)
 
 	val.Mul(val, feePerGas)
-	val.Mul(val, o.BaseFeeScalingFactor)
-	val.Div(val, o.BaseFeeNormalizationFactor)
+	val.Mul(val, o.FeeScalingFactor)
+	val.Div(val, o.FeeNormalizationFactor)
 
 	return val
 }
@@ -77,19 +70,19 @@ func (o *Operation) ToProto() *proto.Operation {
 
 func (o *Operation) ToProtoPure() *proto.Operation {
 	return &proto.Operation{
-		Entrypoint:                 prototyp.ToHash(o.Entrypoint),
-		CallData:                   prototyp.HashFromBytes(o.Calldata),
-		GasLimit:                   prototyp.ToBigInt(o.GasLimit),
-		FeeToken:                   prototyp.ToHash(o.FeeToken),
-		Endorser:                   prototyp.ToHash(o.Endorser),
-		EndorserCallData:           prototyp.HashFromBytes(o.EndorserCallData),
-		EndorserGasLimit:           prototyp.ToBigInt(o.EndorserGasLimit),
-		MaxFeePerGas:               prototyp.ToBigInt(o.MaxFeePerGas),
-		PriorityFeePerGas:          prototyp.ToBigInt(o.PriorityFeePerGas),
-		BaseFeeScalingFactor:       prototyp.ToBigInt(o.BaseFeeScalingFactor),
-		BaseFeeNormalizationFactor: prototyp.ToBigInt(o.BaseFeeNormalizationFactor),
-		HasUntrustedContext:        o.HasUntrustedContext,
-		ChainID:                    prototyp.ToBigInt(o.ChainID),
+		Entrypoint:             prototyp.ToHash(o.Entrypoint),
+		Data:                   prototyp.HashFromBytes(o.Data),
+		GasLimit:               prototyp.ToBigInt(o.GasLimit),
+		FeeToken:               prototyp.ToHash(o.FeeToken),
+		Endorser:               prototyp.ToHash(o.Endorser),
+		EndorserCallData:       prototyp.HashFromBytes(o.EndorserCallData),
+		EndorserGasLimit:       prototyp.ToBigInt(o.EndorserGasLimit),
+		MaxFeePerGas:           prototyp.ToBigInt(o.MaxFeePerGas),
+		MaxPriorityFeePerGas:   prototyp.ToBigInt(o.MaxPriorityFeePerGas),
+		FeeScalingFactor:       prototyp.ToBigInt(o.FeeScalingFactor),
+		FeeNormalizationFactor: prototyp.ToBigInt(o.FeeNormalizationFactor),
+		HasUntrustedContext:    o.HasUntrustedContext,
+		ChainID:                prototyp.ToBigInt(o.ChainId),
 	}
 }
 
@@ -99,7 +92,7 @@ func NewOperationFromProto(op *proto.Operation) (*Operation, error) {
 	}
 	entrypoint := op.Entrypoint.ToAddress()
 
-	calldata, err := hexutil.Decode(op.CallData.String())
+	calldata, err := hexutil.Decode(op.Data.String())
 	if err != nil {
 		return nil, fmt.Errorf("invalid calldata hex string: %w", err)
 	}
@@ -128,19 +121,21 @@ func NewOperationFromProto(op *proto.Operation) (*Operation, error) {
 	}
 
 	return &Operation{
-		Entrypoint:                 entrypoint,
-		Calldata:                   calldata,
-		GasLimit:                   op.GasLimit.Int(),
-		FeeToken:                   feeToken,
-		Endorser:                   endorser,
-		EndorserCallData:           endorserCalldata,
-		EndorserGasLimit:           op.EndorserGasLimit.Int(),
-		MaxFeePerGas:               op.MaxFeePerGas.Int(),
-		PriorityFeePerGas:          op.PriorityFeePerGas.Int(),
-		BaseFeeScalingFactor:       op.BaseFeeScalingFactor.Int(),
-		BaseFeeNormalizationFactor: op.BaseFeeNormalizationFactor.Int(),
-		HasUntrustedContext:        op.HasUntrustedContext,
-		ChainID:                    op.ChainID.Int(),
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			Entrypoint:             entrypoint,
+			Data:                   calldata,
+			GasLimit:               op.GasLimit.Int(),
+			FeeToken:               feeToken,
+			EndorserCallData:       endorserCalldata,
+			MaxFeePerGas:           op.MaxFeePerGas.Int(),
+			MaxPriorityFeePerGas:   op.MaxPriorityFeePerGas.Int(),
+			FeeScalingFactor:       op.FeeScalingFactor.Int(),
+			FeeNormalizationFactor: op.FeeNormalizationFactor.Int(),
+			HasUntrustedContext:    op.HasUntrustedContext,
+		},
+		Endorser:         endorser,
+		EndorserGasLimit: op.EndorserGasLimit.Int(),
+		ChainId:          op.ChainID.Int(),
 	}, nil
 }
 

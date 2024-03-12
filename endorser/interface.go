@@ -29,9 +29,9 @@ type AddrDependencyState struct {
 	Slots   [][32]byte
 }
 
-type GlobalDependency = abiendorser.EndorserGlobalDependency
-type Dependency = abiendorser.EndorserDependency
-type Constraint = abiendorser.EndorserConstraint
+type GlobalDependency = abiendorser.IEndorserGlobalDependency
+type Dependency = abiendorser.IEndorserDependency
+type Constraint = abiendorser.IEndorserConstraint
 
 type EndorserResult struct {
 	WildcardOnly bool

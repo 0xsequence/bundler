@@ -1,8 +1,6 @@
 package sender
 
 import (
-	"math/big"
-
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
 	"github.com/0xsequence/ethkit/ethtxn"
 	"github.com/0xsequence/ethkit/ethwallet"
@@ -22,7 +20,7 @@ type WalletInterface interface {
 var _ WalletInterface = &ethwallet.Wallet{}
 
 type ValidatorInterface interface {
-	SimulateOperation(opts *bind.CallOpts, _entrypoint common.Address, _data []byte, _endorserCallData []byte, _gasLimit *big.Int, _maxFeePerGas *big.Int, _maxPriorityFeePerGas *big.Int, _feeToken common.Address, _baseFeeScalingFactor *big.Int, _baseFeeNormalizationFactor *big.Int, _hasUntrustedContext bool, _endorser common.Address) (abivalidator.OperationValidatorSimulationResult, error)
+	SimulateOperation(opts *bind.CallOpts, _endorser common.Address, _op abivalidator.IEndorserOperation) (abivalidator.OperationValidatorSimulationResult, error)
 }
 
 var _ ValidatorInterface = &abivalidator.OperationValidator{}

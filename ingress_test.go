@@ -8,6 +8,7 @@ import (
 
 	"github.com/0xsequence/bundler"
 	"github.com/0xsequence/bundler/config"
+	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/bundler/mocks"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/types"
@@ -107,7 +108,9 @@ func TestRejectBufferFull(t *testing.T) {
 
 	op1 := &types.Operation{}
 	op2 := &types.Operation{
-		GasLimit: big.NewInt(1),
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			GasLimit: big.NewInt(1),
+		},
 	}
 
 	mockMempool.On("IsKnownOp", op1).Return(false).Once()
@@ -179,10 +182,14 @@ func TestBuffer(t *testing.T) {
 
 	op1 := &types.Operation{}
 	op2 := &types.Operation{
-		GasLimit: big.NewInt(1),
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			GasLimit: big.NewInt(1),
+		},
 	}
 	op3 := &types.Operation{
-		PriorityFeePerGas: big.NewInt(1),
+		IEndorserOperation: abiendorser.IEndorserOperation{
+			GasLimit: big.NewInt(2),
+		},
 	}
 
 	done := make(chan bool)
@@ -236,54 +243,54 @@ func TestListenP2P(t *testing.T) {
 	)
 
 	op1 := &proto.Operation{
-		Entrypoint:                 "0x2430d0F4D8cF4A5594d953c9aF1Ed3E6772e3a83",
-		CallData:                   "0xc0decafe",
-		GasLimit:                   prototyp.BigInt(*big.NewInt(2)),
-		FeeToken:                   "0x2430d0F4D8cF4A5594d953c9aF1Ed3E6772e3a83",
-		Endorser:                   "0x2430d0F4D8cF4A5594d953c9aF1Ed3E6772e3a83",
-		EndorserCallData:           "0x",
-		EndorserGasLimit:           prototyp.BigInt(*big.NewInt(1)),
-		MaxFeePerGas:               prototyp.BigInt(*big.NewInt(1)),
-		PriorityFeePerGas:          prototyp.BigInt(*big.NewInt(1)),
-		BaseFeeScalingFactor:       prototyp.BigInt(*big.NewInt(1)),
-		BaseFeeNormalizationFactor: prototyp.BigInt(*big.NewInt(1)),
-		HasUntrustedContext:        false,
+		Entrypoint:             "0x2430d0F4D8cF4A5594d953c9aF1Ed3E6772e3a83",
+		Data:                   "0xc0decafe",
+		GasLimit:               prototyp.BigInt(*big.NewInt(2)),
+		FeeToken:               "0x2430d0F4D8cF4A5594d953c9aF1Ed3E6772e3a83",
+		Endorser:               "0x2430d0F4D8cF4A5594d953c9aF1Ed3E6772e3a83",
+		EndorserCallData:       "0x",
+		EndorserGasLimit:       prototyp.BigInt(*big.NewInt(1)),
+		MaxFeePerGas:           prototyp.BigInt(*big.NewInt(1)),
+		MaxPriorityFeePerGas:   prototyp.BigInt(*big.NewInt(1)),
+		FeeScalingFactor:       prototyp.BigInt(*big.NewInt(1)),
+		FeeNormalizationFactor: prototyp.BigInt(*big.NewInt(1)),
+		HasUntrustedContext:    false,
 	}
 
 	top1, err := types.NewOperationFromProto(op1)
 	assert.NoError(t, err)
 
 	op2 := &proto.Operation{
-		Entrypoint:                 "0x2430d0F4D8cF4A5594d953c9aF1Ed3E6772e3a83",
-		CallData:                   "0xc0decafe",
-		GasLimit:                   prototyp.BigInt(*big.NewInt(2)),
-		FeeToken:                   "0x2430d0F4D8cF4A5594d953c9aF1Ed3E6772e3a83",
-		Endorser:                   "0x2430d0F4D8cF4A5594d953c9aF1Ed3E6772e3a83",
-		EndorserCallData:           "0x",
-		EndorserGasLimit:           prototyp.BigInt(*big.NewInt(1)),
-		MaxFeePerGas:               prototyp.BigInt(*big.NewInt(1)),
-		PriorityFeePerGas:          prototyp.BigInt(*big.NewInt(1)),
-		BaseFeeScalingFactor:       prototyp.BigInt(*big.NewInt(1)),
-		BaseFeeNormalizationFactor: prototyp.BigInt(*big.NewInt(2)),
-		HasUntrustedContext:        false,
+		Entrypoint:             "0x2430d0F4D8cF4A5594d953c9aF1Ed3E6772e3a83",
+		Data:                   "0xc0decafe",
+		GasLimit:               prototyp.BigInt(*big.NewInt(2)),
+		FeeToken:               "0x2430d0F4D8cF4A5594d953c9aF1Ed3E6772e3a83",
+		Endorser:               "0x2430d0F4D8cF4A5594d953c9aF1Ed3E6772e3a83",
+		EndorserCallData:       "0x",
+		EndorserGasLimit:       prototyp.BigInt(*big.NewInt(1)),
+		MaxFeePerGas:           prototyp.BigInt(*big.NewInt(1)),
+		MaxPriorityFeePerGas:   prototyp.BigInt(*big.NewInt(1)),
+		FeeScalingFactor:       prototyp.BigInt(*big.NewInt(1)),
+		FeeNormalizationFactor: prototyp.BigInt(*big.NewInt(2)),
+		HasUntrustedContext:    false,
 	}
 
 	top2, err := types.NewOperationFromProto(op2)
 	assert.NoError(t, err)
 
 	op3 := &proto.Operation{
-		Entrypoint:                 "0x2430d0F4D8cF4A5594d953c9aF1Ed3E6772e3a83",
-		CallData:                   "0xc0decafe",
-		GasLimit:                   prototyp.BigInt(*big.NewInt(2)),
-		FeeToken:                   "0x2430d0F4D8cF4A5594d953c9aF1Ed3E6772e3a83",
-		Endorser:                   "0x2430d0F4D8cF4A5594d953c9aF1Ed3E6772e3a83",
-		EndorserCallData:           "0x",
-		EndorserGasLimit:           prototyp.BigInt(*big.NewInt(1)),
-		MaxFeePerGas:               prototyp.BigInt(*big.NewInt(1)),
-		PriorityFeePerGas:          prototyp.BigInt(*big.NewInt(1)),
-		BaseFeeScalingFactor:       prototyp.BigInt(*big.NewInt(1)),
-		BaseFeeNormalizationFactor: prototyp.BigInt(*big.NewInt(3)),
-		HasUntrustedContext:        false,
+		Entrypoint:             "0x2430d0F4D8cF4A5594d953c9aF1Ed3E6772e3a83",
+		Data:                   "0xc0decafe",
+		GasLimit:               prototyp.BigInt(*big.NewInt(2)),
+		FeeToken:               "0x2430d0F4D8cF4A5594d953c9aF1Ed3E6772e3a83",
+		Endorser:               "0x2430d0F4D8cF4A5594d953c9aF1Ed3E6772e3a83",
+		EndorserCallData:       "0x",
+		EndorserGasLimit:       prototyp.BigInt(*big.NewInt(1)),
+		MaxFeePerGas:           prototyp.BigInt(*big.NewInt(1)),
+		MaxPriorityFeePerGas:   prototyp.BigInt(*big.NewInt(1)),
+		FixedGas:               prototyp.BigInt(*big.NewInt(1)),
+		FeeNormalizationFactor: prototyp.BigInt(*big.NewInt(3)),
+		HasUntrustedContext:    false,
 	}
 
 	top3, err := types.NewOperationFromProto(op3)
