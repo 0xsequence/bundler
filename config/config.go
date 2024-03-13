@@ -68,6 +68,9 @@ type MempoolConfig struct {
 type PrunerConfig struct {
 	GracePeriodSeconds int `toml:"grace_period"`
 	RunWaitMillis      int `toml:"run_wait_millis"`
+
+	NoStalePruning  bool `toml:"no_stale_pruning"`
+	NoBannedPruning bool `toml:"no_banned_pruning"`
 }
 
 type SendersConfig struct {
