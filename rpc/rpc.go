@@ -19,6 +19,7 @@ import (
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
+	"github.com/0xsequence/bundler/registry"
 	"github.com/0xsequence/bundler/sender"
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethrpc"
@@ -44,12 +45,25 @@ type RPC struct {
 	ipfs          ipfs.Interface
 	admin         *admin.Admin
 	calldataModel calldata.CostModel
+	registry      registry.Interface
 
 	running   int32
 	startTime time.Time
 }
 
-func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool mempool.Interface, archive *bundler.Archive, provider *ethrpc.Provider, collector *collector.Collector, endorser endorser.Interface, ipfs ipfs.Interface, calldataModel calldata.CostModel) (*RPC, error) {
+func NewRPC(
+	cfg *config.Config,
+	logger *httplog.Logger,
+	host *p2p.Host,
+	mempool mempool.Interface,
+	archive *bundler.Archive,
+	provider *ethrpc.Provider,
+	collector *collector.Collector,
+	endorser endorser.Interface,
+	ipfs ipfs.Interface,
+	calldataModel calldata.CostModel,
+	registry registry.Interface,
+) (*RPC, error) {
 	if !common.IsHexAddress(cfg.NetworkConfig.ValidatorContract) {
 		return nil, fmt.Errorf("\"%v\" is not a valid operation validator contract", cfg.NetworkConfig.ValidatorContract)
 	}
@@ -88,6 +102,7 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 			endorser,
 			executor,
 			collector,
+			registry,
 		))
 	}
 
@@ -104,6 +119,7 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		pruner:    pruner,
 		ipfs:      ipfs,
 		admin:     admin,
+		registry:  registry,
 
 		Config:    cfg,
 		Log:       logger,

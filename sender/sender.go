@@ -18,6 +18,7 @@ import (
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/pricefeed"
 	"github.com/0xsequence/bundler/proto"
+	"github.com/0xsequence/bundler/registry"
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethtxn"
 	"github.com/0xsequence/ethkit/go-ethereum"
@@ -45,6 +46,7 @@ type Sender struct {
 	Mempool   mempool.Interface
 	Endorser  endorser.Interface
 	Collector collector.Interface
+	Registry  registry.Interface
 }
 
 var _ Interface = &Sender{}
@@ -59,6 +61,7 @@ func NewSender(
 	endorser endorser.Interface,
 	validator ValidatorInterface,
 	Collector collector.Interface,
+	Registry registry.Interface,
 ) *Sender {
 	var chillWait time.Duration
 	if cfg.ChillWait > 0 {
@@ -94,6 +97,7 @@ func NewSender(
 		Endorser:  endorser,
 		Validator: validator,
 		Collector: Collector,
+		Registry:  Registry,
 	}
 }
 
@@ -418,8 +422,9 @@ func (s *Sender) inspectReceipt(
 		// The endorser lied to us
 		// it is still marking the operation as ready
 		// but the operation failed to execute
-		// TODO: Ban endorser
+		s.Registry.BanEndorser(op.Endorser, registry.PermanentBan)
 		s.logger.Error("inspector: endorser lied", "op", op.Hash(), "tx", receipt.TxHash.String())
+		return
 	}
 
 	// If the operation was successful, we should check if we got paid
@@ -495,7 +500,7 @@ func (s *Sender) inspectReceipt(
 	}
 
 	// The endorser lied to us
-	// TODO: Ban endorser
+	s.Registry.BanEndorser(op.Endorser, registry.PermanentBan)
 }
 
 func (s *Sender) balanceOf(ctx context.Context, token common.Address, blockNum *big.Int) (*big.Int, error) {

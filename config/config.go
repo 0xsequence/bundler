@@ -19,12 +19,14 @@ type Config struct {
 
 	Logging LoggingConfig `toml:"logging"`
 
-	NetworkConfig       NetworkConfig        `toml:"network"`
-	MempoolConfig       MempoolConfig        `toml:"mempool"`
-	SendersConfig       SendersConfig        `toml:"senders"`
-	CollectorConfig     CollectorConfig      `toml:"collector"`
-	PrunerConfig        PrunerConfig         `toml:"pruner"`
-	ArchiveConfig       ArchiveConfig        `toml:"archive"`
+	NetworkConfig   NetworkConfig   `toml:"network"`
+	MempoolConfig   MempoolConfig   `toml:"mempool"`
+	SendersConfig   SendersConfig   `toml:"senders"`
+	CollectorConfig CollectorConfig `toml:"collector"`
+	PrunerConfig    PrunerConfig    `toml:"pruner"`
+	ArchiveConfig   ArchiveConfig   `toml:"archive"`
+	RegistryConfig  RegistryConfig  `toml:"endorser_registry"`
+
 	LinearCalldataModel *LinearCalldataModel `toml:"linear_calldata_model"`
 
 	BootNodeAddrs []multiaddr.Multiaddr `toml:"-"`
@@ -97,6 +99,20 @@ type PriceReference struct {
 type UniswapV2Reference struct {
 	Pool      string `toml:"pool"`
 	BaseToken string `toml:"base_token"`
+}
+
+type RegistryConfig struct {
+	AllowUnusable  bool    `toml:"allow_unusable"`
+	MinReputation  float64 `toml:"min_reputation"`
+	TempBanSeconds int     `toml:"temp_ban_duration"`
+
+	Sources []RegistrySource `toml:"sources"`
+	Trusted []string         `toml:"trusted"`
+}
+
+type RegistrySource struct {
+	Weight  float64 `toml:"weight"`
+	Address string  `toml:"source"`
 }
 
 func NewFromFile(file string, env string, cfg *Config) error {

@@ -17,6 +17,7 @@ import (
 	"github.com/0xsequence/bundler/ipfs"
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/p2p"
+	"github.com/0xsequence/bundler/registry"
 	"github.com/0xsequence/bundler/rpc"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/go-chi/httplog/v2"
@@ -33,6 +34,7 @@ type Node struct {
 	Archive   *bundler.Archive
 	Ingress   *bundler.Ingress
 	Collector *collector.Collector
+	Registry  registry.Interface
 
 	ctx       context.Context
 	ctxStopFn context.CancelFunc
@@ -121,6 +123,12 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		calldataModel = calldata.DefaultModel()
 	}
 
+	// Endorser registry
+	registry, err := registry.NewRegistry(&cfg.RegistryConfig, provider, logger)
+	if err != nil {
+		return nil, err
+	}
+
 	// Mempool
 	mempool, err := mempool.NewMempool(&cfg.MempoolConfig, logger, endorser, host, collector, ipfs, calldataModel)
 	if err != nil {
@@ -134,7 +142,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	archive := bundler.NewArchive(&cfg.ArchiveConfig, host, logger, ipfs, mempool)
 
 	// RPC
-	rpc, err := rpc.NewRPC(cfg, logger, host, mempool, archive, provider, collector, endorser, ipfs, calldataModel)
+	rpc, err := rpc.NewRPC(cfg, logger, host, mempool, archive, provider, collector, endorser, ipfs, calldataModel, registry)
 	if err != nil {
 		return nil, err
 	}
@@ -151,6 +159,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		Archive:   archive,
 		Ingress:   ingress,
 		Collector: collector,
+		Registry:  registry,
 	}
 
 	return server, nil

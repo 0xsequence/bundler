@@ -197,7 +197,7 @@ func (e *Endorser) isOperationReadyCall(ctx context.Context, op *types.Operation
 		return nil, fmt.Errorf("unable to parse result: %w", err)
 	}
 
-	// NOTICE: Untruted context operations should be handled
+	// NOTICE: Untrusted context operations should be handled
 	// by the debugger, but if it's not available we still handle
 	// them, we just mark them as wildcard only.
 	if op.HasUntrustedContext {
