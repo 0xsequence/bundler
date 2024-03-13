@@ -20,7 +20,13 @@ const (
 	PermanentBan BanType = BanType(PermanentBanned)
 )
 
+type KnownEndorser struct {
+	Address common.Address
+	Status  EndorserStatus
+}
+
 type Interface interface {
+	KnownEndorsers() []*KnownEndorser
 	TrustEndorser(endorser common.Address)
 	IsAcceptedEndorser(endorser common.Address) bool
 	StatusForEndorser(endorser common.Address) EndorserStatus

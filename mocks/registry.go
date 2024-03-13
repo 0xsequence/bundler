@@ -24,6 +24,10 @@ type MockRegistry struct {
 	mock.Mock
 }
 
+func (m *MockRegistry) KnownEndorsers() []*registry.KnownEndorser {
+	return m.Called().Get(0).([]*registry.KnownEndorser)
+}
+
 func (m *MockRegistry) BanEndorser(endorser common.Address, banType registry.BanType) {
 	m.Called(endorser, banType)
 }

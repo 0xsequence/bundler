@@ -225,4 +225,22 @@ func (r *Registry) IsAcceptedEndorser(endorser common.Address) bool {
 	return s == AcceptedEndorser || s == TrustedEndorser
 }
 
+func (r *Registry) KnownEndorsers() []*KnownEndorser {
+	r.lock.RLock()
+	defer r.lock.RUnlock()
+
+	endorsers := make([]*KnownEndorser, len(r.knownEndorsers))
+
+	var i int
+	for addr, status := range r.knownEndorsers {
+		endorsers[i] = &KnownEndorser{
+			Address: addr,
+			Status:  status,
+		}
+		i++
+	}
+
+	return endorsers
+}
+
 var _ Interface = &Registry{}

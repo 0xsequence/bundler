@@ -2,36 +2,55 @@ package admin
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
 	"github.com/0xsequence/bundler/ipfs"
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/proto"
+	"github.com/0xsequence/bundler/registry"
 	"github.com/0xsequence/bundler/types"
+	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/httplog/v2"
 )
 
 type Admin struct {
 	logger *httplog.Logger
 
-	Ipfs    ipfs.Interface
-	Mempool mempool.Interface
+	Ipfs     ipfs.Interface
+	Mempool  mempool.Interface
+	Registry registry.Interface
 }
 
-func NewAdmin(logger *httplog.Logger, ipfs ipfs.Interface, mempool mempool.Interface) *Admin {
+func NewAdmin(logger *httplog.Logger, ipfs ipfs.Interface, mempool mempool.Interface, registry registry.Interface) *Admin {
 	return &Admin{
-		logger:  logger,
-		Ipfs:    ipfs,
-		Mempool: mempool,
+		logger:   logger,
+		Ipfs:     ipfs,
+		Mempool:  mempool,
+		Registry: registry,
 	}
 }
 
 func (a Admin) BanEndorser(ctx context.Context, endorser string, duration int) error {
-	panic("unimplemented")
+	if !common.IsHexAddress(endorser) {
+		return fmt.Errorf("invalid endorser address")
+	}
+
+	a.Registry.BanEndorser(common.HexToAddress(endorser), registry.PermanentBan)
+	return nil
 }
 
 func (a Admin) BannedEndorsers(ctx context.Context) ([]string, error) {
-	panic("unimplemented")
+	allEndorsers := a.Registry.KnownEndorsers()
+	bannedEndorsers := make([]string, 0, len(allEndorsers))
+
+	for _, endorser := range allEndorsers {
+		if endorser.Status == registry.PermanentBanned {
+			bannedEndorsers = append(bannedEndorsers, endorser.Address.Hex())
+		}
+	}
+
+	return bannedEndorsers, nil
 }
 
 func (a Admin) ReserveOperations(ctx context.Context, num int, skip int, strategy *proto.OperationStrategy) ([]*proto.Operation, error) {
