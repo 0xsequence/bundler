@@ -169,9 +169,9 @@ func (s *Sender) onRun(ctx context.Context) bool {
 	}
 
 	// If the endorser lied to us, we should discard the operation
-	// TODO: We should ban the endorser too
 	if !res.Paid {
 		if res.Lied {
+			s.Registry.BanEndorser(op.Endorser, registry.PermanentBan)
 			s.logger.Warn("sender: endorser lied", "op", opDigest, "endorser", op.Endorser, "innerOk", res.Meta.InnerOk, "innerPaid", res.Meta.InnerPaid.String(), "innerExpected", res.Meta.InnerExpected.String())
 		} else {
 			s.logger.Info("sender: stale operation", "op", opDigest)

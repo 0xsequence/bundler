@@ -344,6 +344,7 @@ func TestSimulatePaidNotPaidAndLied(t *testing.T) {
 		Return(nil).Once()
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{}, nil).Maybe()
+	mockRegistry.On("BanEndorser", mock.Anything, mock.Anything).Return().Once()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -352,8 +353,7 @@ func TestSimulatePaidNotPaidAndLied(t *testing.T) {
 
 	<-done
 
-	// TODO: Test that endorser is banned
-
+	mockRegistry.AssertExpectations(t)
 	mockWallet.AssertExpectations(t)
 	mockMempool.AssertExpectations(t)
 	mockValidator.AssertExpectations(t)
