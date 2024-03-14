@@ -115,7 +115,7 @@ type RegistryConfig struct {
 
 type RegistrySource struct {
 	Weight  float64 `toml:"weight"`
-	Address string  `toml:"source"`
+	Address string  `toml:"address"`
 }
 
 func NewFromFile(file string, env string, cfg *Config) error {

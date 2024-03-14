@@ -11,6 +11,14 @@ boot_nodes = [
   "/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
 ]
 
+[endorser_registry]
+  MinReputation = 1
+  TempBanSeconds = 86400
+
+  [[endorser_registry.sources]]
+    Weight = 1
+    Address = "0x95C4D1d59ADa7361192dA8208dA0D63e29DE250f"
+
 [collector]
   min_priority_fee = 1000000000
   priority_fee_mul = 1

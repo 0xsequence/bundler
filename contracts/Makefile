@@ -1,7 +1,7 @@
 .PHONY: all
 
 all:
-	forge build --via-ir --evm-version paris --optimize --optimizer-runs 1
+	forge build --evm-version paris --optimize --optimizer-runs 1
 	mkdir -p gen/solabis
 	(rm -r gen/solabis/* || true)
 	mkdir -p gen/solabis/abivalidator
