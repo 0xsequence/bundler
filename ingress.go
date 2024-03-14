@@ -31,7 +31,13 @@ type Ingress struct {
 	Collector collector.Interface
 }
 
-func NewIngress(cfg *config.MempoolConfig, logger *httplog.Logger, mempool mempool.Interface, collector collector.Interface, host p2p.Interface) *Ingress {
+func NewIngress(
+	cfg *config.MempoolConfig,
+	logger *httplog.Logger,
+	mempool mempool.Interface,
+	collector collector.Interface,
+	host p2p.Interface,
+) *Ingress {
 	return &Ingress{
 		lock:      sync.Mutex{},
 		buffer:    make(chan *types.Operation, cfg.IngressSize),
@@ -49,7 +55,7 @@ func (i *Ingress) InBuffer() int {
 	return len(i.buffer)
 }
 
-func (i *Ingress) registerHanler() {
+func (i *Ingress) registerHandler() {
 	if i.handlerRegistered {
 		return
 	}
@@ -114,7 +120,7 @@ func (i *Ingress) Add(op *types.Operation) error {
 }
 
 func (i *Ingress) Run(ctx context.Context) {
-	i.registerHanler()
+	i.registerHandler()
 
 	for {
 		select {

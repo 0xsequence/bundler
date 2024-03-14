@@ -15,6 +15,7 @@ import (
 	"github.com/0xsequence/bundler/mempool/partitioner"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
+	"github.com/0xsequence/bundler/registry"
 	"github.com/0xsequence/bundler/types"
 	"github.com/go-chi/httplog/v2"
 )
@@ -27,6 +28,7 @@ type Mempool struct {
 	Collector     collector.Interface
 	Endorser      endorser.Interface
 	CalldataModel calldata.CostModel
+	Registry      registry.Interface
 
 	MaxSize int
 
@@ -47,6 +49,7 @@ func NewMempool(
 	collector collector.Interface,
 	ipfs ipfs.Interface,
 	calldataModel calldata.CostModel,
+	registry registry.Interface,
 ) (*Mempool, error) {
 	if cfg.Size <= 1 {
 		return nil, fmt.Errorf("mempool: size must be greater than 1")
@@ -72,6 +75,7 @@ func NewMempool(
 		Endorser:      endorser,
 		Collector:     collector,
 		CalldataModel: calldataModel,
+		Registry:      registry,
 
 		MaxSize: int(cfg.Size),
 
@@ -129,7 +133,6 @@ func (mp *Mempool) AddOperation(ctx context.Context, op *types.Operation, forceI
 		return err
 	}
 
-	// NOTICE: Adding operations in sync does not respect the max size
 	err = mp.tryPromoteOperation(ctx, op)
 
 	// If it fails, we need to mark the operation
@@ -308,6 +311,12 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 	// Check the collector (fees)
 	if err := mp.Collector.ValidatePayment(op); err != nil {
 		return fmt.Errorf("payment validation failed: %w", err)
+	}
+
+	// Check if the endorser is accepted by the registry
+	// the registry can also quickly reject it if it doesn't
+	if !mp.Registry.IsAcceptedEndorser(op.Endorser) {
+		return fmt.Errorf("ingress: endorser not accepted")
 	}
 
 	// If the operation is ready

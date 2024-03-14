@@ -106,7 +106,7 @@ func NewRPC(
 		))
 	}
 
-	pruner := bundler.NewPruner(cfg.PrunerConfig, mempool, endorser, logger)
+	pruner := bundler.NewPruner(cfg.PrunerConfig, logger, mempool, endorser, registry)
 
 	admin := admin.NewAdmin(logger, ipfs, mempool, registry)
 

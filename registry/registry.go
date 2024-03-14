@@ -171,6 +171,9 @@ func (r *Registry) attemptToDiscoverEndorser(endorser common.Address) {
 
 		r.logger.Info("discovered new endorser", "endorser", endorser.String(), "reputation", totalWeight)
 		r.knownEndorsers[endorser] = AcceptedEndorser
+	} else {
+		// Endorser still unknown, we don't need to do anything
+		r.logger.Info("unable to discover endorser", "endorser", endorser.String(), "reputation", totalWeight)
 	}
 }
 
