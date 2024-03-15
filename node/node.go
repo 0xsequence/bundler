@@ -79,8 +79,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 
 	// Debugger
-	// TODO: More options
-	debugger, err := debugger.NewAnvilDebugger(context.Background(), logger, cfg.NetworkConfig.RpcUrl)
+	debugger, err := debugger.NewDebugger(cfg.DebuggerConfig, context.Background(), logger, cfg.NetworkConfig.RpcUrl)
 	if err != nil {
 		return nil, err
 	}

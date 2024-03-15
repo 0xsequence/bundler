@@ -26,6 +26,7 @@ type Config struct {
 	PrunerConfig    PrunerConfig    `toml:"pruner"`
 	ArchiveConfig   ArchiveConfig   `toml:"archive"`
 	RegistryConfig  RegistryConfig  `toml:"endorser_registry"`
+	DebuggerConfig  DebuggerConfig  `toml:"debugger"`
 
 	LinearCalldataModel *LinearCalldataModel `toml:"linear_calldata_model"`
 
@@ -111,6 +112,10 @@ type RegistryConfig struct {
 
 	Sources []RegistrySource `toml:"sources"`
 	Trusted []string         `toml:"trusted"`
+}
+
+type DebuggerConfig struct {
+	Mode string `toml:"mode"`
 }
 
 type RegistrySource struct {

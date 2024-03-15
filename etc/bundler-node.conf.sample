@@ -11,6 +11,9 @@ boot_nodes = [
   "/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
 ]
 
+[debugger]
+  mode = "none" # options: anvil, nonce, native (tbd)
+
 [endorser_registry]
   MinReputation = 1
   TempBanSeconds = 86400
