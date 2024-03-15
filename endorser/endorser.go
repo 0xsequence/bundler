@@ -50,20 +50,7 @@ func NewEndorser(logger *httplog.Logger, provider *ethrpc.Provider, debugger deb
 
 func (e *Endorser) buildIsOperationReadyCalldata(op *types.Operation) (common.Address, string, error) {
 	endorser := ethcontract.NewContractCaller(op.Endorser, *e.parsedEndorserABI, e.Provider)
-
-	calldata, err := endorser.Encode(
-		"isOperationReady",
-		op.Entrypoint,
-		op.Data,
-		op.EndorserCallData,
-		op.GasLimit,
-		op.MaxFeePerGas,
-		op.MaxPriorityFeePerGas,
-		op.FeeToken,
-		op.FeeScalingFactor,
-		op.FeeNormalizationFactor,
-		op.HasUntrustedContext,
-	)
+	calldata, err := endorser.Encode("isOperationReady", &op.IEndorserOperation)
 
 	if err != nil {
 		return common.Address{}, "", err
@@ -97,28 +84,28 @@ func (e *Endorser) parseIsOperationReadyRes(res string) (*EndorserResult, error)
 
 	// Second element must be a struct
 	dec2, ok := dec1[1].(struct {
-		Basefee           bool     "json:\"basefee\""
-		Blobbasefee       bool     "json:\"blobbasefee\""
-		Chainid           bool     "json:\"chainid\""
-		Coinbase          bool     "json:\"coinbase\""
-		Difficulty        bool     "json:\"difficulty\""
-		GasLimit          bool     "json:\"gasLimit\""
-		Number            bool     "json:\"number\""
-		Timestamp         bool     "json:\"timestamp\""
-		TxOrigin          bool     "json:\"txOrigin\""
-		TxGasPrice        bool     "json:\"txGasPrice\""
-		MaxBlockNumber    *big.Int "json:\"maxBlockNumber\""
-		MaxBlockTimestamp *big.Int "json:\"maxBlockTimestamp\""
+		BaseFee           bool     `json:"baseFee"`
+		BlobBaseFee       bool     `json:"blobBaseFee"`
+		ChainId           bool     `json:"chainId"`
+		CoinBase          bool     `json:"coinBase"`
+		Difficulty        bool     `json:"difficulty"`
+		GasLimit          bool     `json:"gasLimit"`
+		Number            bool     `json:"number"`
+		Timestamp         bool     `json:"timestamp"`
+		TxOrigin          bool     `json:"txOrigin"`
+		TxGasPrice        bool     `json:"txGasPrice"`
+		MaxBlockNumber    *big.Int `json:"maxBlockNumber"`
+		MaxBlockTimestamp *big.Int `json:"maxBlockTimestamp"`
 	})
 	if !ok {
 		return nil, fmt.Errorf("invalid block dependency")
 	}
 
 	endorserResult.GlobalDependency = abiendorser.IEndorserGlobalDependency{
-		BaseFee:           dec2.Basefee,
-		BlobBaseFee:       dec2.Blobbasefee,
-		ChainId:           dec2.Chainid,
-		CoinBase:          dec2.Coinbase,
+		BaseFee:           dec2.BaseFee,
+		BlobBaseFee:       dec2.BlobBaseFee,
+		ChainId:           dec2.ChainId,
+		CoinBase:          dec2.CoinBase,
 		Difficulty:        dec2.Difficulty,
 		GasLimit:          dec2.GasLimit,
 		Number:            dec2.Number,
@@ -245,7 +232,7 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 }
 
 func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*EndorserResult, error) {
-	if e.Debugger != nil && (op.HasUntrustedContext || true) {
+	if e.Debugger != nil && op.HasUntrustedContext {
 		// TODO: Sometimes the endorser reverts instead of failing,
 		// we should have a different sort of error for these, or else
 		// we will have to verify them twice.
