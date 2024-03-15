@@ -34,7 +34,7 @@ boot_nodes = [
 [network]
   ipfs_url = "http://localhost:5001"
   rpc_url = "https://nodes.sequence.app/arbitrum-nova"
-  validator_contract = "0x6A75f326e3F467868677D61F4247c8c3d151B2cB"
+  validator_contract = "0x3D47d212892636984282b10dbDcB545Aec918508"
 
 [mempool]
   max_size = 1000

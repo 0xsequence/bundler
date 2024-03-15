@@ -517,7 +517,7 @@ func TestSendAndBanEndorserFailedTx(t *testing.T) {
 
 	waitFn = func(context.Context) (*ethtypes.Receipt, error) {
 		return &ethtypes.Receipt{
-			Status:            1,
+			Status:            0,
 			TxHash:            common.HexToHash("0x1234"),
 			BlockNumber:       big.NewInt(100),
 			EffectiveGasPrice: big.NewInt(213),
@@ -623,7 +623,7 @@ func TestSendAndBanEndorserLowPayment(t *testing.T) {
 
 	waitFn = func(context.Context) (*ethtypes.Receipt, error) {
 		return &ethtypes.Receipt{
-			Status:            0,
+			Status:            1,
 			TxHash:            common.HexToHash("0x1234"),
 			BlockNumber:       big.NewInt(100),
 			EffectiveGasPrice: big.NewInt(213),

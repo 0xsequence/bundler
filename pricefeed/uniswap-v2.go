@@ -12,7 +12,6 @@ import (
 	"github.com/0xsequence/ethkit/ethcontract"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/go-chi/httplog/v2"
 )
 
@@ -72,7 +71,6 @@ func (f *UniswapV2Feed) fetchTokens() (token0, token1 common.Address, err error)
 	var result2 []interface{}
 	err = f.contract.Call(nil, &result2, "token1")
 	if err != nil {
-		spew.Dump(err)
 		return common.Address{}, common.Address{}, err
 	}
 

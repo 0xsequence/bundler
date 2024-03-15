@@ -411,7 +411,7 @@ func (s *Sender) inspectReceipt(
 	// If the transaction wasn't successful, two things may have happened:
 	// - the operation was executed by someone else
 	// - the endorser "lied" to us, and the simulation was wrong
-	if receipt.Status == 1 {
+	if receipt.Status == 0 {
 		isReady, err := s.isOperationReady(ctx, op)
 		if err != nil || !isReady {
 			s.logger.Warn("inspector: likely operation collision", "op", op.Hash(), "tx", receipt.TxHash.String())
@@ -449,6 +449,11 @@ func (s *Sender) inspectReceipt(
 	if err != nil {
 		// We can't check the balance, so we can't do anything
 		s.logger.Warn("inspector: unable to check next balance", "op", op.Hash(), "tx", receipt.TxHash.String(), "error", err)
+		return
+	}
+
+	if receipt.EffectiveGasPrice == nil {
+		s.logger.Warn("inspector: unable to check effective gas price", "op", op.Hash(), "tx", receipt.TxHash.String())
 		return
 	}
 
