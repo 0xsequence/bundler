@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/0xsequence/ethkit/go-ethereum/common"
+	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
 	"github.com/0xsequence/ethkit/go-ethereum/rpc"
 	"github.com/go-chi/httplog/v2"
 	"github.com/prometheus/client_golang/prometheus"
@@ -231,7 +232,13 @@ func (a *AnvilDebugger) resetLocked() error {
 	return nil
 }
 
-func (a *AnvilDebugger) tryDebugTraceCall(ctx context.Context, args *DebugCallArgs) (*TransactionTrace, error) {
+func (a *AnvilDebugger) CodeAt(ctx context.Context, addr common.Address) ([]byte, error) {
+	var result hexutil.Bytes
+	err := a.client.Call(&result, "eth_getCode", addr.Hex(), "latest")
+	return result, err
+}
+
+func (a *AnvilDebugger) tryDebugTraceCall(ctx context.Context, args *DebugCallArgs, contextArgs *DebugContextArgs) (*TransactionTrace, error) {
 	if err := a.resetLocked(); err != nil {
 		return nil, err
 	}
@@ -246,6 +253,19 @@ func (a *AnvilDebugger) tryDebugTraceCall(ctx context.Context, args *DebugCallAr
 	ctx2, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
+	start_context := time.Now()
+
+	if (contextArgs != nil) && (len(contextArgs.CodeReplacements) > 0) {
+		for _, cr := range contextArgs.CodeReplacements {
+			a.performSetCode(ctx, cr.Address, cr.Code)
+		}
+	}
+	if (contextArgs != nil) && (len(contextArgs.SlotReplacements) > 0) {
+		for _, sr := range contextArgs.SlotReplacements {
+			a.performSetStorageAt(ctx, sr.Address, sr.Slot, sr.Value)
+		}
+	}
+
 	start := time.Now()
 	err := a.client.CallContext(ctx2, res, "debug_traceCall", params)
 
@@ -257,6 +277,7 @@ func (a *AnvilDebugger) tryDebugTraceCall(ctx context.Context, args *DebugCallAr
 	}
 
 	a.logger.Debug("anvil debug trace call", "duration", time.Since(start))
+	a.logger.Debug("anvil debug trace call with context", "duration", time.Since(start_context))
 
 	res.From = args.From
 
@@ -282,6 +303,10 @@ func (a *AnvilDebugger) tryStartUnlocked() error {
 }
 
 func (a *AnvilDebugger) DebugTraceCall(ctx context.Context, args *DebugCallArgs) (*TransactionTrace, error) {
+	return a.DebugTraceCallContext(ctx, args, nil)
+}
+
+func (a *AnvilDebugger) DebugTraceCallContext(ctx context.Context, args *DebugCallArgs, contextArgs *DebugContextArgs) (*TransactionTrace, error) {
 	a.metrics.debugTraceCallOperations.Inc()
 	start := time.Now()
 
@@ -300,7 +325,7 @@ func (a *AnvilDebugger) DebugTraceCall(ctx context.Context, args *DebugCallArgs)
 	errs := make([]error, 0, 3)
 
 	for i := 0; i < 3; i++ {
-		res, err := a.tryDebugTraceCall(ctx, args)
+		res, err := a.tryDebugTraceCall(ctx, args, contextArgs)
 		if err == nil {
 			a.metrics.debugTraceCallSuccesses.Inc()
 			a.metrics.debugCallDuration.Observe(float64(time.Since(start)))
@@ -315,4 +340,66 @@ func (a *AnvilDebugger) DebugTraceCall(ctx context.Context, args *DebugCallArgs)
 
 	a.metrics.debugTraceCallFailures.Inc()
 	return nil, fmt.Errorf("failed to debug trace call: %v", errs)
+}
+
+func (a *AnvilDebugger) performSetCode(ctx context.Context, addr common.Address, code []byte) error {
+	hexCode := "0x" + common.Bytes2Hex(code)
+
+	ctx2, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	err := a.client.CallContext(ctx2, nil, "anvil_setCode", addr.Hex(), hexCode)
+
+	if err != nil {
+		return err
+	}
+
+	a.logger.Debug("anvil set code", "duration", time.Since(start))
+
+	return nil
+}
+
+func (a *AnvilDebugger) SetCode(ctx context.Context, addr common.Address, code []byte) error {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
+	if a.cancel == nil {
+		err := a.tryStartUnlocked()
+		if err != nil {
+			return err
+		}
+	}
+
+	return a.performSetCode(ctx, addr, code)
+}
+
+func (a *AnvilDebugger) performSetStorageAt(ctx context.Context, addr common.Address, slot common.Hash, value common.Hash) error {
+	ctx2, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	err := a.client.CallContext(ctx2, nil, "anvil_setStorageAt", addr.Hex(), slot.Hex(), value.Hex())
+
+	if err != nil {
+		return err
+	}
+
+	a.logger.Debug("anvil set storage", "duration", time.Since(start))
+
+	return nil
+}
+
+func (a *AnvilDebugger) SetStorageAt(ctx context.Context, addr common.Address, slot common.Hash, value common.Hash) error {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
+	if a.cancel == nil {
+		err := a.tryStartUnlocked()
+		if err != nil {
+			return err
+		}
+	}
+
+	return a.performSetStorageAt(ctx, addr, slot, value)
 }

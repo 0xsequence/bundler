@@ -1,0 +1,85 @@
+package debugger_test
+
+import (
+	"context"
+	"encoding/hex"
+	"os/exec"
+	"testing"
+
+	"github.com/0xsequence/bundler/debugger"
+	"github.com/0xsequence/ethkit/go-ethereum/common"
+	"github.com/go-chi/httplog/v2"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestDebugWithContext(t *testing.T) {
+	// Run new anvil instance as the RPC to clone
+	cmd := exec.Command("anvil")
+	err := cmd.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		cmd.Process.Kill()
+	}()
+
+	// Test set up
+	ctx := context.Background()
+	level := httplog.LevelByName("DEBUG")
+	logger := httplog.NewLogger("", httplog.Options{
+		LogLevel: level,
+	})
+	rpcUrl := "http://localhost:8545"
+
+	anvil, err := debugger.NewAnvilDebugger(ctx, logger, nil, rpcUrl)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	codeAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")
+	// MockERC20
+	code := "6080604052348015600f57600080fd5b506004361060285760003560e01c806370a0823114602d575b600080fd5b605360383660046065565b6001600160a01b031660009081526020819052604090205490565b60405190815260200160405180910390f35b600060208284031215607657600080fd5b81356001600160a01b0381168114608c57600080fd5b939250505056fea26469706673582212204a2495d07316942a5b44bf5c22ecae8e15845ab84942d1ba514dfd2afdf6d1ba64736f6c63430008180033"
+	codeBytes, err := hex.DecodeString(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// keccak256(abi.encode(address(0), bytes32(0)))
+	slot := common.HexToHash("0xad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5")
+	slotValue := common.HexToHash("0x100")
+	contextArgs := &debugger.DebugContextArgs{
+		CodeReplacements: []debugger.CodeReplacement{
+			{
+				Address: codeAddr,
+				Code:    codeBytes,
+			},
+		},
+		SlotReplacements: []debugger.SlotReplacement{
+			{
+				Address: codeAddr,
+				Slot:    slot,
+				Value:   slotValue,
+			},
+		},
+	}
+
+	// MockERC20.balanceOf(address(0))
+	encodedCallData := "0x70a082310000000000000000000000000000000000000000000000000000000000000000"
+	args := &debugger.DebugCallArgs{
+		From: common.Address{},
+		To:   codeAddr,
+		Data: common.FromHex(encodedCallData),
+	}
+
+	// Call it
+	result, err := anvil.DebugTraceCallContext(ctx, args, contextArgs)
+
+	// Assert result
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result == nil {
+		t.Fatal("expected result to be non-nil")
+	}
+	assert.False(t, result.Failed)
+	assert.Equal(t, slotValue.String(), "0x" + result.ReturnValue)
+}

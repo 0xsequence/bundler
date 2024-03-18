@@ -29,6 +29,24 @@ type TransactionTrace struct {
 	StructLogs  []LogEntry     `json:"structLogs"`
 }
 
+type CodeReplacement struct {
+	Address common.Address
+	Code    []byte
+}
+
+type SlotReplacement struct {
+	Address common.Address
+	Slot    common.Hash
+	Value   common.Hash
+}
+
+type DebugContextArgs struct {
+	CodeReplacements []CodeReplacement
+	SlotReplacements []SlotReplacement
+}
+
 type Interface interface {
+	CodeAt(ctx context.Context, addr common.Address) ([]byte, error)
 	DebugTraceCall(ctx context.Context, args *DebugCallArgs) (*TransactionTrace, error)
+	DebugTraceCallContext(ctx context.Context, args *DebugCallArgs, contextArgs *DebugContextArgs) (*TransactionTrace, error)
 }
