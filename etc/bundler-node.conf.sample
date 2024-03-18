@@ -9,7 +9,7 @@ boot_nodes = [
   "/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
   "/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
   "/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
-  "/ip4/24.199.127.126/tcp/4000/p2p/16Uiu2HAm6gVjaJuYC8tZd6LQecF5HEttFrsbVFZ2odsrbDxNxPeh"
+  "/ip4/24.199.127.126/tcp/4000/p2p/12D3KooWC4xKePNkVwHRzQ2vn1jjpvVtXsKWWmTGLLis2bgwPTSZ"
 ]
 
 [debugger]
