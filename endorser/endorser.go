@@ -52,6 +52,117 @@ func NewEndorser(logger *httplog.Logger, metrics prometheus.Registerer, provider
 	}
 }
 
+// SimulationSettings
+
+func (e *Endorser) parseSimulationSettingsRes(res string) ([]*SimulationSetting, error) {
+	resBytes := common.FromHex(res)
+
+	settingsResult := []*SimulationSetting{}
+
+	values, err := e.parsedEndorserABI.Methods["simulationSettings"].Outputs.Unpack(resBytes)
+	if err != nil {
+		return nil, fmt.Errorf("unable to unpack result: %w", err)
+	}
+
+	// Must be an array of structs
+	vals, ok := values[0].([]struct {
+		OldAddr common.Address "json:\"oldAddr\""
+		NewAddr common.Address "json:\"newAddr\""
+		Slots   []struct {
+			Slot  [32]byte "json:\"slot\""
+			Value [32]byte "json:\"value\""
+		} "json:\"slots\""
+	})
+	if !ok {
+		return nil, fmt.Errorf("invalid settings")
+	}
+
+	for _, val := range vals {
+		setting := &SimulationSetting{
+			OldAddr: val.OldAddr,
+			NewAddr: val.NewAddr,
+			Slots:   make([]SlotReplacement, 0, len(val.Slots)),
+		}
+		for _, slot := range val.Slots {
+			setting.Slots = append(setting.Slots, SlotReplacement{
+				Slot:  slot.Slot,
+				Value: slot.Value,
+			})
+		}
+		settingsResult = append(settingsResult, setting)
+	}
+
+	return settingsResult, nil
+}
+
+func (e *Endorser) simulationSettingsCall(ctx context.Context, endorserAddr common.Address) ([]*SimulationSetting, error) {
+	endorser := ethcontract.NewContractCaller(endorserAddr, *e.parsedEndorserABI, e.Provider)
+	calldata, err := endorser.Encode("simulationSettings")
+
+	if err != nil {
+		return nil, err
+	}
+
+	endorserCall := &struct {
+		To   common.Address `json:"to"`
+		Data string         `json:"data"`
+	}{
+		To:   endorserAddr,
+		Data: "0x" + common.Bytes2Hex(calldata),
+	}
+
+	var res string
+	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall, nil, nil)
+	_, err = e.Provider.Do(ctx, rpcCall.Into(&res))
+	if err != nil {
+		return nil, err
+	}
+
+	settingsResult, err := e.parseSimulationSettingsRes(res)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse result: %w", err)
+	}
+
+	return settingsResult, nil
+}
+
+func (e *Endorser) SimulationSettings(ctx context.Context, endorserAddr common.Address) ([]*SimulationSetting, error) {
+	return e.simulationSettingsCall(ctx, endorserAddr)
+}
+
+func (e *Endorser) debugContextArgs(ctx context.Context, endorserAddr common.Address) (*debugger.DebugContextArgs, error) {
+	settings, err := e.simulationSettingsCall(ctx, endorserAddr)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get simulation settings: %w", err)
+	}
+	contextArgs := &debugger.DebugContextArgs{
+		CodeReplacements: make([]debugger.CodeReplacement, 0, len(settings)),
+		SlotReplacements: make([]debugger.SlotReplacement, 0, len(settings)),
+	}
+	for _, setting := range settings {
+		if (setting.OldAddr != setting.NewAddr) {
+			replacementCode, err := e.Debugger.CodeAt(ctx, setting.OldAddr)
+			if err != nil {
+				return nil, fmt.Errorf("unable to read code for %v: %w", setting.OldAddr, err)
+			}
+			contextArgs.CodeReplacements = append(contextArgs.CodeReplacements, debugger.CodeReplacement{
+				Address: setting.NewAddr,
+				Code:    replacementCode,
+			})
+		}
+		for _, slot := range setting.Slots {
+			contextArgs.SlotReplacements = append(contextArgs.SlotReplacements, debugger.SlotReplacement{
+				Address: setting.NewAddr,
+				Slot:    slot.Slot,
+				Value:   slot.Value,
+			})
+		}
+	}
+	return contextArgs, nil
+}
+
+// IsOperationReady
+
 func (e *Endorser) buildIsOperationReadyCalldata(op *types.Operation) (common.Address, string, error) {
 	endorser := ethcontract.NewContractCaller(op.Endorser, *e.parsedEndorserABI, e.Provider)
 	calldata, err := endorser.Encode("isOperationReady", &op.IEndorserOperation)
@@ -223,6 +334,11 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 		return nil, fmt.Errorf("debugger is not available")
 	}
 
+	debugContextArgs, err := e.debugContextArgs(ctx, op.Endorser)
+	if err != nil {
+		return nil, fmt.Errorf("unable to build debug context args: %w", err)
+	}
+
 	to, data, err := e.buildIsOperationReadyCalldata(op)
 	if err != nil {
 		return nil, fmt.Errorf("unable to build calldata: %w", err)
@@ -236,7 +352,7 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 		Data: common.FromHex(data),
 	}
 
-	trace, err := e.Debugger.DebugTraceCall(ctx, debugCallArgs)
+	trace, err := e.Debugger.DebugTraceCallContext(ctx, debugCallArgs, debugContextArgs)
 	if err != nil {
 		return nil, fmt.Errorf("unable to trace call: %w", err)
 	}
@@ -272,7 +388,7 @@ func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*
 		}
 
 		e.metrics.isOperationReadyDebuggerFailed.Inc()
-		e.logger.Warn("unable to use debugger, falling back to eth_call", "error", err)
+		e.logger.Warn("unable to use debugger, falling back to eth_call and ignoring simulation settings", "error", err)
 	}
 
 	return e.isOperationReadyCall(ctx, op)
