@@ -13,28 +13,29 @@ import (
 )
 
 func TestDebugWithContext(t *testing.T) {
-	// Run new anvil instance as the RPC to clone
-	cmd := exec.Command("anvil")
-	err := cmd.Start()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		cmd.Process.Kill()
-	}()
-
 	// Test set up
 	ctx := context.Background()
 	level := httplog.LevelByName("DEBUG")
 	logger := httplog.NewLogger("", httplog.Options{
 		LogLevel: level,
 	})
-	rpcUrl := "http://localhost:8545"
+	rpcUrl := "http://localhost:8545" // Set below
 
 	anvil, err := debugger.NewAnvilDebugger(ctx, logger, nil, rpcUrl)
 	if err != nil {
+		// Anvil not available. Skip test
+		t.Skip(err)
+	}
+
+	// Run new anvil instance as the RPC to clone
+	cmd := exec.Command("anvil")
+	err = cmd.Start()
+	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		cmd.Process.Kill()
+	}()
 
 	codeAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")
 	// MockERC20
