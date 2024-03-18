@@ -20,6 +20,7 @@ import (
 	"github.com/0xsequence/bundler/registry"
 	"github.com/0xsequence/bundler/rpc"
 	"github.com/0xsequence/ethkit/ethrpc"
+	"github.com/0xsequence/ethkit/ethwallet"
 	"github.com/go-chi/httplog/v2"
 	"golang.org/x/sync/errgroup"
 )
@@ -87,8 +88,23 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	// Endorser
 	endorser := endorser.NewEndorser(logger, provider, debugger)
 
-	// wallet
-	wallet, err := rpc.SetupWallet(cfg.Mnemonic, 0, provider)
+	// Wallet
+	mnmonic := cfg.Mnemonic
+	if mnmonic == "" {
+		entropy, err := ethwallet.RandomEntropy(256)
+		if err != nil {
+			return nil, err
+		}
+
+		mnmonic, err = ethwallet.EntropyToMnemonic(entropy)
+		if err != nil {
+			return nil, err
+		}
+
+		logger.Info("=> no mnemonic provided, using temporal wallet")
+	}
+
+	wallet, err := rpc.SetupWallet(mnmonic, 0, provider)
 	if err != nil {
 		return nil, err
 	}
