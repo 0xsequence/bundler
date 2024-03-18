@@ -22,6 +22,7 @@ import (
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/ethwallet"
 	"github.com/go-chi/httplog/v2"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -72,6 +73,10 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		loggerOptions.TimeFieldFormat = time.RFC3339
 	}
 	logger := httplog.NewLogger("bundler", loggerOptions)
+
+	// Metrics
+	prom := prometheus.NewRegistry()
+	promPrefix := prometheus.WrapRegistererWithPrefix("bundler_", prom)
 
 	// Provider
 	provider, err := ethrpc.NewProvider(cfg.NetworkConfig.RpcUrl)
@@ -151,13 +156,13 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 
 	// Ingress
-	ingress := bundler.NewIngress(&cfg.MempoolConfig, logger, mempool, collector, host)
+	ingress := bundler.NewIngress(&cfg.MempoolConfig, logger, promPrefix, mempool, collector, host)
 
 	// Archive
 	archive := bundler.NewArchive(&cfg.ArchiveConfig, host, logger, ipfs, mempool)
 
 	// RPC
-	rpc, err := rpc.NewRPC(cfg, logger, host, mempool, archive, provider, collector, endorser, ipfs, calldataModel, registry)
+	rpc, err := rpc.NewRPC(cfg, logger, prom, host, mempool, archive, provider, collector, endorser, ipfs, calldataModel, registry)
 	if err != nil {
 		return nil, err
 	}

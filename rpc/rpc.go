@@ -28,13 +28,16 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/go-chi/httplog/v2"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type RPC struct {
-	Config *config.Config
-	Log    *httplog.Logger
-	Host   *p2p.Host
-	HTTP   *http.Server
+	Config  *config.Config
+	Log     *httplog.Logger
+	Host    *p2p.Host
+	HTTP    *http.Server
+	Metrics *prometheus.Registry
 
 	mempool       mempool.Interface
 	pruner        *bundler.Pruner
@@ -54,6 +57,7 @@ type RPC struct {
 func NewRPC(
 	cfg *config.Config,
 	logger *httplog.Logger,
+	metrics *prometheus.Registry,
 	host *p2p.Host,
 	mempool mempool.Interface,
 	archive *bundler.Archive,
@@ -123,6 +127,7 @@ func NewRPC(
 
 		Config:    cfg,
 		Log:       logger,
+		Metrics:   metrics,
 		Host:      host,
 		HTTP:      httpServer,
 		startTime: time.Now().UTC(),
@@ -228,6 +233,9 @@ func (s *RPC) handler() http.Handler {
 	r.Get("/favicon.ico", http.HandlerFunc(stubHandler("")))
 	r.Get("/status", s.statusPage)
 	r.Get("/peers", s.peersPage)
+
+	// Add prometheus metrics
+	r.Get("/metrics", promhttp.HandlerFor(s.Metrics, promhttp.HandlerOpts{Registry: s.Metrics}).ServeHTTP)
 
 	// Mount rpc endpoints
 	bundlerRPCHandler := proto.NewBundlerServer(s)
