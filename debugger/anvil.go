@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/0xsequence/ethkit/go-ethereum/common"
-	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
 	"github.com/0xsequence/ethkit/go-ethereum/rpc"
 	"github.com/go-chi/httplog/v2"
 	"github.com/prometheus/client_golang/prometheus"
@@ -230,12 +229,6 @@ func (a *AnvilDebugger) resetLocked() error {
 	}
 
 	return nil
-}
-
-func (a *AnvilDebugger) CodeAt(ctx context.Context, addr common.Address) ([]byte, error) {
-	var result hexutil.Bytes
-	err := a.client.Call(&result, "eth_getCode", addr.Hex(), "latest")
-	return result, err
 }
 
 func (a *AnvilDebugger) tryDebugTraceCall(ctx context.Context, args *DebugCallArgs, contextArgs *DebugContextArgs) (*TransactionTrace, error) {

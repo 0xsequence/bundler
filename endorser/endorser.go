@@ -141,7 +141,7 @@ func (e *Endorser) debugContextArgs(ctx context.Context, endorserAddr common.Add
 	}
 	for _, setting := range settings {
 		if (setting.OldAddr != setting.NewAddr) {
-			replacementCode, err := e.Debugger.CodeAt(ctx, setting.NewAddr)
+			replacementCode, err := e.Provider.CodeAt(ctx, setting.NewAddr, nil)
 			if err != nil {
 				return nil, fmt.Errorf("unable to read code for %v: %w", setting.OldAddr, err)
 			}

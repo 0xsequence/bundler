@@ -46,7 +46,6 @@ type DebugContextArgs struct {
 }
 
 type Interface interface {
-	CodeAt(ctx context.Context, addr common.Address) ([]byte, error)
 	DebugTraceCall(ctx context.Context, args *DebugCallArgs) (*TransactionTrace, error)
 	DebugTraceCallContext(ctx context.Context, args *DebugCallArgs, contextArgs *DebugContextArgs) (*TransactionTrace, error)
 }
