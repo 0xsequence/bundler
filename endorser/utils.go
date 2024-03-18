@@ -50,6 +50,11 @@ func (e *EndorserResult) SetCode(address common.Address, enabled bool) {
 func (e *EndorserResult) SetStorageSlot(address common.Address, slot [32]byte, enabled bool) {
 	dep := e.UseDependency(address)
 
+	if (dep.AllSlots || dep.Code) {
+		// Skip storage dependency when depending on all slots or code
+		return
+	}
+
 	if len(dep.Slots) == 0 {
 		dep.Slots = make([][32]byte, 0, 1)
 	}
