@@ -130,25 +130,30 @@ func (e *Endorser) SimulationSettings(ctx context.Context, endorserAddr common.A
 	return e.simulationSettingsCall(ctx, endorserAddr)
 }
 
-func (e *Endorser) debugContextArgs(ctx context.Context, endorserAddr common.Address) (*debugger.DebugContextArgs, error) {
+func (e *Endorser) debugContextArgs(ctx context.Context, endorserAddr common.Address) (common.Address, *debugger.DebugContextArgs, error) {
 	settings, err := e.simulationSettingsCall(ctx, endorserAddr)
 	if err != nil {
-		return nil, fmt.Errorf("unable to get simulation settings: %w", err)
+		return common.Address{}, nil, fmt.Errorf("unable to get simulation settings: %w", err)
 	}
 	contextArgs := &debugger.DebugContextArgs{
 		CodeReplacements: make([]debugger.CodeReplacement, 0, len(settings)),
 		SlotReplacements: make([]debugger.SlotReplacement, 0, len(settings)),
 	}
+	to := endorserAddr
 	for _, setting := range settings {
 		if (setting.OldAddr != setting.NewAddr) {
 			replacementCode, err := e.Provider.CodeAt(ctx, setting.NewAddr, nil)
 			if err != nil {
-				return nil, fmt.Errorf("unable to read code for %v: %w", setting.OldAddr, err)
+				return common.Address{}, nil, fmt.Errorf("unable to read code for %v: %w", setting.OldAddr, err)
 			}
 			contextArgs.CodeReplacements = append(contextArgs.CodeReplacements, debugger.CodeReplacement{
 				Address: setting.NewAddr,
 				Code:    replacementCode,
 			})
+			if (setting.OldAddr != endorserAddr) {
+				// Update the endorser location
+				to = setting.NewAddr
+			}
 		}
 		for _, slot := range setting.Slots {
 			contextArgs.SlotReplacements = append(contextArgs.SlotReplacements, debugger.SlotReplacement{
@@ -158,7 +163,7 @@ func (e *Endorser) debugContextArgs(ctx context.Context, endorserAddr common.Add
 			})
 		}
 	}
-	return contextArgs, nil
+	return to, contextArgs, nil
 }
 
 // IsOperationReady
@@ -334,14 +339,14 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 		return nil, fmt.Errorf("debugger is not available")
 	}
 
-	debugContextArgs, err := e.debugContextArgs(ctx, op.Endorser)
-	if err != nil {
-		return nil, fmt.Errorf("unable to build debug context args: %w", err)
-	}
-
 	to, data, err := e.buildIsOperationReadyCalldata(op)
 	if err != nil {
 		return nil, fmt.Errorf("unable to build calldata: %w", err)
+	}
+
+	to, debugContextArgs, err := e.debugContextArgs(ctx, to)
+	if err != nil {
+		return nil, fmt.Errorf("unable to build debug context args: %w", err)
 	}
 
 	// Use random caller
