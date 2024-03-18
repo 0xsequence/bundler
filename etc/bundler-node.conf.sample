@@ -9,6 +9,7 @@ boot_nodes = [
   "/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
   "/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
   "/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+  "/ip4/24.199.127.126/tcp/4000/p2p/16Uiu2HAm6gVjaJuYC8tZd6LQecF5HEttFrsbVFZ2odsrbDxNxPeh"
 ]
 
 [debugger]
@@ -23,14 +24,17 @@ boot_nodes = [
     Address = "0x95C4D1d59ADa7361192dA8208dA0D63e29DE250f"
 
 [collector]
-  min_priority_fee = 1000000000
-  priority_fee_mul = 1
+  min_priority_fee = 2500000
 
   [[collector.references]]
-    token = "0x0000000000000000000000000000000000000000"
+  token = "0x750ba8b76187092B0D1E87E28daaf484d1b5273b"
+
+  [collector.references.uniswap_v2]
+    pool = "0x26d96cfC6DF8262b1bb327a2df0eDE02FDfC8874"
+    base_token = "0x722E8BdD2ce80A4422E880164f2079488e115365"
 
 [senders]
-  num_senders = 1
+  num_senders = 0
   random_wait = 1000
   sleep_wait  = 1000
 
