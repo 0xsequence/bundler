@@ -13,9 +13,10 @@ type Config struct {
 
 	Mnemonic string `toml:"mnemonic"`
 
-	P2PPort   int      `toml:"p2p_port"`
-	RPCPort   int      `toml:"rpc_port"`
-	BootNodes []string `toml:"boot_nodes"`
+	P2PPort       int      `toml:"p2p_port"`
+	RPCPort       int      `toml:"rpc_port"`
+	BootNodes     []string `toml:"boot_nodes"`
+	PriorityNodes []string `toml:"priority_nodes"`
 
 	Logging LoggingConfig `toml:"logging"`
 
@@ -30,7 +31,8 @@ type Config struct {
 
 	LinearCalldataModel *LinearCalldataModel `toml:"linear_calldata_model"`
 
-	BootNodeAddrs []multiaddr.Multiaddr `toml:"-"`
+	BootNodeAddrs     []multiaddr.Multiaddr `toml:"-"`
+	PriorityNodeAddrs []multiaddr.Multiaddr `toml:"-"`
 }
 
 type LoggingConfig struct {
@@ -147,6 +149,16 @@ func initConfig(cfg *Config) error {
 		bootNodeAddrs = append(bootNodeAddrs, addr)
 	}
 	cfg.BootNodeAddrs = bootNodeAddrs
+
+	priorityNodeAddrs := make([]multiaddr.Multiaddr, 0, len(cfg.PriorityNodes))
+	for _, s := range cfg.PriorityNodes {
+		addr, err := multiaddr.NewMultiaddr(s)
+		if err != nil {
+			return err
+		}
+		priorityNodeAddrs = append(priorityNodeAddrs, addr)
+	}
+	cfg.PriorityNodeAddrs = priorityNodeAddrs
 
 	return nil
 }

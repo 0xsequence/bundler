@@ -172,6 +172,17 @@ func (n *Host) Run(ctx context.Context) error {
 		return err
 	}
 
+	priorityPeers, err := AddrInfoFromP2pAddrs(n.cfg.PriorityNodeAddrs)
+	if err != nil {
+		n.logger.Error("error while parsing libp2p priority node addrs", "err", err)
+		return err
+	}
+
+	for _, peerInfo := range priorityPeers {
+		n.logger.Info("protecting priority peer", "peerId", peerInfo.ID.String())
+		n.host.ConnManager().Protect(peerInfo.ID, "priority")
+	}
+
 	err = n.setupPubsub()
 	if err != nil {
 		return err
@@ -263,7 +274,7 @@ func (n *Host) bootstrap(bootPeers []peer.AddrInfo) error {
 
 			// tag the peer so that we can offer it higher priority among peers
 			n.logger.Info("connected with namespaced peer", "peerId", peerInfo.String())
-			n.host.ConnManager().TagPeer(peerInfo.ID, DiscoveryNamespace, 500)
+			n.host.ConnManager().TagPeer(peerInfo.ID, "discovered", 500)
 		}
 	}()
 
@@ -342,7 +353,7 @@ func (n *Host) PriorityPeers() []peer.ID {
 	priorityPeers := []peer.ID{}
 	for _, p := range n.host.Network().Peers() {
 		tag := n.host.ConnManager().GetTagInfo(p)
-		if tag != nil && tag.Tags[DiscoveryNamespace] > 0 {
+		if tag != nil && tag.Tags["priority"] > 0 {
 			priorityPeers = append(priorityPeers, p)
 		}
 	}
