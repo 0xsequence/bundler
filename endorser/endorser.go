@@ -118,9 +118,11 @@ func (e *Endorser) simulationSettingsCall(ctx context.Context, endorserAddr comm
 		return nil, err
 	}
 
+	e.logger.Debug("simulation settings call", "res", res)
+
 	settingsResult, err := e.parseSimulationSettingsRes(res)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse result: %w", err)
+		return nil, fmt.Errorf("unable to parse simulation settings result: %w", err)
 	}
 
 	return settingsResult, nil
@@ -141,8 +143,13 @@ func (e *Endorser) debugContextArgs(ctx context.Context, endorserAddr common.Add
 	}
 	to := endorserAddr
 	for _, setting := range settings {
+		if (setting.OldAddr == endorserAddr) {
+			// Update the endorser location
+			to = setting.NewAddr
+		}
 		if (setting.OldAddr != setting.NewAddr) {
-			replacementCode, err := e.Provider.CodeAt(ctx, setting.NewAddr, nil)
+			// Code replacement
+			replacementCode, err := e.Provider.CodeAt(ctx, setting.OldAddr, nil)
 			if err != nil {
 				return common.Address{}, nil, fmt.Errorf("unable to read code for %v: %w", setting.OldAddr, err)
 			}
@@ -150,10 +157,6 @@ func (e *Endorser) debugContextArgs(ctx context.Context, endorserAddr common.Add
 				Address: setting.NewAddr,
 				Code:    replacementCode,
 			})
-			if (setting.OldAddr != endorserAddr) {
-				// Update the endorser location
-				to = setting.NewAddr
-			}
 		}
 		for _, slot := range setting.Slots {
 			contextArgs.SlotReplacements = append(contextArgs.SlotReplacements, debugger.SlotReplacement{
@@ -307,7 +310,7 @@ func (e *Endorser) isOperationReadyCall(ctx context.Context, op *types.Operation
 	endorserResult, err := e.parseIsOperationReadyRes(res)
 	if err != nil {
 		e.metrics.isOperationReadyReverts.Inc()
-		return nil, fmt.Errorf("unable to parse result: %w", err)
+		return nil, fmt.Errorf("unable to parse isoperationready result: %w", err)
 	}
 
 	// NOTICE: Untrusted context operations should be handled
@@ -361,10 +364,18 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 	if err != nil {
 		return nil, fmt.Errorf("unable to trace call: %w", err)
 	}
+	// Log the trace
+	for _, log := range trace.StructLogs {
+		// If Op startswith "LOG", then it's a debug trace log
+		if len(log.Op) > 3 && log.Op[:3] == "LOG" {
+			e.logger.Debug("debug trace log", "log", log)
+		}
+	}
+
 
 	er1, err := e.parseIsOperationReadyRes(trace.ReturnValue)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse result: %w", err)
+		return nil, fmt.Errorf("unable to parse isoperationready debugger result: %w", err)
 	}
 
 	// Generate dependencies from untrusted context

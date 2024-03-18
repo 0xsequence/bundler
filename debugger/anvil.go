@@ -269,8 +269,7 @@ func (a *AnvilDebugger) tryDebugTraceCall(ctx context.Context, args *DebugCallAr
 		return nil, err
 	}
 
-	a.logger.Debug("anvil debug trace call", "duration", time.Since(start))
-	a.logger.Debug("anvil debug trace call with context", "duration", time.Since(start_context))
+	a.logger.Debug("anvil debug trace call", "duration", time.Since(start), "context duration", time.Since(start_context))
 
 	res.From = args.From
 
@@ -348,7 +347,7 @@ func (a *AnvilDebugger) performSetCode(ctx context.Context, addr common.Address,
 		return err
 	}
 
-	a.logger.Debug("anvil set code", "duration", time.Since(start))
+	a.logger.Debug("anvil set code", "address", addr.Hex(), "duration", time.Since(start))
 
 	return nil
 }
