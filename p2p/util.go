@@ -4,9 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/0xsequence/ethkit/go-ethereum/common"
-	ethcrypto "github.com/0xsequence/ethkit/go-ethereum/crypto"
-	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/ipfs/go-cid"
 	pubsubpb "github.com/libp2p/go-libp2p-pubsub/pb"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -14,21 +11,6 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	mh "github.com/multiformats/go-multihash"
 )
-
-func PeerIDToETHAddress(peerID peer.ID) (common.Address, error) {
-	pubKey, err := peerID.ExtractPublicKey()
-	if err != nil {
-		return common.Address{}, err
-	}
-
-	raw, _ := pubKey.Raw()
-	k, err := secp256k1.ParsePubKey(raw)
-	if err != nil {
-		return common.Address{}, err
-	}
-
-	return ethcrypto.PubkeyToAddress(*k.ToECDSA()), nil
-}
 
 func NamespaceToCid(namespace string) (cid.Cid, error) {
 	h, err := mh.Sum([]byte(namespace), mh.SHA2_256, -1)
@@ -50,14 +32,18 @@ func AddrInfoFromP2pAddrs(multiaddrs []multiaddr.Multiaddr) ([]peer.AddrInfo, er
 	return peerInfos, nil
 }
 
-func getHostAddress(ha host.Host) string {
+func getHostAddresses(ha host.Host) []string {
 	// Build host multiaddress
 	hostAddr, _ := multiaddr.NewMultiaddr(fmt.Sprintf("/p2p/%s", ha.ID().String()))
 
 	// Now we can build a full multiaddress to reach this host
 	// by encapsulating both addresses:
-	addr := ha.Addrs()[0]
-	return addr.Encapsulate(hostAddr).String()
+	addrs := ha.Addrs()
+	res := make([]string, len(addrs))
+	for i, addr := range addrs {
+		res[i] = addr.Encapsulate(hostAddr).String()
+	}
+	return res
 }
 
 type PubSubTracer struct {

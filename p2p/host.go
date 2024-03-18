@@ -1,10 +1,13 @@
 package p2p
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
+	"math/rand"
 	"sync/atomic"
 	"time"
 
@@ -54,7 +57,10 @@ func NewHost(cfg *config.Config, logger *slog.Logger, wallet *ethwallet.Wallet) 
 		return nil, err
 	}
 
-	peerPrivKey, err := crypto.UnmarshalSecp256k1PrivateKey(peerPrivKeyBytes)
+	// Generate a deterministic private key from the given bytes
+	// but use Ed25519, as libp2p does not support secp256k1
+	// (it does still work, but with secp256k1 things are unstable)
+	peerPrivKey, _, err := crypto.GenerateEd25519Key(bytes.NewReader(peerPrivKeyBytes))
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +72,7 @@ func NewHost(cfg *config.Config, logger *slog.Logger, wallet *ethwallet.Wallet) 
 	logger = logger.With("hostId", id.String())
 
 	connmgr, err := connmgr.NewConnManager(
-		100, // Lowwater
+		300, // Lowwater
 		400, // HighWater,
 		connmgr.WithGracePeriod(time.Minute),
 	)
@@ -116,10 +122,12 @@ func NewHost(cfg *config.Config, logger *slog.Logger, wallet *ethwallet.Wallet) 
 		//
 		// This service is highly rate-limited and should not cause any
 		// performance issues.
-		// libp2p.EnableNATService(),
+		libp2p.EnableNATService(),
 
 		// ..
 		libp2p.DisableRelay(),
+
+		libp2p.EnableHolePunching(),
 
 		// TODO: review all libp2p options and defaults
 	)
@@ -148,8 +156,10 @@ func (n *Host) Run(ctx context.Context) error {
 
 	n.ctx, n.ctxStop = context.WithCancel(ctx)
 
-	hostAddr := getHostAddress(n.host)
-	n.logger.Info(fmt.Sprintf("-> node: listening on %s", hostAddr), "op", "run", "addr", hostAddr)
+	hostAddrs := getHostAddresses(n.host)
+	for _, hostAddr := range hostAddrs {
+		n.logger.Info("-> node: listening libp2p", "op", "run", "addr", hostAddr)
+	}
 
 	bootPeers, err := AddrInfoFromP2pAddrs(n.cfg.BootNodeAddrs)
 	if err != nil {
@@ -205,12 +215,27 @@ func (n *Host) bootstrap(bootPeers []peer.AddrInfo) error {
 	}
 
 	// connect with bootstrap peers
-	for _, bootPeer := range bootPeers {
-		if err := n.host.Connect(n.ctx, bootPeer); err != nil {
-			n.logger.Error(fmt.Sprintf("error while connecting with boot peer %s", bootPeer.String()), "err", err)
-			continue
+	if len(bootPeers) != 0 {
+		firstDone := make(chan error, 1)
+		for _, bootPeer := range bootPeers {
+			go func(ctx context.Context, peerInfo peer.AddrInfo) {
+				cerr := n.attemptBootConnect(n.ctx, peerInfo)
+				err := <-cerr
+
+				select {
+				case firstDone <- err:
+				default:
+				}
+			}(n.ctx, bootPeer)
 		}
-		n.logger.Info("connected with the given bootstrap peer", "peerId", bootPeer.String())
+
+		// wait for at least one successful connection
+		err = <-firstDone
+		if err != nil {
+			return fmt.Errorf("failed to connect with any of the given bootstrap peers: %w", err)
+		}
+	} else {
+		n.logger.Warn("no bootstrap peers provided, starting in standalone mode")
 	}
 
 	// advertise our existence at the given namespace.
@@ -245,6 +270,38 @@ func (n *Host) bootstrap(bootPeers []peer.AddrInfo) error {
 	return nil
 }
 
+func (n *Host) attemptBootConnect(ctx context.Context, peerInfo peer.AddrInfo) chan error {
+	res := make(chan error, 1)
+
+	go func(ctx context.Context, peerInfo peer.AddrInfo) {
+		defer close(res)
+
+		for i := 0.0; i <= 25; i += 1.0 {
+			if ctx.Err() != nil {
+				res <- fmt.Errorf("context cancelled during boot peer connection attempt")
+				return
+			}
+
+			if err := n.host.Connect(ctx, peerInfo); err != nil {
+				// Add a random jitter to avoid synchronized reconnection attempts
+				jitter := rand.Float64() * i
+				retryIn := time.Duration(math.Pow(2, i)+jitter) * time.Second
+				n.logger.Error(fmt.Sprintf("error while connecting with boot peer %s", peerInfo.String()), "err", err, "retryIn", retryIn)
+				time.Sleep(retryIn + time.Duration(float64(retryIn)*rand.Float64()))
+				continue
+			}
+
+			n.logger.Info("connected with the given bootstrap peer", "peerId", peerInfo.String())
+			res <- nil
+			return
+		}
+
+		res <- fmt.Errorf("failed to connect with boot peer %s", peerInfo.String())
+	}(ctx, peerInfo)
+
+	return res
+}
+
 func (n *Host) HostID() peer.ID {
 	if n.host == nil {
 		return ""
@@ -254,12 +311,7 @@ func (n *Host) HostID() peer.ID {
 }
 
 func (n *Host) Address() (string, error) {
-	addr, err := PeerIDToETHAddress(n.host.ID())
-	if err != nil {
-		return "", err
-	}
-
-	return addr.String(), nil
+	return n.host.ID().String(), nil
 }
 
 func (n *Host) Sign(data []byte) ([]byte, error) {
