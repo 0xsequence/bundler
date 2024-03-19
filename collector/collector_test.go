@@ -37,6 +37,7 @@ func TestValidatePayment(t *testing.T) {
 	c, err := collector.NewCollector(
 		&config.CollectorConfig{},
 		httplog.NewLogger("collector"),
+		nil,
 		provider,
 	)
 	require.NoError(t, err)
@@ -97,6 +98,7 @@ func TestFeeAsks(t *testing.T) {
 			PriorityFee: 42,
 		},
 		httplog.NewLogger("collector"),
+		nil,
 		provider,
 	)
 

@@ -126,7 +126,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	ipfs := ipfs.NewClient(cfg.NetworkConfig.IpfsUrl)
 
 	// Collector
-	collector, err := collector.NewCollector(&cfg.CollectorConfig, logger, provider)
+	collector, err := collector.NewCollector(&cfg.CollectorConfig, logger, promPrefix, provider)
 	if err != nil {
 		return nil, err
 	}
