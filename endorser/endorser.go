@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/bundler/debugger"
@@ -14,6 +15,7 @@ import (
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
 	"github.com/go-chi/httplog/v2"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var parsedEndorserABI *abi.ABI
@@ -28,9 +30,205 @@ func useEndorserAbi() *abi.ABI {
 	return parsedEndorserABI
 }
 
+type metrics struct {
+	isOperationReadyAttempts       prometheus.Counter
+	isOperationReadyWildcards      prometheus.Counter
+	isOperationReadyDebugger       prometheus.Counter
+	isOperationReadyDebuggerFailed prometheus.Counter
+	isOperationReadyError          prometheus.Counter
+	isOperationReadyTrue           prometheus.Counter
+	isOperationReadyFalse          prometheus.Counter
+	isOperationReadyReverts        prometheus.Counter
+
+	isOperationReadyDuration      prometheus.Histogram
+	isOperationDebugReadyDuration prometheus.Histogram
+
+	durationPerGas      prometheus.Histogram
+	debugDurationPerGas prometheus.Histogram
+
+	dependencyStateDuration prometheus.Histogram
+	constraintsMetDuration  prometheus.Histogram
+	constraintMetDuration   prometheus.Histogram
+	dependencySlotDuration  prometheus.Histogram
+
+	constraintsMet       prometheus.Counter
+	constraintsNotMet    prometheus.Counter
+	dependencyStateError *prometheus.CounterVec
+	constraintsMetError  prometheus.Counter
+
+	dependencyStateErrorBalance prometheus.Labels
+	dependencyStateErrorCode    prometheus.Labels
+	dependencyStateErrorNonce   prometheus.Labels
+	dependencyStateErrorSlots   prometheus.Labels
+}
+
+func createMetrics(reg prometheus.Registerer) *metrics {
+	isOperationReadyAttempts := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "endorser_is_operation_ready_attempts",
+		Help: "Number of attempts to check if an operation is ready",
+	})
+
+	isOperationReadyWildcards := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "endorser_is_operation_ready_wildcards",
+		Help: "Number of attempts to check if an operation that resulted in wildcards",
+	})
+
+	isOperationReadyDebugger := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "endorser_is_operation_ready_debugger",
+		Help: "Number of attempts to check if an operation is ready using the debugger",
+	})
+
+	isOperationReadyDebuggerFailed := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "endorser_is_operation_ready_debugger_failed",
+		Help: "Number of failed attempts to check if an operation is ready using the debugger",
+	})
+
+	isOperationReadyError := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "endorser_is_operation_ready_error",
+		Help: "Number of errors when checking if an operation is ready",
+	})
+
+	isOperationReadyTrue := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "endorser_is_operation_ready_true",
+		Help: "Number of operations with readiness true",
+	})
+
+	isOperationReadyFalse := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "endorser_is_operation_ready_false",
+		Help: "Number of operations with readiness false",
+	})
+
+	isOperationReadyReverts := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "endorser_is_operation_ready_reverts",
+		Help: "Number of operations that reverted when checking if they are ready",
+	})
+
+	isOperationReadyDuration := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "endorser_is_operation_ready_duration",
+		Help:    "Duration to check if an operation is ready",
+		Buckets: prometheus.DefBuckets,
+	})
+
+	isOperationDebugReadyDuration := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "endorser_is_operation_debug_ready_duration",
+		Help:    "Duration to check if an operation is ready using the debugger",
+		Buckets: prometheus.DefBuckets,
+	})
+
+	durationPerGas := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "endorser_duration_per_gas",
+		Help:    "Duration per gas",
+		Buckets: prometheus.DefBuckets,
+	})
+
+	debugDurationPerGas := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "endorser_debug_duration_per_gas",
+		Help:    "Duration per gas using the debugger",
+		Buckets: prometheus.DefBuckets,
+	})
+
+	dependencyStateDuration := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "endorser_dependency_state_duration",
+		Help:    "Duration to get the state of dependencies",
+		Buckets: prometheus.DefBuckets,
+	})
+
+	constraintsMetDuration := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "endorser_constraints_met_duration",
+		Help:    "Duration to check if constraints are met",
+		Buckets: prometheus.DefBuckets,
+	})
+
+	constraintsMet := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "endorser_constraints_met",
+		Help: "Number of constraints met",
+	})
+
+	constraintsNotMet := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "endorser_constraints_not_met",
+		Help: "Number of constraints not met",
+	})
+
+	dependencyStateError := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "endorser_dependency_state_error",
+		Help: "Number of errors when getting the state of dependencies",
+	}, []string{"reason"})
+
+	constraintsMetError := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "endorser_constraints_met_error",
+		Help: "Number of errors when checking if constraints are met",
+	})
+
+	constraintMetDuration := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "endorser_constraint_met_duration",
+		Help:    "Duration to check if one constraint is met",
+		Buckets: prometheus.DefBuckets,
+	})
+
+	dependencySlotDuration := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "endorser_dependency_slot_duration",
+		Help:    "Duration to get the state of a single slot",
+		Buckets: prometheus.DefBuckets,
+	})
+
+	if reg != nil {
+		reg.MustRegister(
+			isOperationReadyAttempts,
+			isOperationReadyWildcards,
+			isOperationReadyDebugger,
+			isOperationReadyDebuggerFailed,
+			isOperationReadyDuration,
+			isOperationDebugReadyDuration,
+			durationPerGas,
+			debugDurationPerGas,
+			isOperationReadyError,
+			isOperationReadyTrue,
+			isOperationReadyFalse,
+			isOperationReadyReverts,
+			dependencyStateDuration,
+			constraintsMetDuration,
+			constraintsMet,
+			constraintsNotMet,
+			dependencyStateError,
+			constraintsMetError,
+			constraintMetDuration,
+			dependencySlotDuration,
+		)
+	}
+
+	return &metrics{
+		isOperationReadyAttempts:       isOperationReadyAttempts,
+		isOperationReadyWildcards:      isOperationReadyWildcards,
+		isOperationReadyDebugger:       isOperationReadyDebugger,
+		isOperationReadyDebuggerFailed: isOperationReadyDebuggerFailed,
+		isOperationReadyDuration:       isOperationReadyDuration,
+		isOperationDebugReadyDuration:  isOperationDebugReadyDuration,
+		durationPerGas:                 durationPerGas,
+		debugDurationPerGas:            debugDurationPerGas,
+		isOperationReadyError:          isOperationReadyError,
+		isOperationReadyTrue:           isOperationReadyTrue,
+		isOperationReadyFalse:          isOperationReadyFalse,
+		isOperationReadyReverts:        isOperationReadyReverts,
+		dependencyStateDuration:        dependencyStateDuration,
+		constraintsMetDuration:         constraintsMetDuration,
+		constraintsMet:                 constraintsMet,
+		constraintsNotMet:              constraintsNotMet,
+		dependencyStateError:           dependencyStateError,
+		constraintsMetError:            constraintsMetError,
+		constraintMetDuration:          constraintMetDuration,
+		dependencySlotDuration:         dependencySlotDuration,
+
+		dependencyStateErrorBalance: prometheus.Labels{"reason": "balance"},
+		dependencyStateErrorCode:    prometheus.Labels{"reason": "code"},
+		dependencyStateErrorNonce:   prometheus.Labels{"reason": "nonce"},
+		dependencyStateErrorSlots:   prometheus.Labels{"reason": "slots"},
+	}
+}
+
 type Endorser struct {
 	parsedEndorserABI *abi.ABI
 	logger            *httplog.Logger
+	metrics           *metrics
 
 	Debugger debugger.Interface
 	Provider *ethrpc.Provider
@@ -38,11 +236,12 @@ type Endorser struct {
 
 var _ Interface = (*Endorser)(nil)
 
-func NewEndorser(logger *httplog.Logger, provider *ethrpc.Provider, debugger debugger.Interface) *Endorser {
+func NewEndorser(logger *httplog.Logger, metrics prometheus.Registerer, provider *ethrpc.Provider, debugger debugger.Interface) *Endorser {
 	return &Endorser{
 		parsedEndorserABI: useEndorserAbi(),
 
 		logger:   logger,
+		metrics:  createMetrics(metrics),
 		Debugger: debugger,
 		Provider: provider,
 	}
@@ -159,8 +358,12 @@ func (e *Endorser) parseIsOperationReadyRes(res string) (*EndorserResult, error)
 }
 
 func (e *Endorser) isOperationReadyCall(ctx context.Context, op *types.Operation) (*EndorserResult, error) {
+	start := time.Now()
+	e.metrics.isOperationReadyAttempts.Inc()
+
 	to, data, err := e.buildIsOperationReadyCalldata(op)
 	if err != nil {
+		e.metrics.isOperationReadyError.Inc()
 		return nil, fmt.Errorf("unable to build calldata: %w", err)
 	}
 
@@ -181,6 +384,7 @@ func (e *Endorser) isOperationReadyCall(ctx context.Context, op *types.Operation
 
 	endorserResult, err := e.parseIsOperationReadyRes(res)
 	if err != nil {
+		e.metrics.isOperationReadyReverts.Inc()
 		return nil, fmt.Errorf("unable to parse result: %w", err)
 	}
 
@@ -188,13 +392,27 @@ func (e *Endorser) isOperationReadyCall(ctx context.Context, op *types.Operation
 	// by the debugger, but if it's not available we still handle
 	// them, we just mark them as wildcard only.
 	if op.HasUntrustedContext {
+		e.metrics.isOperationReadyWildcards.Inc()
 		endorserResult.WildcardOnly = true
 	}
+
+	if endorserResult.Readiness {
+		e.metrics.isOperationReadyTrue.Inc()
+	} else {
+		e.metrics.isOperationReadyFalse.Inc()
+	}
+
+	e.metrics.isOperationReadyDuration.Observe(time.Since(start).Seconds())
+	egl, _ := op.EndorserGasLimit.Float64()
+	e.metrics.durationPerGas.Observe(time.Since(start).Seconds() / egl)
 
 	return endorserResult, nil
 }
 
 func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Operation) (*EndorserResult, error) {
+	start := time.Now()
+
+	e.metrics.isOperationReadyDebugger.Inc()
 	if e.Debugger == nil {
 		return nil, fmt.Errorf("debugger is not available")
 	}
@@ -228,7 +446,13 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 		return nil, fmt.Errorf("unable to parse untrusted debug: %w", err)
 	}
 
-	return er1.Or(er2), nil
+	merged := er1.Or(er2)
+
+	e.metrics.isOperationDebugReadyDuration.Observe(time.Since(start).Seconds())
+	egl, _ := op.EndorserGasLimit.Float64()
+	e.metrics.debugDurationPerGas.Observe(time.Since(start).Seconds() / egl)
+
+	return merged, nil
 }
 
 func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*EndorserResult, error) {
@@ -241,6 +465,7 @@ func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*
 			return res, nil
 		}
 
+		e.metrics.isOperationReadyDebuggerFailed.Inc()
 		e.logger.Warn("unable to use debugger, falling back to eth_call", "error", err)
 	}
 
@@ -248,6 +473,7 @@ func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*
 }
 
 func (e *Endorser) DependencyState(ctx context.Context, result *EndorserResult) (*EndorserResultState, error) {
+	start := time.Now()
 	state := EndorserResultState{}
 
 	state.AddrDependencies = make(map[common.Address]*AddrDependencyState, len(result.Dependencies))
@@ -259,6 +485,7 @@ func (e *Endorser) DependencyState(ctx context.Context, result *EndorserResult) 
 			var err error
 			state_.Balance, err = e.Provider.BalanceAt(ctx, dependency.Addr, nil)
 			if err != nil {
+				e.metrics.dependencyStateError.With(e.metrics.dependencyStateErrorBalance).Inc()
 				return nil, fmt.Errorf("unable to read balance for %v: %w", dependency.Addr, err)
 			}
 		}
@@ -266,6 +493,7 @@ func (e *Endorser) DependencyState(ctx context.Context, result *EndorserResult) 
 		if dependency.Code {
 			code, err := e.Provider.CodeAt(ctx, dependency.Addr, nil)
 			if err != nil {
+				e.metrics.dependencyStateError.With(e.metrics.dependencyStateErrorCode).Inc()
 				return nil, fmt.Errorf("unable to read code for %v: %w", dependency.Addr, err)
 			}
 			if code == nil {
@@ -277,6 +505,7 @@ func (e *Endorser) DependencyState(ctx context.Context, result *EndorserResult) 
 		if dependency.Nonce {
 			nonce, err := e.Provider.NonceAt(ctx, dependency.Addr, nil)
 			if err != nil {
+				e.metrics.dependencyStateError.With(e.metrics.dependencyStateErrorNonce).Inc()
 				return nil, fmt.Errorf("unable to read nonce for %v: %w", dependency.Addr, err)
 			}
 			state_.Nonce = &nonce
@@ -284,33 +513,48 @@ func (e *Endorser) DependencyState(ctx context.Context, result *EndorserResult) 
 
 		state_.Slots = make([][32]byte, 0, len(dependency.Slots))
 		for _, slot := range dependency.Slots {
+			start2 := time.Now()
 			value, err := e.Provider.StorageAt(ctx, dependency.Addr, slot, nil)
+			e.metrics.dependencySlotDuration.Observe(time.Since(start2).Seconds())
+
 			if err != nil {
+				e.metrics.dependencyStateError.With(e.metrics.dependencyStateErrorSlots).Inc()
 				return nil, fmt.Errorf("unable to read storage for %v at %v: %w", dependency.Addr, hexutil.Encode(slot[:]), err)
 			}
+
 			state_.Slots = append(state_.Slots, [32]byte(value))
 		}
 
 		state.AddrDependencies[dependency.Addr] = &state_
 	}
 
+	e.metrics.dependencyStateDuration.Observe(time.Since(start).Seconds())
 	return &state, nil
 }
 
 func (e *Endorser) ConstraintsMet(ctx context.Context, result *EndorserResult) (bool, error) {
+	start := time.Now()
+
 	for _, dependency := range result.Dependencies {
 		for _, constraint := range dependency.Constraints {
+			start2 := time.Now()
 			ok, err := CheckConstraint(ctx, e.Provider, dependency.Addr, constraint.Slot, constraint.MinValue, constraint.MaxValue)
+			e.metrics.constraintMetDuration.Observe(time.Since(start2).Seconds())
+
 			if err != nil {
+				e.metrics.constraintsMetError.Inc()
 				return false, err
 			}
 
 			if !ok {
+				e.metrics.constraintsNotMet.Inc()
 				return false, nil
 			}
 		}
 	}
 
+	e.metrics.constraintsMet.Inc()
+	e.metrics.constraintsMetDuration.Observe(time.Since(start).Seconds())
 	return true, nil
 }
 

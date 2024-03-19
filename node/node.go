@@ -92,7 +92,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 
 	// Endorser
-	endorser := endorser.NewEndorser(logger, provider, debugger)
+	endorser := endorser.NewEndorser(logger, promPrefix, provider, debugger)
 
 	// Wallet
 	mnmonic := cfg.Mnemonic
