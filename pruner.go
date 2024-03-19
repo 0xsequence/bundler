@@ -33,23 +33,9 @@ type prunerMetrics struct {
 
 func createPrunerMetrics(reg prometheus.Registerer) *prunerMetrics {
 	pruneBannedTime := prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name: "pruner_banned_time",
-		Help: "Time taken to prune banned operations",
-		Buckets: []float64{
-			1e-6, // 0.000001 seconds
-			2e-6, // 0.000002 seconds
-			3e-6, // 0.000003 seconds
-			4e-6, // 0.000004 seconds
-			5e-6, // 0.000005 seconds
-			1e-5, // 0.00001 seconds
-			2e-5, // 0.00002 seconds
-			5e-5, // 0.00005 seconds
-			1e-4, // 0.0001 seconds
-			2e-4, // 0.0002 seconds
-			5e-4, // 0.0005 seconds
-			1e-3, // 0.001 seconds (1 millisecond)
-			1e-2, // 0.01 seconds (10 milliseconds)
-		},
+		Name:    "pruner_banned_time",
+		Help:    "Time taken to prune banned operations",
+		Buckets: prometheus.ExponentialBuckets(1e-6, 2, 15),
 	})
 
 	pruneBannedOps := prometheus.NewCounter(prometheus.CounterOpts{

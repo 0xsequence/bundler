@@ -18,10 +18,181 @@ import (
 	"github.com/0xsequence/bundler/registry"
 	"github.com/0xsequence/bundler/types"
 	"github.com/go-chi/httplog/v2"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
+type metrics struct {
+	ops   prometheus.Gauge
+	known prometheus.Gauge
+
+	opsRejected        *prometheus.CounterVec
+	opsBroadcastFailed prometheus.Counter
+
+	opRejectedKnown              prometheus.Labels
+	opRejectedReadyErr           prometheus.Labels
+	opRejectedReadyNotReady      prometheus.Labels
+	opRejectedConstraintsErr     prometheus.Labels
+	opRejectedConstraintsNotMet  prometheus.Labels
+	opRejectedDependencyStateErr prometheus.Labels
+	opRejectedCollectorErr       prometheus.Labels
+	opRejectedRegistryErr        prometheus.Labels
+	opRejectedNoEviction         prometheus.Labels
+	opRejectedNoEvictionGlobal   prometheus.Labels
+	opRejectedPartitionerRace    prometheus.Labels
+
+	opsEvicted   prometheus.Counter
+	opsDiscarded prometheus.Counter
+
+	opsMarkedForForget prometheus.Counter
+	opsForgotten       prometheus.Counter
+
+	opsReserved prometheus.Counter
+	opsReleased *prometheus.CounterVec
+
+	opAddedTime      prometheus.Histogram
+	opLifetime       prometheus.Histogram
+	reservedTime     prometheus.Histogram
+	doReserveOpsTime prometheus.Histogram
+}
+
+func createMetrics(reg prometheus.Registerer) *metrics {
+	ops := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "mempool_ops",
+		Help: "Number of operations in the mempool",
+	})
+
+	known := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "mempool_known",
+		Help: "Number of known operations",
+	})
+
+	reserved := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "mempool_reserved",
+		Help: "Number of reserved operations",
+	})
+
+	opsRejected := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "mempool_ops_rejected",
+		Help: "Number of operations rejected",
+	}, []string{"reason"})
+
+	opsBroadcastFailed := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "mempool_ops_broadcast_failed",
+		Help: "Number of failed operation broadcasts",
+	})
+
+	opsEvicted := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "mempool_ops_evicted",
+		Help: "Number of operations evicted",
+	})
+
+	opsDiscarded := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "mempool_ops_discarded",
+		Help: "Number of operations discarded",
+	})
+
+	opsMarkedForForget := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "mempool_ops_marked_for_forget",
+		Help: "Number of operations marked for forget",
+	})
+
+	opsForgotten := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "mempool_ops_forgotten",
+		Help: "Number of operations forgotten",
+	})
+
+	opsReserved := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "mempool_ops_reserved",
+		Help: "Number of operations reserved",
+	})
+
+	opsReleased := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "mempool_ops_released",
+		Help: "Number of operations released",
+	}, []string{"change"})
+
+	opAddedTime := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "mempool_op_added_time",
+		Help:    "Time it takes to add an operation to the mempool",
+		Buckets: prometheus.DefBuckets,
+	})
+
+	opLifetime := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "mempool_op_lifetime",
+		Help:    "Lifetime of an operation in the mempool",
+		Buckets: prometheus.ExponentialBuckets(1, 2, 25),
+	})
+
+	opsReservedTime := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "mempool_ops_reserved_time",
+		Help:    "Time an operation is reserved",
+		Buckets: prometheus.ExponentialBuckets(1, 2, 25),
+	})
+
+	doReserveOpsTime := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "mempool_do_reserve_ops_time",
+		Help:    "Time it takes to reserve operations",
+		Buckets: prometheus.ExponentialBuckets(1e-6, 2, 15),
+	})
+
+	if reg != nil {
+		reg.MustRegister(
+			ops,
+			known,
+			reserved,
+			opsRejected,
+			opsBroadcastFailed,
+			opsEvicted,
+			opsDiscarded,
+			opsMarkedForForget,
+			opsForgotten,
+			opsReserved,
+			opsReleased,
+			opAddedTime,
+			opLifetime,
+			opsReservedTime,
+			doReserveOpsTime,
+		)
+	}
+
+	return &metrics{
+		ops:   ops,
+		known: known,
+
+		opsRejected:        opsRejected,
+		opsBroadcastFailed: opsBroadcastFailed,
+
+		opRejectedKnown:              prometheus.Labels{"reason": "known"},
+		opRejectedReadyErr:           prometheus.Labels{"reason": "ready_err"},
+		opRejectedReadyNotReady:      prometheus.Labels{"reason": "ready_not_ready"},
+		opRejectedConstraintsErr:     prometheus.Labels{"reason": "constraints_err"},
+		opRejectedConstraintsNotMet:  prometheus.Labels{"reason": "constraints_not_met"},
+		opRejectedDependencyStateErr: prometheus.Labels{"reason": "dependency_state_err"},
+		opRejectedCollectorErr:       prometheus.Labels{"reason": "collector_err"},
+		opRejectedRegistryErr:        prometheus.Labels{"reason": "registry_err"},
+		opRejectedNoEviction:         prometheus.Labels{"reason": "no_eviction"},
+		opRejectedNoEvictionGlobal:   prometheus.Labels{"reason": "no_eviction_global"},
+		opRejectedPartitionerRace:    prometheus.Labels{"reason": "partition_race"},
+
+		opsEvicted:   opsEvicted,
+		opsDiscarded: opsDiscarded,
+
+		opsMarkedForForget: opsMarkedForForget,
+		opsForgotten:       opsForgotten,
+
+		opsReserved: opsReserved,
+		opsReleased: opsReleased,
+
+		opAddedTime:      opAddedTime,
+		opLifetime:       opLifetime,
+		reservedTime:     opsReservedTime,
+		doReserveOpsTime: doReserveOpsTime,
+	}
+}
+
 type Mempool struct {
-	logger *httplog.Logger
+	logger  *httplog.Logger
+	metrics *metrics
 
 	Ipfs          ipfs.Interface
 	Host          p2p.Interface
@@ -44,6 +215,7 @@ var _ Interface = &Mempool{}
 func NewMempool(
 	cfg *config.MempoolConfig,
 	logger *httplog.Logger,
+	metrics prometheus.Registerer,
 	endorser endorser.Interface,
 	host p2p.Interface,
 	collector collector.Interface,
@@ -68,7 +240,8 @@ func NewMempool(
 	}
 
 	mp := &Mempool{
-		logger: logger,
+		logger:  logger,
+		metrics: createMetrics(metrics),
 
 		Ipfs:          ipfs,
 		Host:          host,
@@ -116,6 +289,7 @@ func (mp *Mempool) mustBeUniqueOp(op *types.Operation) error {
 
 	// Time zero means that it was not marked
 	// for removal.
+	mp.metrics.known.Inc()
 	mp.known.digests[digest] = time.Time{}
 
 	return nil
@@ -130,6 +304,7 @@ func (mp *Mempool) AddOperation(ctx context.Context, op *types.Operation, forceI
 	// if it already exists
 	err := mp.mustBeUniqueOp(op)
 	if err != nil && !forceInclude {
+		mp.metrics.opsRejected.With(mp.metrics.opRejectedKnown).Inc()
 		return err
 	}
 
@@ -145,6 +320,8 @@ func (mp *Mempool) AddOperation(ctx context.Context, op *types.Operation, forceI
 }
 
 func (mp *Mempool) ReserveOps(ctx context.Context, selectFn func([]*TrackedOperation) []*TrackedOperation) []*TrackedOperation {
+	start := time.Now()
+
 	mp.lock.Lock()
 	defer mp.lock.Unlock()
 
@@ -165,6 +342,9 @@ func (mp *Mempool) ReserveOps(ctx context.Context, selectFn func([]*TrackedOpera
 		op.ReservedSince = &n
 	}
 
+	mp.metrics.opsReserved.Add(float64(len(resOps)))
+	mp.metrics.doReserveOpsTime.Observe(time.Since(start).Seconds())
+
 	return resOps
 }
 
@@ -175,6 +355,12 @@ func (mp *Mempool) ReleaseOps(ctx context.Context, ops []string, updateReadyAt p
 	for _, op := range mp.Operations {
 		for _, rop := range ops {
 			if op.Hash() == rop {
+				if op.ReservedSince != nil {
+					mp.metrics.reservedTime.Observe(time.Since(*op.ReservedSince).Seconds())
+				} else {
+					mp.logger.Warn("operation released but not reserved", "op", op.Hash())
+				}
+
 				op.ReservedSince = nil
 
 				switch updateReadyAt {
@@ -186,6 +372,8 @@ func (mp *Mempool) ReleaseOps(ctx context.Context, ops []string, updateReadyAt p
 			}
 		}
 	}
+
+	mp.metrics.opsReleased.WithLabelValues("change", updateReadyAt.String()).Add(float64(len(ops)))
 
 	mp.SortOperations()
 }
@@ -202,13 +390,22 @@ func (mp *Mempool) DiscardOps(ctx context.Context, ops []string) {
 	mp.discardOpsUnlocked(ctx, ops)
 }
 
-func (mp *Mempool) discardOpsUnlocked(ctx context.Context, ops []string) {
+func (mp *Mempool) discardOpsUnlocked(_ context.Context, ops []string) {
 	var kops []*TrackedOperation
 	for _, op := range mp.Operations {
 		discard := false
 
 		for _, dop := range ops {
 			if op.Hash() == dop {
+				// If reserved, measure the time it was reserved
+				if op.ReservedSince != nil {
+					mp.metrics.reservedTime.Observe(time.Since(*op.ReservedSince).Seconds())
+					mp.metrics.opsReleased.WithLabelValues("change", "discard").Inc()
+				}
+
+				// Measure the lifetime of the operation
+				mp.metrics.opLifetime.Observe(time.Since(op.CreatedAt).Seconds())
+
 				discard = true
 				break
 			}
@@ -224,6 +421,9 @@ func (mp *Mempool) discardOpsUnlocked(ctx context.Context, ops []string) {
 		kops = append(kops, op)
 	}
 
+	mp.metrics.ops.Sub(float64(len(ops)))
+	mp.metrics.opsDiscarded.Add(float64(len(ops)))
+
 	mp.Operations = kops
 	mp.partitioner.Remove(ops)
 }
@@ -231,6 +431,8 @@ func (mp *Mempool) discardOpsUnlocked(ctx context.Context, ops []string) {
 func (mp *Mempool) markForForget(op *types.Operation) {
 	mp.known.lock.Lock()
 	defer mp.known.lock.Unlock()
+
+	mp.metrics.opsMarkedForForget.Inc()
 
 	mp.known.digests[op.Hash()] = time.Now()
 }
@@ -278,44 +480,55 @@ func (mp *Mempool) evictLesser(ctx context.Context, candidate *types.Operation, 
 		evictions = append(evictions, worst.Hash())
 	}
 
+	mp.metrics.opsEvicted.Add(float64(len(evictions)))
+
 	mp.discardOpsUnlocked(ctx, evictions)
 
 	return nil
 }
 
 func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation) error {
+	start := time.Now()
+
 	res, err := mp.Endorser.IsOperationReady(ctx, op)
 	if err != nil {
+		mp.metrics.opsRejected.With(mp.metrics.opRejectedReadyErr).Inc()
 		return fmt.Errorf("IsOperationReady failed: %w", err)
 	}
 
 	if !res.Readiness {
+		mp.metrics.opsRejected.With(mp.metrics.opRejectedReadyNotReady).Inc()
 		return fmt.Errorf("operation not ready")
 	}
 
 	// Check the constraints
 	okc, err := mp.Endorser.ConstraintsMet(ctx, res)
 	if err != nil {
+		mp.metrics.opsRejected.With(mp.metrics.opRejectedConstraintsErr).Inc()
 		return fmt.Errorf("CheckDependencyConstraints failed: %w", err)
 	}
 
 	if !okc {
+		mp.metrics.opsRejected.With(mp.metrics.opRejectedConstraintsNotMet).Inc()
 		return fmt.Errorf("operation constraints not met")
 	}
 
 	state, err := mp.Endorser.DependencyState(ctx, res)
 	if err != nil {
+		mp.metrics.opsRejected.With(mp.metrics.opRejectedDependencyStateErr).Inc()
 		return fmt.Errorf("EndorserResultState failed: %w", err)
 	}
 
 	// Check the collector (fees)
 	if err := mp.Collector.ValidatePayment(op); err != nil {
+		mp.metrics.opsRejected.With(mp.metrics.opRejectedCollectorErr).Inc()
 		return fmt.Errorf("payment validation failed: %w", err)
 	}
 
 	// Check if the endorser is accepted by the registry
 	// the registry can also quickly reject it if it doesn't
 	if !mp.Registry.IsAcceptedEndorser(op.Endorser) {
+		mp.metrics.opsRejected.With(mp.metrics.opRejectedRegistryErr).Inc()
 		return fmt.Errorf("ingress: endorser not accepted")
 	}
 
@@ -335,6 +548,7 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 		// make room for the new operation
 		err := mp.evictLesser(ctx, op, &overlaps)
 		if err != nil {
+			mp.metrics.opsRejected.With(mp.metrics.opRejectedNoEviction).Inc()
 			return err
 		}
 
@@ -343,15 +557,20 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 		// but in that case we fail
 		ok, _ = mp.partitioner.Add(op, res)
 		if !ok {
+			mp.metrics.opsRejected.With(mp.metrics.opRejectedPartitionerRace).Inc()
 			return fmt.Errorf("operation dependency constraints not met")
 		}
 	} else if len(mp.Operations) >= mp.MaxSize {
 		// We need to evict *something* to make room
 		err := mp.evictLesser(ctx, op, nil)
 		if err != nil {
+			mp.metrics.opsRejected.With(mp.metrics.opRejectedNoEvictionGlobal).Inc()
 			return err
 		}
 	}
+
+	mp.metrics.ops.Inc()
+	mp.metrics.opAddedTime.Observe(time.Since(start).Seconds())
 
 	mp.Operations = append(mp.Operations, &TrackedOperation{
 		Operation: *op,
@@ -371,6 +590,7 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 			Message: op.ToProto(),
 		})
 		if err != nil {
+			mp.metrics.opsBroadcastFailed.Inc()
 			mp.logger.Warn("error broadcasting operation to the network", "op", op.Hash(), "err", err)
 		}
 	}
@@ -405,6 +625,9 @@ func (mp *Mempool) ForgetOps(age time.Duration) []string {
 			delete(mp.known.digests, k)
 		}
 	}
+
+	mp.metrics.known.Sub(float64(len(forgotten)))
+	mp.metrics.opsForgotten.Add(float64(len(forgotten)))
 
 	return forgotten
 }

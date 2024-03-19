@@ -151,7 +151,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 
 	// Mempool
-	mempool, err := mempool.NewMempool(&cfg.MempoolConfig, logger, endorser, host, collector, ipfs, calldataModel, registry)
+	mempool, err := mempool.NewMempool(&cfg.MempoolConfig, logger, promPrefix, endorser, host, collector, ipfs, calldataModel, registry)
 	if err != nil {
 		return nil, err
 	}
