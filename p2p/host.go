@@ -29,11 +29,155 @@ import (
 	quic "github.com/libp2p/go-libp2p/p2p/transport/quic"
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/prometheus/client_golang/prometheus"
 )
+
+type metrics struct {
+	bootnodesConnected prometheus.Counter
+	bootnodesFailed    prometheus.Counter
+	bootnodesRetries   prometheus.Counter
+
+	foundPeers              prometheus.Counter
+	foundSelfAsPeer         prometheus.Counter
+	foundPeersFailedConnect prometheus.Counter
+	foundPeersConnected     prometheus.Counter
+
+	broadcastErrors    prometheus.Counter
+	broadcastSentBytes *prometheus.HistogramVec
+
+	pubsubReceivedErrors  prometheus.Counter
+	pubsubFilteredSelf    prometheus.Counter
+	pubsubFailedUnmarshal prometheus.Counter
+	pubsubUnhandledMsg    prometheus.Counter
+	pubsubReceivedBytes   *prometheus.HistogramVec
+	pubsubHandledTime     *prometheus.HistogramVec
+}
+
+func createMetrics(reg prometheus.Registerer) *metrics {
+	bootnodesConnected := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "p2p_bootnodes_connected",
+		Help: "Number of bootnodes connected",
+	})
+
+	bootnodesFailed := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "p2p_bootnodes_failed",
+		Help: "Number of bootnodes failed to connect",
+	})
+
+	bootnodesRetries := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "p2p_bootnodes_retries",
+		Help: "Number of bootnodes connection retries",
+	})
+
+	broadcastErrors := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "p2p_broadcast_errors",
+		Help: "Number of broadcast errors",
+	})
+
+	broadcastSentBytes := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "p2p_broadcast_sent_bytes",
+		Help:    "Number of bytes sent in broadcast",
+		Buckets: prometheus.ExponentialBuckets(1, 2, 26),
+	}, []string{"type"})
+
+	pubsubReceivedErrors := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "p2p_pubsub_received_errors",
+		Help: "Number of pubsub received errors",
+	})
+
+	pubsubFilteredSelf := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "p2p_pubsub_filtered_self",
+		Help: "Number of pubsub messages filtered from self",
+	})
+
+	pubsubFailedUnmarshal := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "p2p_pubsub_failed_unmarshal",
+		Help: "Number of pubsub messages failed to unmarshal",
+	})
+
+	pubsubUnhandledMsg := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "p2p_pubsub_unhandled_msg",
+		Help: "Number of pubsub messages unhandled",
+	})
+
+	pubsubHandledTime := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "p2p_pubsub_handled_time",
+		Help:    "Time taken to handle pubsub messages",
+		Buckets: prometheus.ExponentialBuckets(1e-6, 2, 15),
+	}, []string{"type"})
+
+	pubsubReceivedBytes := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "p2p_pubsub_received_bytes",
+		Help:    "Number of bytes received in pubsub",
+		Buckets: prometheus.ExponentialBuckets(1, 2, 26),
+	}, []string{"type"})
+
+	foundPeers := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "p2p_found_peers",
+		Help: "Number of peers found",
+	})
+
+	foundSelfAsPeer := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "p2p_found_self_as_peer",
+		Help: "Number of times found self as peer",
+	})
+
+	foundPeersFailedConnect := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "p2p_found_peers_failed_connect",
+		Help: "Number of peers found but failed to connect",
+	})
+
+	foundPeersConnected := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "p2p_found_peers_connected",
+		Help: "Number of peers found and connected",
+	})
+
+	if reg != nil {
+		reg.MustRegister(
+			bootnodesConnected,
+			bootnodesFailed,
+			bootnodesRetries,
+			broadcastErrors,
+			broadcastSentBytes,
+			pubsubReceivedErrors,
+			pubsubFilteredSelf,
+			pubsubFailedUnmarshal,
+			pubsubUnhandledMsg,
+			pubsubHandledTime,
+			pubsubReceivedBytes,
+			foundPeers,
+			foundSelfAsPeer,
+			foundPeersFailedConnect,
+			foundPeersConnected,
+		)
+	}
+
+	return &metrics{
+		bootnodesConnected: bootnodesConnected,
+		bootnodesFailed:    bootnodesFailed,
+		bootnodesRetries:   bootnodesRetries,
+
+		broadcastErrors:    broadcastErrors,
+		broadcastSentBytes: broadcastSentBytes,
+
+		foundPeers:              foundPeers,
+		foundSelfAsPeer:         foundSelfAsPeer,
+		foundPeersFailedConnect: foundPeersFailedConnect,
+		foundPeersConnected:     foundPeersConnected,
+
+		pubsubReceivedErrors:  pubsubReceivedErrors,
+		pubsubFilteredSelf:    pubsubFilteredSelf,
+		pubsubFailedUnmarshal: pubsubFailedUnmarshal,
+		pubsubUnhandledMsg:    pubsubUnhandledMsg,
+		pubsubReceivedBytes:   pubsubReceivedBytes,
+		pubsubHandledTime:     pubsubHandledTime,
+	}
+}
 
 type Host struct {
 	cfg      *config.Config
 	logger   *slog.Logger
+	metrics  *metrics
 	host     host.Host
 	pubsub   *pubsub.PubSub
 	topic    *pubsub.Topic
@@ -49,7 +193,7 @@ type Host struct {
 
 var _ Interface = &Host{}
 
-func NewHost(cfg *config.Config, logger *slog.Logger, wallet *ethwallet.Wallet) (*Host, error) {
+func NewHost(cfg *config.Config, logger *slog.Logger, metrics prometheus.Registerer, wallet *ethwallet.Wallet) (*Host, error) {
 
 	// Use private key at HD node account index 0 as the peer private key.
 	peerPrivKeyBytes, err := hexutil.Decode(wallet.PrivateKeyHex())
@@ -129,6 +273,9 @@ func NewHost(cfg *config.Config, logger *slog.Logger, wallet *ethwallet.Wallet) 
 
 		libp2p.EnableHolePunching(),
 
+		// Metrics
+		libp2p.PrometheusRegisterer(metrics),
+
 		// TODO: review all libp2p options and defaults
 	)
 
@@ -139,6 +286,7 @@ func NewHost(cfg *config.Config, logger *slog.Logger, wallet *ethwallet.Wallet) 
 	nd := &Host{
 		cfg:         cfg,
 		logger:      logger,
+		metrics:     createMetrics(metrics),
 		host:        h,
 		peerPrivKey: peerPrivKey,
 		handlers:    map[proto.MessageType][]MsgHandler{},
@@ -262,17 +410,22 @@ func (n *Host) bootstrap(bootPeers []peer.AddrInfo) error {
 	go func() {
 		peerCh := kdht.FindProvidersAsync(n.ctx, discoveryNameSpaceCid, 0)
 		for peerInfo := range peerCh {
+			n.metrics.foundPeers.Inc()
+
 			if peerInfo.ID == n.host.ID() {
 				// do not dial ourselves
+				n.metrics.foundSelfAsPeer.Inc()
 				continue
 			}
 
 			if err := n.host.Connect(n.ctx, peerInfo); err != nil {
+				n.metrics.foundPeersFailedConnect.Inc()
 				n.logger.Error(fmt.Sprintf("failed to connect with namespaced peer %s", peerInfo.String()), "err", err)
 				continue
 			}
 
 			// tag the peer so that we can offer it higher priority among peers
+			n.metrics.foundPeersConnected.Inc()
 			n.logger.Info("connected with namespaced peer", "peerId", peerInfo.String())
 			n.host.ConnManager().TagPeer(peerInfo.ID, "discovered", 500)
 		}
@@ -297,16 +450,19 @@ func (n *Host) attemptBootConnect(ctx context.Context, peerInfo peer.AddrInfo) c
 				// Add a random jitter to avoid synchronized reconnection attempts
 				jitter := rand.Float64() * i
 				retryIn := time.Duration(math.Pow(2, i)+jitter) * time.Second
+				n.metrics.bootnodesRetries.Inc()
 				n.logger.Error(fmt.Sprintf("error while connecting with boot peer %s", peerInfo.String()), "err", err, "retryIn", retryIn)
 				time.Sleep(retryIn + time.Duration(float64(retryIn)*rand.Float64()))
 				continue
 			}
 
+			n.metrics.bootnodesConnected.Inc()
 			n.logger.Info("connected with the given bootstrap peer", "peerId", peerInfo.String())
 			res <- nil
 			return
 		}
 
+		n.metrics.bootnodesFailed.Inc()
 		res <- fmt.Errorf("failed to connect with boot peer %s", peerInfo.String())
 	}(ctx, peerInfo)
 
@@ -369,6 +525,8 @@ func (n *Host) Broadcast(payload proto.Message) error {
 	if err != nil {
 		return err
 	}
+
+	n.metrics.broadcastSentBytes.WithLabelValues(payload.Type.String()).Observe(float64(len(data)))
 
 	return n.topic.Publish(n.ctx, data)
 }

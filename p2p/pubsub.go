@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/0xsequence/bundler/proto"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -70,7 +71,8 @@ func (n *Host) pubsubEventHandler() error {
 
 			msg, err := sub.Next(n.ctx)
 			if err != nil {
-				n.logger.Error("while receving pubsub message", "err", err)
+				n.metrics.pubsubReceivedErrors.Inc()
+				n.logger.Error("while receiving pubsub message", "err", err)
 				continue
 			}
 
@@ -91,12 +93,14 @@ func (n *Host) pubsubEventHandler() error {
 
 			// Filter out messages from self
 			if msg.GetFrom() == n.host.ID() {
+				n.metrics.pubsubFilteredSelf.Inc()
 				continue
 			}
 
 			var message proto.Message
 			err = json.Unmarshal(msg.Data, &message)
 			if err != nil {
+				n.metrics.pubsubFailedUnmarshal.Inc()
 				n.logger.Info("failed to unmarshal pubsub message", "err", err)
 				continue
 			}
@@ -113,10 +117,17 @@ func (n *Host) pubsubEventHandler() error {
 				}
 
 				from := msg.GetFrom()
+				start := time.Now()
+
 				for _, handler := range handlers {
 					handler(from, data)
 				}
+
+				typeStr := message.Type.String()
+				n.metrics.pubsubHandledTime.WithLabelValues(typeStr).Observe(time.Since(start).Seconds())
+				n.metrics.pubsubReceivedBytes.WithLabelValues(typeStr).Observe(float64(len(data)))
 			} else {
+				n.metrics.pubsubUnhandledMsg.Inc()
 				n.logger.Info("no handler found for message type", "type", message.Type)
 			}
 		}

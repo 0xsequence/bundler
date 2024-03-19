@@ -117,7 +117,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	logger.Info("=> setup node wallet", "address", wallet.Address().String())
 
 	// p2p host
-	host, err := p2p.NewHost(cfg, logger.Logger, wallet)
+	host, err := p2p.NewHost(cfg, logger.Logger, promPrefix, wallet)
 	if err != nil {
 		return nil, err
 	}
