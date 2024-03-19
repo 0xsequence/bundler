@@ -23,6 +23,7 @@ import (
 	"github.com/0xsequence/ethkit/ethwallet"
 	"github.com/go-chi/httplog/v2"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -78,6 +79,10 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	// Metrics
 	prom := prometheus.NewRegistry()
 	promPrefix := prometheus.WrapRegistererWithPrefix("bundler_", prom)
+	promPrefix.MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	)
 
 	// Provider
 	provider, err := ethrpc.NewProvider(cfg.NetworkConfig.RpcUrl)
