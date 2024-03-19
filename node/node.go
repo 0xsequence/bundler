@@ -166,7 +166,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	pruner := bundler.NewPruner(cfg.PrunerConfig, logger, promPrefix, mempool, endorser, registry)
 
 	// RPC
-	rpc, err := rpc.NewRPC(cfg, logger, prom, host, mempool, archive, provider, collector, endorser, ipfs, calldataModel, registry)
+	rpc, err := rpc.NewRPC(cfg, logger, promPrefix, prom, host, mempool, archive, provider, collector, endorser, ipfs, registry)
 	if err != nil {
 		return nil, err
 	}

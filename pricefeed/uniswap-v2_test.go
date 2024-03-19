@@ -42,7 +42,7 @@ func TestUniswapV2Feed(t *testing.T) {
 		Data: hexutil.MustDecode("0x0902f1ac"), // getReserves()
 	}, tag).Return(hexutil.MustDecode("0x00000000000000000000000000000000000000000000003635c9adc5dea00000000000000000000000000000000000000000000000000000000002ba7def30000000000000000000000000000000000000000000000000000000000000000000"), nil) // 1e21, 3e9, 0
 
-	feed, err := pricefeed.NewUniswapV2Feed(&provider, httplog.NewLogger("pricefeed"), &config.UniswapV2Reference{
+	feed, err := pricefeed.NewUniswapV2Feed(&provider, httplog.NewLogger("pricefeed"), nil, &config.UniswapV2Reference{
 		Pool:      pool,
 		BaseToken: native,
 	})

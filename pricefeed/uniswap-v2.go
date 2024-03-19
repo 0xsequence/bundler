@@ -13,9 +13,82 @@ import (
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/httplog/v2"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const EXPIRATION_TIME = 1 * time.Minute
+
+type uniswapV2Metrics struct {
+	reserve0   prometheus.Gauge
+	reserve1   prometheus.Gauge
+	lastUpdate prometheus.Gauge
+
+	rate  prometheus.Gauge
+	ready prometheus.Gauge
+
+	fetchReservesError prometheus.Counter
+	fetchReservesTime  prometheus.Histogram
+}
+
+func createUniswapV2Metrics(reg prometheus.Registerer, pool string, inverse bool) *uniswapV2Metrics {
+	reserve0 := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "uniswap_v2_reserve0",
+	})
+
+	reserve1 := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "uniswap_v2_reserve1",
+	})
+
+	lastUpdate := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "uniswap_v2_last_update",
+	})
+
+	rate := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "uniswap_v2_rate",
+		Help: "The exchange rate of token0 to token1",
+	})
+
+	ready := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "uniswap_v2_ready",
+	})
+
+	fetchReservesError := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "uniswap_v2_fetch_reserves_error",
+		Help: "The number of errors fetching reserves",
+	})
+
+	fetchReservesTime := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name: "uniswap_v2_fetch_reserves_time",
+		Help: "The time taken to fetch reserves",
+	})
+
+	if reg != nil {
+		regTagged := prometheus.WrapRegistererWith(prometheus.Labels{
+			"pool":    pool,
+			"inverse": fmt.Sprintf("%t", inverse),
+		}, reg)
+
+		regTagged.MustRegister(
+			reserve0,
+			reserve1,
+			lastUpdate,
+			rate,
+			ready,
+			fetchReservesError,
+			fetchReservesTime,
+		)
+	}
+
+	return &uniswapV2Metrics{
+		reserve0:           reserve0,
+		reserve1:           reserve1,
+		lastUpdate:         lastUpdate,
+		rate:               rate,
+		ready:              ready,
+		fetchReservesError: fetchReservesError,
+		fetchReservesTime:  fetchReservesTime,
+	}
+}
 
 type UniswapV2Feed struct {
 	cfg *config.UniswapV2Reference
@@ -27,13 +100,15 @@ type UniswapV2Feed struct {
 	reserve0   *big.Int
 	reserve1   *big.Int
 
-	logger   *httplog.Logger
+	logger  *httplog.Logger
+	metrics *uniswapV2Metrics
+
 	contract *ethcontract.Contract
 
 	Provider ethrpc.Interface
 }
 
-func NewUniswapV2Feed(provider ethrpc.Interface, logger *httplog.Logger, cfg *config.UniswapV2Reference) (*UniswapV2Feed, error) {
+func NewUniswapV2Feed(provider ethrpc.Interface, logger *httplog.Logger, metrics prometheus.Registerer, cfg *config.UniswapV2Reference) (*UniswapV2Feed, error) {
 	abi := ethcontract.MustParseABI(abis.UNISWAP_V2)
 	contract := ethcontract.NewContractCaller(common.HexToAddress(cfg.Pool), abi, provider)
 
@@ -42,7 +117,9 @@ func NewUniswapV2Feed(provider ethrpc.Interface, logger *httplog.Logger, cfg *co
 
 		mutex: sync.RWMutex{},
 
-		logger:   logger,
+		logger:  logger,
+		metrics: createUniswapV2Metrics(metrics, cfg.Pool, false),
+
 		contract: contract,
 
 		Provider: provider,
@@ -86,7 +163,16 @@ func (f *UniswapV2Feed) Name() string {
 func (f *UniswapV2Feed) Ready() bool {
 	f.mutex.RLock()
 	defer f.mutex.RUnlock()
-	return time.Since(f.lastUpdate) < EXPIRATION_TIME
+
+	ready := time.Since(f.lastUpdate) < EXPIRATION_TIME
+
+	if ready {
+		f.metrics.ready.Set(1)
+	} else {
+		f.metrics.ready.Set(0)
+	}
+
+	return ready
 }
 
 func (f *UniswapV2Feed) Start(ctx context.Context) error {
@@ -107,31 +193,51 @@ func (f *UniswapV2Feed) Start(ctx context.Context) error {
 	}
 
 	for ctx.Err() == nil {
-		reserve0, reserve1, _, err := f.fetchReserves()
-		if err != nil {
-			f.logger.Warn("uniswap-v2: error fetching reserves", "pool", f.cfg.Pool, "error", err)
-		}
-
-		if reserve0 == nil || reserve1 == nil {
-			f.logger.Warn("uniswap-v2: reserves are nil", "pool", f.cfg.Pool)
-			continue
-		}
-
-		f.mutex.Lock()
-		f.reserve0 = reserve0
-		f.reserve1 = reserve1
-		f.lastUpdate = time.Now()
-		f.mutex.Unlock()
-
-		s, _ := f.Snapshot()
-		if s != nil {
-			f.logger.Debug("uniswap-v2: fetched token rate", "rate", s.FromNative(big.NewInt(1)))
-		}
-
+		f.doFetch()
 		time.Sleep(5 * time.Second)
 	}
 
 	return nil
+}
+
+func (f *UniswapV2Feed) doFetch() {
+	start := time.Now()
+
+	reserve0, reserve1, _, err := f.fetchReserves()
+	if err != nil {
+		f.metrics.fetchReservesError.Inc()
+		f.logger.Warn("uniswap-v2: error fetching reserves", "pool", f.cfg.Pool, "error", err)
+		return
+	}
+
+	f.metrics.fetchReservesTime.Observe(time.Since(start).Seconds())
+
+	if reserve0 == nil || reserve1 == nil {
+		f.metrics.fetchReservesError.Inc()
+		f.logger.Warn("uniswap-v2: reserves are nil", "pool", f.cfg.Pool)
+		return
+	}
+
+	r0float, _ := reserve0.Float64()
+	r1float, _ := reserve1.Float64()
+	f.metrics.reserve0.Set(r0float)
+	f.metrics.reserve1.Set(r1float)
+	f.metrics.lastUpdate.Set(float64(time.Now().Unix()))
+
+	f.mutex.Lock()
+	f.reserve0 = reserve0
+	f.reserve1 = reserve1
+	f.lastUpdate = time.Now()
+	f.mutex.Unlock()
+
+	s, _ := f.Snapshot()
+	if s != nil {
+		base, _ := big.NewInt(0).SetString("1000000000000000000", 10)
+		price := s.FromNative(base)
+		priceFloat, _ := price.Float64()
+		f.metrics.rate.Set(priceFloat)
+		f.logger.Debug("uniswap-v2: fetched token rate", "rate", price)
+	}
 }
 
 func (f *UniswapV2Feed) getReservesNative0() (r0, r1 *big.Int, err error) {

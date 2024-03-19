@@ -95,7 +95,7 @@ func NewCollector(cfg *config.CollectorConfig, logger *httplog.Logger, metrics p
 	}
 
 	for _, ref := range cfg.References {
-		feed, err := pricefeed.FeedForReference(&ref, logger, provider)
+		feed, err := pricefeed.FeedForReference(&ref, logger, metrics, provider)
 		if err != nil {
 			return nil, err
 		}
