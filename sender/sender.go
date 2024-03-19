@@ -190,6 +190,7 @@ func createMetrics(reg prometheus.Registerer, sender string) *metrics {
 			inspectReceiptPaid,
 			inspectReceiptUnderpaid,
 			inspectReceiptReverted,
+			inspectReceiptFailed,
 			sendOpTime,
 			prepareOpTime,
 			waitReceiptTime,
