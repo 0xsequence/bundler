@@ -34,7 +34,7 @@ func TestIdlePull(t *testing.T) {
 	pruner := bundler.NewPruner(config.PrunerConfig{
 		RunWaitMillis:   1,
 		NoBannedPruning: true,
-	}, nil, mockMempool, nil, mockRegistry)
+	}, nil, nil, mockMempool, nil, mockRegistry)
 	ctx, cancel := context.WithCancel(context.Background())
 	go pruner.Run(ctx)
 
@@ -74,7 +74,7 @@ func TestPullAndDiscardStateErr(t *testing.T) {
 	pruner := bundler.NewPruner(config.PrunerConfig{
 		RunWaitMillis:   1,
 		NoBannedPruning: true,
-	}, logger, mockMempool, mockEndorser, mockRegistry)
+	}, logger, nil, mockMempool, mockEndorser, mockRegistry)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pruner.Run(ctx)
@@ -121,7 +121,7 @@ func TestPullAndDiscardHasChangedErr(t *testing.T) {
 	pruner := bundler.NewPruner(config.PrunerConfig{
 		RunWaitMillis:   1,
 		NoBannedPruning: true,
-	}, logger, mockMempool, mockEndorser, mockRegistry)
+	}, logger, nil, mockMempool, mockEndorser, mockRegistry)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pruner.Run(ctx)
@@ -173,7 +173,7 @@ func TestPullAndReleaseNotChanged(t *testing.T) {
 	pruner := bundler.NewPruner(config.PrunerConfig{
 		RunWaitMillis:   1,
 		NoBannedPruning: true,
-	}, logger, mockMempool, mockEndorser, mockRegistry)
+	}, logger, nil, mockMempool, mockEndorser, mockRegistry)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pruner.Run(ctx)
@@ -249,7 +249,7 @@ func TestDiscardNotReady(t *testing.T) {
 	pruner := bundler.NewPruner(config.PrunerConfig{
 		RunWaitMillis:   1,
 		NoBannedPruning: true,
-	}, logger, mockMempool, mockEndorser, mockRegistry)
+	}, logger, nil, mockMempool, mockEndorser, mockRegistry)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pruner.Run(ctx)
@@ -329,7 +329,7 @@ func TestKeepReady(t *testing.T) {
 	pruner := bundler.NewPruner(config.PrunerConfig{
 		RunWaitMillis:   1,
 		NoBannedPruning: true,
-	}, logger, mockMempool, mockEndorser, mockRegistry)
+	}, logger, nil, mockMempool, mockEndorser, mockRegistry)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pruner.Run(ctx)
@@ -346,7 +346,7 @@ func TestSkipRecentOps(t *testing.T) {
 	pruner := bundler.NewPruner(config.PrunerConfig{
 		RunWaitMillis:   1,
 		NoBannedPruning: true,
-	}, nil, mockMempool, nil, mockRegistry)
+	}, nil, nil, mockMempool, nil, mockRegistry)
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
 		clb := args.Get(1).(func([]*mempool.TrackedOperation) []*mempool.TrackedOperation)
@@ -408,7 +408,7 @@ func TestRevalidateIfWildcardOnly(t *testing.T) {
 	pruner := bundler.NewPruner(config.PrunerConfig{
 		RunWaitMillis:   1,
 		NoBannedPruning: true,
-	}, logger, mockMempool, mockEndorser, mockRegistry)
+	}, logger, nil, mockMempool, mockEndorser, mockRegistry)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pruner.Run(ctx)

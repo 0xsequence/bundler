@@ -37,6 +37,7 @@ type Node struct {
 	Ingress   *bundler.Ingress
 	Collector *collector.Collector
 	Registry  registry.Interface
+	Pruner    *bundler.Pruner
 
 	ctx       context.Context
 	ctxStopFn context.CancelFunc
@@ -161,6 +162,9 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	// Archive
 	archive := bundler.NewArchive(&cfg.ArchiveConfig, host, logger, promPrefix, ipfs, mempool)
 
+	// Pruner
+	pruner := bundler.NewPruner(cfg.PrunerConfig, logger, promPrefix, mempool, endorser, registry)
+
 	// RPC
 	rpc, err := rpc.NewRPC(cfg, logger, prom, host, mempool, archive, provider, collector, endorser, ipfs, calldataModel, registry)
 	if err != nil {
@@ -180,6 +184,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		Ingress:   ingress,
 		Collector: collector,
 		Registry:  registry,
+		Pruner:    pruner,
 	}
 
 	return server, nil
@@ -248,6 +253,13 @@ func (s *Node) Run() error {
 			return err
 		})
 	}
+
+	g.Go(func() error {
+		// Run the pruner
+		oplog.Info("-> pruner: run")
+		s.Pruner.Run(ctx)
+		return nil
+	})
 
 	// Once run context is done, trigger a server-stop.
 	go func() {

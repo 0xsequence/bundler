@@ -40,7 +40,6 @@ type RPC struct {
 	Metrics *prometheus.Registry
 
 	mempool       mempool.Interface
-	pruner        *bundler.Pruner
 	archive       *bundler.Archive
 	collector     *collector.Collector
 	senders       []sender.Interface
@@ -110,8 +109,6 @@ func NewRPC(
 		))
 	}
 
-	pruner := bundler.NewPruner(cfg.PrunerConfig, logger, mempool, endorser, registry)
-
 	admin := admin.NewAdmin(logger, ipfs, mempool, registry)
 
 	s := &RPC{
@@ -120,7 +117,6 @@ func NewRPC(
 		senders:   senders,
 		collector: collector,
 		executor:  executor,
-		pruner:    pruner,
 		ipfs:      ipfs,
 		admin:     admin,
 		registry:  registry,
@@ -158,9 +154,6 @@ func (s *RPC) Run(ctx context.Context) error {
 	for _, sender := range s.senders {
 		go sender.Run(ctx)
 	}
-
-	// Run the pruner
-	go s.pruner.Run(ctx)
 
 	// Start the http server and serve!
 	err := s.HTTP.ListenAndServe()
