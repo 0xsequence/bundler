@@ -118,6 +118,7 @@ func NewRPC(
 		senders = append(senders, sender.NewSender(
 			&cfg.SendersConfig,
 			slogger,
+			metrics,
 			uint32(i),
 			wallet,
 			provider,

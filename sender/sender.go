@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"math/big"
 	"math/rand"
 	"sort"
@@ -25,12 +26,227 @@ import (
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi/bind"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	ethtypes "github.com/0xsequence/ethkit/go-ethereum/core/types"
+	"github.com/prometheus/client_golang/prometheus"
 )
+
+type metrics struct {
+	attemptSendOps   prometheus.Counter
+	unprofitableOps  prometheus.Counter
+	executedOps      prometheus.Counter
+	failedReceiptOps prometheus.Counter
+	failedSendOps    *prometheus.CounterVec
+
+	failedSimulateOperation prometheus.Labels
+	failedEndorserLied      prometheus.Labels
+	failedStaleOperation    prometheus.Labels
+	failedEstimateGas       prometheus.Labels
+	failedSignTransaction   prometheus.Labels
+	failedSendTransaction   prometheus.Labels
+
+	chilledOps prometheus.Gauge
+	blockedOps prometheus.Counter
+
+	inspectReceiptAttempts  prometheus.Counter
+	inspectReceiptPaid      prometheus.Counter
+	inspectReceiptUnderpaid prometheus.Counter
+	inspectReceiptReverted  *prometheus.CounterVec
+	inspectReceiptFailed    *prometheus.CounterVec
+
+	failedInspectReceiptBalanceOf1        prometheus.Labels
+	failedInspectReceiptBalanceOf2        prometheus.Labels
+	failedInspectReceiptEffectiveGasPrice prometheus.Labels
+
+	sendOpTime         prometheus.Histogram
+	prepareOpTime      prometheus.Histogram
+	waitReceiptTime    prometheus.Histogram
+	inspectReceiptTime prometheus.Histogram
+
+	overpaidAmount      prometheus.Histogram
+	underpaidAmountDiff prometheus.Histogram
+	unprofitableOpDiff  prometheus.Histogram
+
+	skipRunNoOps prometheus.Counter
+}
+
+func createMetrics(reg prometheus.Registerer, sender string) *metrics {
+	attemptSendOps := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "sender_attempt_send_ops",
+		Help: "Number of attempted send operations",
+	})
+
+	unprofitableOps := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "sender_unprofitable_ops",
+		Help: "Number of unprofitable operations",
+	})
+
+	executedOps := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "sender_executed_ops",
+		Help: "Number of executed operations",
+	})
+
+	failedReceiptOps := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "sender_failed_receipt_ops",
+		Help: "Number of times the sender failed to wait for a receipt",
+	})
+
+	failedSendOps := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "sender_failed_send_ops",
+		Help: "Number of failed send operations",
+	}, []string{"reason"})
+
+	chilledOps := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "sender_chilled_ops",
+		Help: "Number of chilled operations (waiting for better payment)",
+	})
+
+	blockedOps := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "sender_blocked_ops",
+		Help: "Number of blocked operations (already executed)",
+	})
+
+	inspectReceiptAttempts := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "sender_inspect_receipt_attempts",
+		Help: "Number of inspect receipt attempts",
+	})
+
+	inspectReceiptPaid := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "sender_inspect_receipt_paid",
+		Help: "Number of inspect receipt paid",
+	})
+
+	inspectReceiptUnderpaid := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "sender_inspect_receipt_underpaid",
+		Help: "Number of inspect receipt underpaid",
+	})
+
+	inspectReceiptReverted := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "sender_inspect_receipt_reverted",
+		Help: "Number of inspect receipt reverted",
+	}, []string{"lied"})
+
+	inspectReceiptFailed := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "sender_inspect_receipt_failed",
+		Help: "Number of inspect receipt failed",
+	}, []string{"reason"})
+
+	sendOpTime := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "sender_send_op_time",
+		Help:    "Time it takes to send an operation",
+		Buckets: prometheus.ExponentialBuckets(0.1, 2, 13),
+	})
+
+	prepareOpTime := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "sender_prepare_op_time",
+		Help:    "Time it takes to prepare an operation",
+		Buckets: prometheus.DefBuckets,
+	})
+
+	waitReceiptTime := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "sender_wait_receipt_time",
+		Help:    "Time it takes to wait for a receipt",
+		Buckets: prometheus.ExponentialBuckets(0.1, 2, 13),
+	})
+
+	inspectReceiptTime := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "sender_inspect_receipt_time",
+		Help:    "Time it takes to inspect a receipt",
+		Buckets: prometheus.DefBuckets,
+	})
+
+	overpaidAmount := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "sender_overpaid_amount",
+		Help:    "Amount overpaid in native token",
+		Buckets: prometheus.ExponentialBuckets(1000000000, 2, 32),
+	})
+
+	underpaidAmountDiff := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "sender_underpaid_amount_diff",
+		Help:    "Amount underpaid in native token",
+		Buckets: prometheus.ExponentialBuckets(1000000000, 2, 32),
+	})
+
+	unprofitableOpDiff := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "sender_unprofitable_op_diff",
+		Help:    "Difference between expected and required payment in native token",
+		Buckets: prometheus.ExponentialBuckets(1000000000, 2, 32),
+	})
+
+	skipRunNoOps := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "sender_skip_run_no_ops",
+		Help: "Number of times the sender skipped running because there were no operations",
+	})
+
+	if reg != nil {
+		regWithSender := prometheus.WrapRegistererWith(prometheus.Labels{"sender": sender}, reg)
+		regWithSender.MustRegister(
+			attemptSendOps,
+			unprofitableOps,
+			executedOps,
+			failedReceiptOps,
+			failedSendOps,
+			chilledOps,
+			blockedOps,
+			inspectReceiptAttempts,
+			inspectReceiptPaid,
+			inspectReceiptUnderpaid,
+			inspectReceiptReverted,
+			sendOpTime,
+			prepareOpTime,
+			waitReceiptTime,
+			inspectReceiptTime,
+			overpaidAmount,
+			underpaidAmountDiff,
+			unprofitableOpDiff,
+			skipRunNoOps,
+		)
+	}
+
+	return &metrics{
+		attemptSendOps:   attemptSendOps,
+		unprofitableOps:  unprofitableOps,
+		executedOps:      executedOps,
+		failedReceiptOps: failedReceiptOps,
+		failedSendOps:    failedSendOps,
+
+		failedSimulateOperation: prometheus.Labels{"reason": "simulate_operation"},
+		failedEndorserLied:      prometheus.Labels{"reason": "endorser_lied"},
+		failedStaleOperation:    prometheus.Labels{"reason": "stale_operation"},
+		failedEstimateGas:       prometheus.Labels{"reason": "estimate_gas"},
+		failedSignTransaction:   prometheus.Labels{"reason": "sign_transaction"},
+		failedSendTransaction:   prometheus.Labels{"reason": "send_transaction"},
+
+		chilledOps: chilledOps,
+		blockedOps: blockedOps,
+
+		inspectReceiptAttempts:  inspectReceiptAttempts,
+		inspectReceiptPaid:      inspectReceiptPaid,
+		inspectReceiptUnderpaid: inspectReceiptUnderpaid,
+		inspectReceiptReverted:  inspectReceiptReverted,
+		inspectReceiptFailed:    inspectReceiptFailed,
+
+		failedInspectReceiptBalanceOf1:        prometheus.Labels{"reason": "balance_of_1"},
+		failedInspectReceiptBalanceOf2:        prometheus.Labels{"reason": "balance_of_2"},
+		failedInspectReceiptEffectiveGasPrice: prometheus.Labels{"reason": "effective_gas_price"},
+
+		sendOpTime:         sendOpTime,
+		prepareOpTime:      prepareOpTime,
+		waitReceiptTime:    waitReceiptTime,
+		inspectReceiptTime: inspectReceiptTime,
+
+		overpaidAmount:      overpaidAmount,
+		underpaidAmountDiff: underpaidAmountDiff,
+		unprofitableOpDiff:  unprofitableOpDiff,
+
+		skipRunNoOps: skipRunNoOps,
+	}
+}
 
 type Sender struct {
 	ID uint32
 
-	logger      *slog.Logger
+	logger  *slog.Logger
+	metrics *metrics
+
 	priorityFee *big.Int
 	randomWait  int
 	sleepWait   time.Duration
@@ -54,6 +270,7 @@ var _ Interface = &Sender{}
 func NewSender(
 	cfg *config.SendersConfig,
 	logger *slog.Logger,
+	metrics prometheus.Registerer,
 	id uint32,
 	wallet WalletInterface,
 	provider Provider,
@@ -80,8 +297,9 @@ func NewSender(
 	}
 
 	return &Sender{
-		ID:     id,
-		logger: logger,
+		ID:      id,
+		logger:  logger,
+		metrics: createMetrics(metrics, wallet.Address().String()),
 
 		priorityFee: big.NewInt(int64(cfg.PriorityFee)),
 		randomWait:  cfg.RandomWait,
@@ -120,6 +338,7 @@ func (s *Sender) onRun(ctx context.Context) bool {
 			delete(s.chilledOps, op)
 		}
 	}
+	s.metrics.chilledOps.Set(float64(len(s.chilledOps)))
 
 	ops := s.Mempool.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
 		if len(to) == 0 {
@@ -149,8 +368,16 @@ func (s *Sender) onRun(ctx context.Context) bool {
 	})
 
 	if len(ops) == 0 {
+		s.metrics.skipRunNoOps.Inc()
 		return false
 	}
+
+	if len(ops) > 1 {
+		s.logger.Error("sender: multiple operations reserved, picking the first one", "ops", len(ops))
+	}
+
+	s.metrics.attemptSendOps.Inc()
+	startPrepare := time.Now()
 
 	// Random delay reduces the chances to collide with other senders
 	if s.randomWait > 0 {
@@ -163,6 +390,7 @@ func (s *Sender) onRun(ctx context.Context) bool {
 
 	// If we got an error, we should discard the operation
 	if err != nil {
+		s.metrics.failedSendOps.With(s.metrics.failedSimulateOperation).Inc()
 		s.logger.Warn("sender: error simulating operation", "op", opDigest, "error", err)
 		s.Mempool.DiscardOps(ctx, []string{opDigest})
 		return true
@@ -171,9 +399,11 @@ func (s *Sender) onRun(ctx context.Context) bool {
 	// If the endorser lied to us, we should discard the operation
 	if !res.Paid {
 		if res.Lied {
-			s.Registry.BanEndorser(op.Endorser, registry.PermanentBan)
+			s.metrics.failedSendOps.With(s.metrics.failedEndorserLied).Inc()
 			s.logger.Warn("sender: endorser lied", "op", opDigest, "endorser", op.Endorser, "innerOk", res.Meta.InnerOk, "innerPaid", res.Meta.InnerPaid.String(), "innerExpected", res.Meta.InnerExpected.String())
+			s.Registry.BanEndorser(op.Endorser, registry.PermanentBan)
 		} else {
+			s.metrics.failedSendOps.With(s.metrics.failedStaleOperation).Inc()
 			s.logger.Info("sender: stale operation", "op", opDigest)
 		}
 		s.Mempool.DiscardOps(ctx, []string{opDigest})
@@ -189,6 +419,7 @@ func (s *Sender) onRun(ctx context.Context) bool {
 		Data: op.Data,
 	})
 	if err != nil {
+		s.metrics.failedSendOps.With(s.metrics.failedEstimateGas).Inc()
 		s.logger.Warn("sender: error estimating gas", "op", opDigest, "error", err)
 		s.Mempool.DiscardOps(ctx, []string{opDigest})
 		return true
@@ -222,6 +453,10 @@ func (s *Sender) onRun(ctx context.Context) bool {
 	// chill it for a while. There are many ever-changing factors
 	// that may make the operation profitable in the future
 	if ourPayment.Cmp(payment) > 0 {
+		s.metrics.unprofitableOps.Inc()
+		s.metrics.chilledOps.Inc()
+		diffFloat, _ := new(big.Int).Sub(payment, ourPayment).Float64()
+		s.metrics.unprofitableOpDiff.Observe(diffFloat)
 		s.logger.Info("sender: operation not profitable", "op", opDigest, "payment", payment.String(), "ourPayment", ourPayment.String())
 		s.chilledOps[opDigest] = time.Now()
 		s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_None)
@@ -241,6 +476,7 @@ func (s *Sender) onRun(ctx context.Context) bool {
 	)
 
 	if err != nil {
+		s.metrics.failedSendOps.With(s.metrics.failedSignTransaction).Inc()
 		s.logger.Warn("sender: error signing transaction", "op", opDigest, "error", err)
 		s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_None)
 		return true
@@ -249,17 +485,26 @@ func (s *Sender) onRun(ctx context.Context) bool {
 	// Try sending the transaction
 	_, wait, err := s.Wallet.SendTransaction(ctx, signedTx)
 	if err != nil {
+		s.metrics.failedSendOps.With(s.metrics.failedSendTransaction).Inc()
 		s.logger.Warn("sender: error sending transaction", "op", opDigest, "error", err)
 		s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_None)
 		return true
 	}
 
+	s.metrics.prepareOpTime.Observe(time.Since(startPrepare).Seconds())
+	s.metrics.executedOps.Inc()
+
+	startReceipt := time.Now()
+
 	receipt, err := wait(ctx)
 	if err != nil {
+		s.metrics.failedReceiptOps.Inc()
 		s.logger.Warn("sender: error waiting for receipt", "op", opDigest, "error", err)
 		s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_None)
 		return true
 	}
+
+	s.metrics.waitReceiptTime.Observe(time.Since(startReceipt).Seconds())
 
 	// Now that we have the receipt, we fire and forget the inspection
 	go s.inspectReceipt(ctx, &op.Operation, receipt, priceSnap)
@@ -267,6 +512,8 @@ func (s *Sender) onRun(ctx context.Context) bool {
 	s.logger.Info("sender: operation executed", "op", opDigest, "tx", receipt.TxHash.String())
 
 	// Block the operation so we don't try to execute it again
+	s.metrics.sendOpTime.Observe(time.Since(startPrepare).Seconds())
+	s.metrics.blockedOps.Inc()
 	s.blockedOps[opDigest] = struct{}{}
 
 	s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_Zero)
@@ -278,7 +525,6 @@ func (s *Sender) IsChilled(op *types.Operation) bool {
 	defer s.lock.Unlock()
 
 	_, ok := s.chilledOps[op.Hash()]
-	fmt.Println("IsChilled?", op.Hash(), ok)
 	return ok
 }
 
@@ -408,12 +654,20 @@ func (s *Sender) inspectReceipt(
 	receipt *ethtypes.Receipt,
 	priceSnap *pricefeed.Snapshot,
 ) {
+	start := time.Now()
+	defer func() {
+		s.metrics.inspectReceiptTime.Observe(time.Since(start).Seconds())
+	}()
+
+	s.metrics.inspectReceiptAttempts.Inc()
+
 	// If the transaction wasn't successful, two things may have happened:
 	// - the operation was executed by someone else
 	// - the endorser "lied" to us, and the simulation was wrong
 	if receipt.Status == 0 {
 		isReady, err := s.isOperationReady(ctx, op)
 		if err != nil || !isReady {
+			s.metrics.inspectReceiptReverted.With(prometheus.Labels{"lied": "false"}).Inc()
 			s.logger.Warn("inspector: likely operation collision", "op", op.Hash(), "tx", receipt.TxHash.String())
 			// The operation was executed by someone else
 			return
@@ -422,8 +676,9 @@ func (s *Sender) inspectReceipt(
 		// The endorser lied to us
 		// it is still marking the operation as ready
 		// but the operation failed to execute
-		s.Registry.BanEndorser(op.Endorser, registry.PermanentBan)
+		s.metrics.inspectReceiptReverted.With(prometheus.Labels{"lied": "true"}).Inc()
 		s.logger.Error("inspector: endorser lied", "op", op.Hash(), "tx", receipt.TxHash.String())
+		s.Registry.BanEndorser(op.Endorser, registry.PermanentBan)
 		return
 	}
 
@@ -442,17 +697,20 @@ func (s *Sender) inspectReceipt(
 	prevBalance, err := s.balanceOf(ctx, op.FeeToken, prevBlockNum)
 	if err != nil {
 		// We can't check the balance, so we can't do anything
+		s.metrics.inspectReceiptFailed.With(s.metrics.failedInspectReceiptBalanceOf1).Inc()
 		s.logger.Warn("inspector: unable to check prev balance", "op", op.Hash(), "tx", receipt.TxHash.String(), "error", err)
 		return
 	}
 	nextBalance, err := s.balanceOf(ctx, op.FeeToken, txBlockNum)
 	if err != nil {
 		// We can't check the balance, so we can't do anything
+		s.metrics.inspectReceiptFailed.With(s.metrics.failedInspectReceiptBalanceOf2).Inc()
 		s.logger.Warn("inspector: unable to check next balance", "op", op.Hash(), "tx", receipt.TxHash.String(), "error", err)
 		return
 	}
 
 	if receipt.EffectiveGasPrice == nil {
+		s.metrics.inspectReceiptFailed.With(s.metrics.failedInspectReceiptEffectiveGasPrice).Inc()
 		s.logger.Warn("inspector: unable to check effective gas price", "op", op.Hash(), "tx", receipt.TxHash.String())
 		return
 	}
@@ -462,8 +720,14 @@ func (s *Sender) inspectReceipt(
 
 	isNative := op.FeeToken == common.Address{}
 	if isNative {
+		balanceDiffFloat, _ := balanceDiff.Float64()
+		balanceDiffFloat = math.Abs(balanceDiffFloat)
+
 		if balanceDiff.Sign() == 1 {
 			// We got paid, end of story
+			s.metrics.inspectReceiptPaid.Inc()
+			s.metrics.overpaidAmount.Observe(balanceDiffFloat)
+
 			s.logger.Info(
 				"inspector: operation paid",
 				"op", op.Hash(),
@@ -472,6 +736,9 @@ func (s *Sender) inspectReceipt(
 			)
 			return
 		}
+
+		s.metrics.inspectReceiptUnderpaid.Inc()
+		s.metrics.underpaidAmountDiff.Observe(balanceDiffFloat)
 		s.logger.Warn(
 			"inspector: operation not paid enough",
 			"op", op.Hash(),
@@ -482,8 +749,14 @@ func (s *Sender) inspectReceipt(
 		// This is a bit more complicated, since we need to convert
 		// the balanceDiff to native token and compare it with the nativeUsed
 		nativePaid := priceSnap.ToNative(balanceDiff)
+		nativeDiff := new(big.Int).Sub(nativePaid, nativeUsed)
+		nativeDiffFloat, _ := nativeDiff.Float64()
+		nativeDiffFloat = math.Abs(nativeDiffFloat)
+
 		if nativePaid.Cmp(nativeUsed) >= 0 {
 			// We got paid, end of story
+			s.metrics.inspectReceiptPaid.Inc()
+			s.metrics.overpaidAmount.Observe(nativeDiffFloat)
 			s.logger.Info(
 				"inspector: operation paid",
 				"op", op.Hash(),
@@ -493,6 +766,9 @@ func (s *Sender) inspectReceipt(
 			)
 			return
 		}
+
+		s.metrics.inspectReceiptUnderpaid.Inc()
+		s.metrics.underpaidAmountDiff.Observe(nativeDiffFloat)
 		s.logger.Warn(
 			"inspector: operation not paid enough",
 			"op", op.Hash(),

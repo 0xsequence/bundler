@@ -36,11 +36,14 @@ func TestReservePullOps(t *testing.T) {
 	mockCollector := &mocks.MockCollector{}
 	mockRegistry := &mocks.MockRegistry{}
 
+	mockWallet.On("Address").Return(common.Address{}, nil).Maybe()
+
 	sender := sender.NewSender(
 		&config.SendersConfig{
 			SleepWait: 1,
 		},
 		logger,
+		nil,
 		0,
 		mockWallet,
 		mockProvider,
@@ -76,6 +79,8 @@ func TestSimulateOpErr(t *testing.T) {
 	mockCollector := &mocks.MockCollector{}
 	mockRegistry := &mocks.MockRegistry{}
 
+	mockWallet.On("Address").Return(common.Address{}, nil).Maybe()
+
 	op := mempool.TrackedOperation{
 		Operation: types.Operation{},
 	}
@@ -85,6 +90,7 @@ func TestSimulateOpErr(t *testing.T) {
 			SleepWait: 1,
 		},
 		logger,
+		nil,
 		0,
 		mockWallet,
 		mockProvider,
@@ -96,8 +102,6 @@ func TestSimulateOpErr(t *testing.T) {
 	)
 
 	done := make(chan struct{})
-
-	mockWallet.On("Address").Return(common.Address{}, nil).Once()
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{&op}, nil).Once()
 
@@ -138,6 +142,8 @@ func TestSimulatePaidNotPaid(t *testing.T) {
 	mockCollector := &mocks.MockCollector{}
 	mockRegistry := &mocks.MockRegistry{}
 
+	mockWallet.On("Address").Return(common.Address{}, nil).Maybe()
+
 	op := mempool.TrackedOperation{
 		Operation: types.Operation{},
 	}
@@ -147,6 +153,7 @@ func TestSimulatePaidNotPaid(t *testing.T) {
 			SleepWait: 1,
 		},
 		logger,
+		nil,
 		0,
 		mockWallet,
 		mockProvider,
@@ -158,8 +165,6 @@ func TestSimulatePaidNotPaid(t *testing.T) {
 	)
 
 	done := make(chan struct{})
-
-	mockWallet.On("Address").Return(common.Address{}, nil).Once()
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{&op}, nil).Once()
 
@@ -203,6 +208,8 @@ func TestSimulatePaidNotPaidConstraintsUnmet(t *testing.T) {
 	mockCollector := &mocks.MockCollector{}
 	mockRegistry := &mocks.MockRegistry{}
 
+	mockWallet.On("Address").Return(common.Address{}, nil).Maybe()
+
 	op := mempool.TrackedOperation{
 		Operation: types.Operation{},
 	}
@@ -212,6 +219,7 @@ func TestSimulatePaidNotPaidConstraintsUnmet(t *testing.T) {
 			SleepWait: 1,
 		},
 		logger,
+		nil,
 		0,
 		mockWallet,
 		mockProvider,
@@ -223,8 +231,6 @@ func TestSimulatePaidNotPaidConstraintsUnmet(t *testing.T) {
 	)
 
 	done := make(chan struct{})
-
-	mockWallet.On("Address").Return(common.Address{}, nil).Once()
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{&op}, nil).Once()
 
@@ -293,6 +299,8 @@ func TestSimulatePaidNotPaidAndLied(t *testing.T) {
 	mockCollector := &mocks.MockCollector{}
 	mockRegistry := &mocks.MockRegistry{}
 
+	mockWallet.On("Address").Return(common.Address{}, nil).Twice()
+
 	op := mempool.TrackedOperation{
 		Operation: types.Operation{},
 	}
@@ -302,6 +310,7 @@ func TestSimulatePaidNotPaidAndLied(t *testing.T) {
 			SleepWait: 1,
 		},
 		logger,
+		nil,
 		0,
 		mockWallet,
 		mockProvider,
@@ -313,8 +322,6 @@ func TestSimulatePaidNotPaidAndLied(t *testing.T) {
 	)
 
 	done := make(chan struct{})
-
-	mockWallet.On("Address").Return(common.Address{}, nil).Once()
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{&op}, nil).Once()
 
@@ -369,6 +376,8 @@ func TestChillIfDoesNotPay(t *testing.T) {
 	mockCollector := &mocks.MockCollector{}
 	mockRegistry := &mocks.MockRegistry{}
 
+	mockWallet.On("Address").Return(common.Address{}, nil).Twice()
+
 	op := mempool.TrackedOperation{
 		Operation: types.Operation{
 			IEndorserOperation: abiendorser.IEndorserOperation{
@@ -387,6 +396,7 @@ func TestChillIfDoesNotPay(t *testing.T) {
 			ChillWait:   1,
 		},
 		logger,
+		nil,
 		0,
 		mockWallet,
 		mockProvider,
@@ -398,8 +408,6 @@ func TestChillIfDoesNotPay(t *testing.T) {
 	)
 
 	done := make(chan struct{})
-
-	mockWallet.On("Address").Return(common.Address{}, nil).Once()
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{&op}, nil).Once()
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{}, nil).Maybe()
@@ -450,6 +458,8 @@ func TestSendAndBanEndorserFailedTx(t *testing.T) {
 
 	endorserAddr := common.HexToAddress("0x08FFc248A190E700421C0aFB4135768406dCebfF")
 
+	mockWallet.On("Address").Return(common.Address{}, nil).Twice()
+
 	op := mempool.TrackedOperation{
 		Operation: types.Operation{
 			Endorser: endorserAddr,
@@ -469,6 +479,7 @@ func TestSendAndBanEndorserFailedTx(t *testing.T) {
 			PriorityFee: 13,
 		},
 		logger,
+		nil,
 		0,
 		mockWallet,
 		mockProvider,
@@ -480,8 +491,6 @@ func TestSendAndBanEndorserFailedTx(t *testing.T) {
 	)
 
 	done := make(chan struct{})
-
-	mockWallet.On("Address").Return(common.Address{}, nil).Maybe()
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{&op}, nil).Once()
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{}, nil).Maybe()
@@ -563,6 +572,8 @@ func TestSendAndBanEndorserLowPayment(t *testing.T) {
 
 	endorserAddr := common.HexToAddress("0x08FFc248A190E700421C0aFB4135768406dCebfF")
 
+	mockWallet.On("Address").Return(common.Address{}, nil).Maybe()
+
 	op := mempool.TrackedOperation{
 		Operation: types.Operation{
 			Endorser: endorserAddr,
@@ -582,6 +593,7 @@ func TestSendAndBanEndorserLowPayment(t *testing.T) {
 			PriorityFee: 13,
 		},
 		logger,
+		nil,
 		0,
 		mockWallet,
 		mockProvider,
@@ -593,8 +605,6 @@ func TestSendAndBanEndorserLowPayment(t *testing.T) {
 	)
 
 	done := make(chan struct{})
-
-	mockWallet.On("Address").Return(common.Address{}, nil).Maybe()
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{&op}, nil).Once()
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{}, nil).Maybe()
@@ -671,6 +681,8 @@ func TestSend(t *testing.T) {
 	mockCollector := &mocks.MockCollector{}
 	mockRegistry := &mocks.MockRegistry{}
 
+	mockWallet.On("Address").Return(common.Address{}, nil).Maybe()
+
 	op := mempool.TrackedOperation{
 		Operation: types.Operation{
 			IEndorserOperation: abiendorser.IEndorserOperation{
@@ -689,6 +701,7 @@ func TestSend(t *testing.T) {
 			PriorityFee: 13,
 		},
 		logger,
+		nil,
 		0,
 		mockWallet,
 		mockProvider,
@@ -700,8 +713,6 @@ func TestSend(t *testing.T) {
 	)
 
 	done := make(chan struct{})
-
-	mockWallet.On("Address").Return(common.Address{}, nil).Maybe()
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{&op}, nil).Once()
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{}, nil).Maybe()
