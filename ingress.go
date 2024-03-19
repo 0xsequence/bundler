@@ -19,7 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-type metrics struct {
+type ingressMetrics struct {
 	inputOps    prometheus.Counter
 	acceptedOps prometheus.Counter
 
@@ -43,14 +43,14 @@ type Ingress struct {
 	intransit map[string]struct{}
 
 	logger  *httplog.Logger
-	metrics *metrics
+	metrics *ingressMetrics
 
 	Host      p2p.Interface
 	Mempool   mempool.Interface
 	Collector collector.Interface
 }
 
-func createMetrics(reg prometheus.Registerer) *metrics {
+func createIngressMetrics(reg prometheus.Registerer) *ingressMetrics {
 	inputOps := prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "ingress_input_count",
 		Help: "Number of operations received",
@@ -85,7 +85,7 @@ func createMetrics(reg prometheus.Registerer) *metrics {
 		reg.MustRegister(processTime)
 	}
 
-	return &metrics{
+	return &ingressMetrics{
 		inputOps:    inputOps,
 		pendingOps:  pendingOps,
 		acceptedOps: acceptedOps,
@@ -114,7 +114,7 @@ func NewIngress(
 		intransit: make(map[string]struct{}, cfg.IngressSize),
 
 		logger:  logger,
-		metrics: createMetrics(metrics),
+		metrics: createIngressMetrics(metrics),
 
 		Host:      host,
 		Mempool:   mempool,

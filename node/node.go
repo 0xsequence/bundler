@@ -159,7 +159,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	ingress := bundler.NewIngress(&cfg.MempoolConfig, logger, promPrefix, mempool, collector, host)
 
 	// Archive
-	archive := bundler.NewArchive(&cfg.ArchiveConfig, host, logger, ipfs, mempool)
+	archive := bundler.NewArchive(&cfg.ArchiveConfig, host, logger, promPrefix, ipfs, mempool)
 
 	// RPC
 	rpc, err := rpc.NewRPC(cfg, logger, prom, host, mempool, archive, provider, collector, endorser, ipfs, calldataModel, registry)

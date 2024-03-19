@@ -23,7 +23,7 @@ func TestOperations(t *testing.T) {
 	host := &mocks.MockP2p{}
 	mempool := &mocks.MockMempool{}
 
-	archive := bundler.NewArchive(&config.ArchiveConfig{}, host, logger, ipfs, mempool)
+	archive := bundler.NewArchive(&config.ArchiveConfig{}, host, logger, nil, ipfs, mempool)
 
 	mempool.On("KnownOperations").Return([]string{
 		"0x123",
@@ -46,7 +46,7 @@ func TestDoArchive(t *testing.T) {
 	host := &mocks.MockP2p{}
 	mempool := &mocks.MockMempool{}
 
-	archive := bundler.NewArchive(&config.ArchiveConfig{}, host, logger, mipfs, mempool)
+	archive := bundler.NewArchive(&config.ArchiveConfig{}, host, logger, nil, mipfs, mempool)
 
 	cid, _ := ipfs.Cid([]byte("hello test"))
 
@@ -93,7 +93,7 @@ func TestListenArchives(t *testing.T) {
 	host := &mocks.MockP2p{}
 	mempool := &mocks.MockMempool{}
 
-	archive := bundler.NewArchive(&config.ArchiveConfig{}, host, logger, mipfs, mempool)
+	archive := bundler.NewArchive(&config.ArchiveConfig{}, host, logger, nil, mipfs, mempool)
 
 	handlerregistered := make(chan struct{})
 	host.On("HandleMessageType", proto.MessageType_ARCHIVE, mock.Anything).Run(func(mock.Arguments) {
@@ -159,7 +159,7 @@ func TestChainArchives(t *testing.T) {
 	host := &mocks.MockP2p{}
 	mempool := &mocks.MockMempool{}
 
-	archive := bundler.NewArchive(&config.ArchiveConfig{}, host, logger, mipfs, mempool)
+	archive := bundler.NewArchive(&config.ArchiveConfig{}, host, logger, nil, mipfs, mempool)
 
 	cid1, _ := ipfs.Cid([]byte("hello test 1"))
 	cid2, _ := ipfs.Cid([]byte("hello test 2"))
@@ -202,7 +202,7 @@ func TestRunArchiver(t *testing.T) {
 	archive := bundler.NewArchive(&config.ArchiveConfig{
 		RunEveryMillis:     1,
 		ForgetAfterSeconds: 13,
-	}, host, logger, mipfs, mempool)
+	}, host, logger, nil, mipfs, mempool)
 
 	cid, _ := ipfs.Cid([]byte("hello test"))
 

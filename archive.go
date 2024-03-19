@@ -17,7 +17,106 @@ import (
 	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
 	"github.com/go-chi/httplog/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/prometheus/client_golang/prometheus"
 )
+
+type archiveMetrics struct {
+	receivedArchive        *prometheus.CounterVec
+	receivedInvalidArchive *prometheus.CounterVec
+
+	seenArchiveCids prometheus.Gauge
+
+	archiveSkipEmpty prometheus.Counter
+	doneArchive      prometheus.Histogram
+	failedArchive    prometheus.Counter
+
+	receivedArchiveNew   prometheus.Labels
+	receivedArchiveKnown prometheus.Labels
+
+	invalidArchiveBadMsgReason prometheus.Labels
+	invalidArchiveBadCidReason prometheus.Labels
+}
+
+func createArchiveMetrics(reg prometheus.Registerer) *archiveMetrics {
+	receivedArchive := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "archive_received_count",
+		Help: "Number of received archives",
+	}, []string{"status"})
+
+	receivedInvalidArchive := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "archive_received_invalid_count",
+		Help: "Number of received invalid archives",
+	}, []string{"status"})
+
+	seenArchiveCids := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "archive_seen_cids",
+		Help: "Number of seen archive cids, pending records to be archived",
+	})
+
+	archiveSkipEmpty := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "archive_skip_empty_count",
+		Help: "Number of empty archives skipped",
+	})
+
+	doneArchive := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name: "archive_done_operations",
+		Help: "Number of operations archived",
+		Buckets: []float64{
+			0,
+			1,
+			2,
+			5,
+			10,
+			15,
+			20,
+			25,
+			50,
+			75,
+			100,
+			150,
+			200,
+			500,
+			1000,
+			2000,
+		},
+	})
+
+	failedArchive := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "archive_failed_count",
+		Help: "Number of failed archives",
+	})
+
+	receivedArchiveNew := prometheus.Labels{"status": "new"}
+	receivedArchiveKnown := prometheus.Labels{"status": "known"}
+
+	invalidArchiveBadMsgReason := prometheus.Labels{"reason": "bad_message"}
+	invalidArchiveBadCidReason := prometheus.Labels{"reason": "bad_cid"}
+
+	if reg != nil {
+		reg.MustRegister(receivedArchive)
+		reg.MustRegister(receivedInvalidArchive)
+		reg.MustRegister(seenArchiveCids)
+		reg.MustRegister(doneArchive)
+		reg.MustRegister(failedArchive)
+	}
+
+	return &archiveMetrics{
+		receivedArchive:        receivedArchive,
+		receivedInvalidArchive: receivedInvalidArchive,
+
+		seenArchiveCids: seenArchiveCids,
+
+		archiveSkipEmpty: archiveSkipEmpty,
+		doneArchive:      doneArchive,
+		failedArchive:    failedArchive,
+
+		receivedArchiveNew:   receivedArchiveNew,
+		receivedArchiveKnown: receivedArchiveKnown,
+
+		invalidArchiveBadMsgReason: invalidArchiveBadMsgReason,
+		invalidArchiveBadCidReason: invalidArchiveBadCidReason,
+	}
+}
 
 type ArchiveSnapshot struct {
 	Timestamp uint64 `json:"time"`
@@ -47,15 +146,16 @@ type Archive struct {
 	forgetAfter  time.Duration
 	seenArchives map[string]string
 
-	Host   p2p.Interface
-	Logger *httplog.Logger
+	Host    p2p.Interface
+	Logger  *httplog.Logger
+	Metrics *archiveMetrics
 
 	PrevArchive string
 
 	Mempool mempool.Interface
 }
 
-func NewArchive(cfg *config.ArchiveConfig, host p2p.Interface, logger *httplog.Logger, ipfs ipfs.Interface, mempool mempool.Interface) *Archive {
+func NewArchive(cfg *config.ArchiveConfig, host p2p.Interface, logger *httplog.Logger, metrics prometheus.Registerer, ipfs ipfs.Interface, mempool mempool.Interface) *Archive {
 	var runEvery time.Duration
 	if cfg.RunEveryMillis != 0 {
 		runEvery = time.Duration(cfg.RunEveryMillis) * time.Millisecond
@@ -81,8 +181,9 @@ func NewArchive(cfg *config.ArchiveConfig, host p2p.Interface, logger *httplog.L
 		runEvery:    runEvery,
 		forgetAfter: forgetAfter,
 
-		Host:   host,
-		Logger: logger,
+		Host:    host,
+		Logger:  logger,
+		Metrics: createArchiveMetrics(metrics),
 
 		seenArchives: make(map[string]string),
 
@@ -104,14 +205,26 @@ func (a *Archive) Run(ctx context.Context) {
 		err := json.Unmarshal(message, &amsg)
 		if err != nil {
 			a.Logger.Warn("archive: invalid message", "peer", peer)
+			a.Metrics.receivedInvalidArchive.With(a.Metrics.invalidArchiveBadMsgReason).Inc()
 			return
 		}
 
 		if !ipfs.IsCid(amsg.ArchiveCid) {
 			a.Logger.Warn("archive: invalid cid", "peer", peer, "cid", amsg.ArchiveCid)
+			a.Metrics.receivedInvalidArchive.With(a.Metrics.invalidArchiveBadCidReason).Inc()
+			return
 		}
 
-		a.seenArchives[peer.String()] = amsg.ArchiveCid
+		ps := peer.String()
+		if _, ok := a.seenArchives[ps]; ok {
+			a.Metrics.receivedArchive.With(a.Metrics.receivedArchiveKnown).Inc()
+		} else {
+			a.Metrics.receivedArchive.With(a.Metrics.receivedArchiveNew).Inc()
+		}
+
+		a.seenArchives[ps] = amsg.ArchiveCid
+
+		a.Metrics.seenArchiveCids.Set(float64(len(a.seenArchives)))
 	})
 
 	for ctx.Err() == nil {
@@ -148,12 +261,14 @@ func (a *Archive) TriggerArchive(ctx context.Context, age time.Duration, force b
 	archive := a.Mempool.ForgetOps(age)
 	err := a.doArchive(ctx, archive, force)
 	if err != nil {
+		a.Metrics.failedArchive.Inc()
 		a.Logger.Error("archive: error archiving", "ops", len(archive), "error", err)
 	}
 }
 
-func (a *Archive) doArchive(ctx context.Context, ops []string, force bool) error {
+func (a *Archive) doArchive(_ context.Context, ops []string, force bool) error {
 	if len(ops) == 0 && !force {
+		a.Metrics.archiveSkipEmpty.Inc()
 		return nil
 	}
 
@@ -214,6 +329,7 @@ func (a *Archive) doArchive(ctx context.Context, ops []string, force bool) error
 
 	a.PrevArchive = cid
 	a.seenArchives = make(map[string]string)
+	a.Metrics.seenArchiveCids.Set(0)
 
 	// Broadcast the archive
 	err = a.Host.Broadcast(proto.Message{
@@ -221,7 +337,13 @@ func (a *Archive) doArchive(ctx context.Context, ops []string, force bool) error
 		Message: &ArchiveMessage{ArchiveCid: cid},
 	})
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	a.Metrics.doneArchive.Observe(float64(len(ops)))
+
+	return nil
 }
 
 func (a *Archive) Operations(ctx context.Context) *proto.Operations {
