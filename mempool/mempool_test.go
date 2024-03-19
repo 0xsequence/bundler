@@ -29,7 +29,7 @@ func TestAddOperation(t *testing.T) {
 
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size: 10,
-	}, logger, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
+	}, logger, nil, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
 
 	assert.NoError(t, err)
 
@@ -80,7 +80,7 @@ func TestForceIncludeKnownOp(t *testing.T) {
 
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size: 10,
-	}, logger, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
+	}, logger, nil, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
 
 	assert.NoError(t, err)
 
@@ -126,7 +126,7 @@ func TestSkipAddingKnownOperation(t *testing.T) {
 
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size: 10,
-	}, logger, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
+	}, logger, nil, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
 
 	assert.NoError(t, err)
 
@@ -168,7 +168,7 @@ func TestNotReadyOperation(t *testing.T) {
 
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size: 10,
-	}, logger, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
+	}, logger, nil, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
 
 	assert.NoError(t, err)
 
@@ -245,7 +245,7 @@ func TestReserveOps(t *testing.T) {
 
 	mem, err := mempool.NewMempool(&config.MempoolConfig{
 		Size: 10,
-	}, logger, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
+	}, logger, nil, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
 
 	assert.NoError(t, err)
 
@@ -355,7 +355,7 @@ func TestReportToIPFS(t *testing.T) {
 
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size: 10,
-	}, logger, mockEndorser, mockP2p, mockCollector, mockIpfs, calldata.DefaultModel(), mockRegistry)
+	}, logger, nil, mockEndorser, mockP2p, mockCollector, mockIpfs, calldata.DefaultModel(), mockRegistry)
 
 	assert.NoError(t, err)
 
@@ -420,7 +420,7 @@ func TestRejectOverlappingDependency(t *testing.T) {
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size:         10,
 		OverlapLimit: 1,
-	}, logger, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
+	}, logger, nil, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
 
 	assert.NoError(t, err)
 
@@ -476,7 +476,7 @@ func TestReplaceOverlappingDependency(t *testing.T) {
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size:         10,
 		OverlapLimit: 1,
-	}, logger, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
+	}, logger, nil, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
 
 	assert.NoError(t, err)
 
@@ -539,7 +539,7 @@ func TestRejectBadEndorser(t *testing.T) {
 		Size:          10,
 		OverlapLimit:  10,
 		WildcardLimit: 10,
-	}, logger, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
+	}, logger, nil, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
 
 	assert.NoError(t, err)
 

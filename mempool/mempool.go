@@ -373,7 +373,7 @@ func (mp *Mempool) ReleaseOps(ctx context.Context, ops []string, updateReadyAt p
 		}
 	}
 
-	mp.metrics.opsReleased.WithLabelValues("change", updateReadyAt.String()).Add(float64(len(ops)))
+	mp.metrics.opsReleased.WithLabelValues(updateReadyAt.String()).Add(float64(len(ops)))
 
 	mp.SortOperations()
 }
@@ -400,7 +400,7 @@ func (mp *Mempool) discardOpsUnlocked(_ context.Context, ops []string) {
 				// If reserved, measure the time it was reserved
 				if op.ReservedSince != nil {
 					mp.metrics.reservedTime.Observe(time.Since(*op.ReservedSince).Seconds())
-					mp.metrics.opsReleased.WithLabelValues("change", "discard").Inc()
+					mp.metrics.opsReleased.WithLabelValues("discard").Inc()
 				}
 
 				// Measure the lifetime of the operation
