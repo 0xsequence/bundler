@@ -112,7 +112,7 @@ func (e *Endorser) simulationSettingsCall(ctx context.Context, endorserAddr comm
 	}
 
 	var res string
-	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall, nil, nil)
+	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall, nil, *debugOverrideArgs)
 	_, err = e.Provider.Do(ctx, rpcCall.Into(&res))
 	if err != nil {
 		return nil, err
@@ -132,41 +132,40 @@ func (e *Endorser) SimulationSettings(ctx context.Context, endorserAddr common.A
 	return e.simulationSettingsCall(ctx, endorserAddr)
 }
 
-func (e *Endorser) debugContextArgs(ctx context.Context, endorserAddr common.Address) (common.Address, *debugger.DebugContextArgs, error) {
+func (e *Endorser) callOverrideArgs(ctx context.Context, endorserAddr common.Address) (common.Address, *debugger.DebugOverrideArgs, error) {
 	settings, err := e.simulationSettingsCall(ctx, endorserAddr)
 	if err != nil {
 		return common.Address{}, nil, fmt.Errorf("unable to get simulation settings: %w", err)
 	}
-	contextArgs := &debugger.DebugContextArgs{
-		CodeReplacements: make([]debugger.CodeReplacement, 0, len(settings)),
-		SlotReplacements: make([]debugger.SlotReplacement, 0, len(settings)),
-	}
+	overrideArgs := debugger.DebugOverrideArgs{}
 	to := endorserAddr
 	for _, setting := range settings {
 		if (setting.OldAddr == endorserAddr) {
 			// Update the endorser location
 			to = setting.NewAddr
 		}
+
+		overrideArg := debugger.DebugOverride{}
 		if (setting.OldAddr != setting.NewAddr) {
 			// Code replacement
 			replacementCode, err := e.Provider.CodeAt(ctx, setting.OldAddr, nil)
 			if err != nil {
 				return common.Address{}, nil, fmt.Errorf("unable to read code for %v: %w", setting.OldAddr, err)
 			}
-			contextArgs.CodeReplacements = append(contextArgs.CodeReplacements, debugger.CodeReplacement{
-				Address: setting.NewAddr,
-				Code:    replacementCode,
-			})
+			codeStr := "0x" + common.Bytes2Hex(replacementCode)
+			overrideArg.Code = &codeStr
+		}
+		// Slots
+		if len(setting.Slots) > 0 {
+			overrideArg.StateDiff = make(map[common.Hash]common.Hash)
 		}
 		for _, slot := range setting.Slots {
-			contextArgs.SlotReplacements = append(contextArgs.SlotReplacements, debugger.SlotReplacement{
-				Address: setting.NewAddr,
-				Slot:    slot.Slot,
-				Value:   slot.Value,
-			})
+			overrideArg.StateDiff[common.BytesToHash(slot.Slot[:])] = common.BytesToHash(slot.Value[:])
 		}
+
+		overrideArgs[setting.OldAddr] = &overrideArg
 	}
-	return to, contextArgs, nil
+	return to, &overrideArgs, nil
 }
 
 // IsOperationReady
@@ -291,6 +290,11 @@ func (e *Endorser) isOperationReadyCall(ctx context.Context, op *types.Operation
 		return nil, fmt.Errorf("unable to build calldata: %w", err)
 	}
 
+	to, debugOverrideArgs, err := e.callOverrideArgs(ctx, to)
+	if err != nil {
+		return nil, fmt.Errorf("unable to build debug override args: %w", err)
+	}
+
 	endorserCall := &struct {
 		To   common.Address `json:"to"`
 		Data string         `json:"data"`
@@ -347,9 +351,9 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 		return nil, fmt.Errorf("unable to build calldata: %w", err)
 	}
 
-	to, debugContextArgs, err := e.debugContextArgs(ctx, to)
+	to, debugOverrideArgs, err := e.callOverrideArgs(ctx, to)
 	if err != nil {
-		return nil, fmt.Errorf("unable to build debug context args: %w", err)
+		return nil, fmt.Errorf("unable to build debug override args: %w", err)
 	}
 
 	// Use random caller
@@ -360,7 +364,7 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 		Data: common.FromHex(data),
 	}
 
-	trace, err := e.Debugger.DebugTraceCallContext(ctx, debugCallArgs, debugContextArgs)
+	trace, err := e.Debugger.DebugTraceCall(ctx, debugCallArgs, debugOverrideArgs)
 	if err != nil {
 		return nil, fmt.Errorf("unable to trace call: %w", err)
 	}
@@ -404,7 +408,7 @@ func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*
 		}
 
 		e.metrics.isOperationReadyDebuggerFailed.Inc()
-		e.logger.Warn("unable to use debugger, falling back to eth_call and ignoring simulation settings", "error", err)
+		e.logger.Warn("unable to use debugger, falling back to eth_call and ignoring untrusted context", "error", err)
 	}
 
 	return e.isOperationReadyCall(ctx, op)

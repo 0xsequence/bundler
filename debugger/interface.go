@@ -12,6 +12,13 @@ type DebugCallArgs struct {
 	Data []byte
 }
 
+type DebugOverride struct {
+	Code      *string                     `json:"code"`
+	StateDiff map[common.Hash]common.Hash `json:"stateDiff"`
+}
+
+type DebugOverrideArgs map[common.Address]*DebugOverride
+
 type LogEntry struct {
 	PC      float64  `json:"pc"`
 	Op      string   `json:"op"`
@@ -29,23 +36,6 @@ type TransactionTrace struct {
 	StructLogs  []LogEntry     `json:"structLogs"`
 }
 
-type CodeReplacement struct {
-	Address common.Address
-	Code    []byte
-}
-
-type SlotReplacement struct {
-	Address common.Address
-	Slot    common.Hash
-	Value   common.Hash
-}
-
-type DebugContextArgs struct {
-	CodeReplacements []CodeReplacement
-	SlotReplacements []SlotReplacement
-}
-
 type Interface interface {
-	DebugTraceCall(ctx context.Context, args *DebugCallArgs) (*TransactionTrace, error)
-	DebugTraceCallContext(ctx context.Context, args *DebugCallArgs, contextArgs *DebugContextArgs) (*TransactionTrace, error)
+	DebugTraceCall(ctx context.Context, args *DebugCallArgs, overrideArgs *DebugOverrideArgs) (*TransactionTrace, error)
 }

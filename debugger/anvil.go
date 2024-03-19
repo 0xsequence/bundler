@@ -231,7 +231,7 @@ func (a *AnvilDebugger) resetLocked() error {
 	return nil
 }
 
-func (a *AnvilDebugger) tryDebugTraceCall(ctx context.Context, args *DebugCallArgs, contextArgs *DebugContextArgs) (*TransactionTrace, error) {
+func (a *AnvilDebugger) tryDebugTraceCall(ctx context.Context, args *DebugCallArgs, overrideArgs *DebugOverrideArgs) (*TransactionTrace, error) {
 	if err := a.resetLocked(); err != nil {
 		return nil, err
 	}
@@ -248,14 +248,17 @@ func (a *AnvilDebugger) tryDebugTraceCall(ctx context.Context, args *DebugCallAr
 
 	start_context := time.Now()
 
-	if (contextArgs != nil) && (len(contextArgs.CodeReplacements) > 0) {
-		for _, cr := range contextArgs.CodeReplacements {
-			a.performSetCode(ctx, cr.Address, cr.Code)
-		}
-	}
-	if (contextArgs != nil) && (len(contextArgs.SlotReplacements) > 0) {
-		for _, sr := range contextArgs.SlotReplacements {
-			a.performSetStorageAt(ctx, sr.Address, sr.Slot, sr.Value)
+	if overrideArgs != nil {
+		for addr, overrideArg := range *overrideArgs {
+			if overrideArg.Code != nil {
+				codeBytes := common.FromHex(*overrideArg.Code)
+				a.performSetCode(ctx, addr, codeBytes)
+			}
+			if len(overrideArg.StateDiff) > 0 {
+				for slot, value := range overrideArg.StateDiff {
+					a.performSetStorageAt(ctx, addr, slot, value)
+				}
+			}
 		}
 	}
 
@@ -293,12 +296,7 @@ func (a *AnvilDebugger) tryStartUnlocked() error {
 
 	return fmt.Errorf("failed to start anvil: %v", errs)
 }
-
-func (a *AnvilDebugger) DebugTraceCall(ctx context.Context, args *DebugCallArgs) (*TransactionTrace, error) {
-	return a.DebugTraceCallContext(ctx, args, nil)
-}
-
-func (a *AnvilDebugger) DebugTraceCallContext(ctx context.Context, args *DebugCallArgs, contextArgs *DebugContextArgs) (*TransactionTrace, error) {
+func (a *AnvilDebugger) DebugTraceCall(ctx context.Context, args *DebugCallArgs, overrideArgs *DebugOverrideArgs) (*TransactionTrace, error) {
 	a.metrics.debugTraceCallOperations.Inc()
 	start := time.Now()
 
@@ -317,7 +315,7 @@ func (a *AnvilDebugger) DebugTraceCallContext(ctx context.Context, args *DebugCa
 	errs := make([]error, 0, 3)
 
 	for i := 0; i < 3; i++ {
-		res, err := a.tryDebugTraceCall(ctx, args, contextArgs)
+		res, err := a.tryDebugTraceCall(ctx, args, overrideArgs)
 		if err == nil {
 			a.metrics.debugTraceCallSuccesses.Inc()
 			a.metrics.debugCallDuration.Observe(float64(time.Since(start)))
