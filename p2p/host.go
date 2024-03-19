@@ -175,7 +175,7 @@ func createMetrics(reg prometheus.Registerer) *metrics {
 }
 
 type Host struct {
-	cfg      *config.Config
+	cfg      *config.P2PHostConfig
 	logger   *slog.Logger
 	metrics  *metrics
 	host     host.Host
@@ -193,7 +193,7 @@ type Host struct {
 
 var _ Interface = &Host{}
 
-func NewHost(cfg *config.Config, logger *slog.Logger, metrics prometheus.Registerer, wallet *ethwallet.Wallet) (*Host, error) {
+func NewHost(cfg *config.P2PHostConfig, logger *slog.Logger, metrics prometheus.Registerer, wallet *ethwallet.Wallet) (*Host, error) {
 
 	// Use private key at HD node account index 0 as the peer private key.
 	peerPrivKeyBytes, err := hexutil.Decode(wallet.PrivateKeyHex())
