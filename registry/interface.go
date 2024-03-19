@@ -13,6 +13,23 @@ const (
 	PermanentBanned
 )
 
+func (e EndorserStatus) String() string {
+	switch e {
+	case UnknownEndorser:
+		return "unknown"
+	case AcceptedEndorser:
+		return "accepted"
+	case TrustedEndorser:
+		return "trusted"
+	case TemporaryBanned:
+		return "temporary-banned"
+	case PermanentBanned:
+		return "permanent-banned"
+	default:
+		return "unknown"
+	}
+}
+
 type BanType int
 
 const (

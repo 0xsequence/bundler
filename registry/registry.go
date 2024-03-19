@@ -10,7 +10,146 @@ import (
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi/bind"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/httplog/v2"
+	"github.com/prometheus/client_golang/prometheus"
 )
+
+type metrics struct {
+	knownEndorsers   prometheus.Gauge
+	temporalBanned   prometheus.Gauge
+	permanentBanned  prometheus.Gauge
+	trustedEndorsers prometheus.Gauge
+
+	temporalBans     prometheus.Counter
+	temporalForgives prometheus.Counter
+
+	discoverRequests prometheus.Counter
+	discoverSuccess  prometheus.Counter
+	discoverCollided prometheus.Counter
+	discoverFailures *prometheus.CounterVec
+
+	askedForEndorser *prometheus.CounterVec
+
+	discoverFailLowReputation   prometheus.Labels
+	discoverFailNoReputation    prometheus.Labels
+	discoverFailErrorReputation prometheus.Labels
+
+	discoverTime prometheus.Histogram
+}
+
+func createMetrics(reg prometheus.Registerer) *metrics {
+	knownEndorsers := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "registry_known_endorsers",
+		Help: "Number of known endorsers",
+	})
+
+	temporalBanned := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "registry_temporal_banned",
+		Help: "Number of temporarily banned endorsers",
+	})
+
+	permanentBanned := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "registry_permanent_banned",
+		Help: "Number of permanently banned endorsers",
+	})
+
+	trustedEndorsers := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "registry_trusted_endorsers",
+		Help: "Number of trusted endorsers",
+	})
+
+	temporalBans := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "registry_temporal_bans",
+		Help: "Number of temporary bans",
+	})
+
+	temporalForgives := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "registry_temporal_forgives",
+		Help: "Number of temporary ban forgives",
+	})
+
+	discoverRequests := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "registry_discover_requests",
+		Help: "Number of discover requests",
+	})
+
+	discoverSuccess := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "registry_discover_success",
+		Help: "Number of successful discovers",
+	})
+
+	discoverFailures := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "registry_discover_failures",
+		Help: "Number of discover failures",
+	}, []string{"reason"})
+
+	discoverCollided := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "registry_discover_collided",
+		Help: "Number of discover collisions",
+	})
+
+	discoverFailLowReputation := prometheus.Labels{
+		"reason": "low_reputation",
+	}
+
+	discoverFailNoReputation := prometheus.Labels{
+		"reason": "no_reputation",
+	}
+
+	discoverFailErrorReputation := prometheus.Labels{
+		"reason": "error_reputation",
+	}
+
+	askedForEndorser := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "registry_asked_for_endorser",
+		Help: "Number of times an endorser was asked for",
+	}, []string{"status"})
+
+	discoverTime := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "registry_discover_time",
+		Help:    "Time taken to discover an endorser",
+		Buckets: prometheus.DefBuckets,
+	})
+
+	if reg != nil {
+		reg.MustRegister(
+			knownEndorsers,
+			temporalBanned,
+			permanentBanned,
+			trustedEndorsers,
+			temporalBans,
+			temporalForgives,
+			discoverRequests,
+			discoverSuccess,
+			discoverFailures,
+			discoverCollided,
+			discoverTime,
+			askedForEndorser,
+		)
+	}
+
+	return &metrics{
+		knownEndorsers:   knownEndorsers,
+		temporalBanned:   temporalBanned,
+		permanentBanned:  permanentBanned,
+		trustedEndorsers: trustedEndorsers,
+
+		temporalBans:     temporalBans,
+		temporalForgives: temporalForgives,
+
+		discoverRequests: discoverRequests,
+		discoverSuccess:  discoverSuccess,
+		discoverFailures: discoverFailures,
+		discoverCollided: discoverCollided,
+
+		askedForEndorser: askedForEndorser,
+
+		discoverFailLowReputation:   discoverFailLowReputation,
+		discoverFailNoReputation:    discoverFailNoReputation,
+		discoverFailErrorReputation: discoverFailErrorReputation,
+
+		discoverTime: discoverTime,
+	}
+}
 
 type WeightedSource struct {
 	Source source.Interface
@@ -18,8 +157,9 @@ type WeightedSource struct {
 }
 
 type Registry struct {
-	lock   sync.RWMutex
-	logger *httplog.Logger
+	lock    sync.RWMutex
+	logger  *httplog.Logger
+	metrics *metrics
 
 	minReputation   float64
 	tempBanDuration time.Duration
@@ -30,7 +170,7 @@ type Registry struct {
 	Sources []*WeightedSource
 }
 
-func NewRegistry(cfg *config.RegistryConfig, caller bind.ContractCaller, logger *httplog.Logger) (*Registry, error) {
+func NewRegistry(cfg *config.RegistryConfig, logger *httplog.Logger, metrics prometheus.Registerer, caller bind.ContractCaller) (*Registry, error) {
 	if cfg.MinReputation == 0 {
 		logger.Warn("Minimum endorser reputation is not set, using default value", "default", 0.0)
 	} else {
@@ -52,6 +192,7 @@ func NewRegistry(cfg *config.RegistryConfig, caller bind.ContractCaller, logger 
 
 	r := &Registry{
 		logger:           logger,
+		metrics:          createMetrics(metrics),
 		minReputation:    cfg.MinReputation,
 		tempBanDuration:  tempBanDuration,
 		knownEndorsers:   make(map[common.Address]EndorserStatus),
@@ -98,8 +239,11 @@ func (r *Registry) AddSource(s source.Interface, weight float64) {
 
 func (r *Registry) doBan(endorser common.Address, banType BanType) {
 	if banType == PermanentBan {
+		r.metrics.permanentBanned.Inc()
 		r.knownEndorsers[endorser] = PermanentBanned
 	} else {
+		r.metrics.temporalBanned.Inc()
+		r.metrics.temporalBans.Inc()
 		r.knownEndorsers[endorser] = TemporaryBanned
 		r.temporalBanStart[endorser] = time.Now()
 	}
@@ -130,6 +274,8 @@ func (r *Registry) attemptForgiveTempBan(endorser common.Address) {
 		return
 	}
 
+	r.metrics.temporalForgives.Inc()
+	r.metrics.temporalBanned.Dec()
 	r.logger.Info("forgiving temporary ban", "endorser", endorser.String())
 	delete(r.knownEndorsers, endorser)
 	delete(r.temporalBanStart, endorser)
@@ -144,6 +290,9 @@ func (r *Registry) attemptToDiscoverEndorser(endorser common.Address) {
 		return
 	}
 
+	r.metrics.discoverRequests.Inc()
+
+	start := time.Now()
 	var totalWeight float64
 
 	for _, source := range r.Sources {
@@ -153,6 +302,7 @@ func (r *Registry) attemptToDiscoverEndorser(endorser common.Address) {
 		reputation, err := source.Source.ReputationForEndorser(endorser)
 
 		if err != nil {
+			r.metrics.discoverFailures.With(r.metrics.discoverFailErrorReputation).Inc()
 			r.logger.Warn("unable to get reputation from source", "source", source.Source, "endorser", endorser.String(), "error", err)
 			continue
 		}
@@ -165,16 +315,27 @@ func (r *Registry) attemptToDiscoverEndorser(endorser common.Address) {
 		defer r.lock.Unlock()
 
 		if r.knownEndorsers[endorser] != UnknownEndorser {
+			r.metrics.discoverCollided.Inc()
 			r.logger.Info("discovered new endorser, but it was already discovered", "endorser", endorser.String(), "reputation", totalWeight)
 			return
 		}
 
+		r.metrics.knownEndorsers.Inc()
+		r.metrics.discoverSuccess.Inc()
 		r.logger.Info("discovered new endorser", "endorser", endorser.String(), "reputation", totalWeight)
 		r.knownEndorsers[endorser] = AcceptedEndorser
 	} else {
 		// Endorser still unknown, we don't need to do anything
+		if totalWeight == 0 {
+			r.metrics.discoverFailures.With(r.metrics.discoverFailNoReputation).Inc()
+		} else {
+			r.metrics.discoverFailures.With(r.metrics.discoverFailLowReputation).Inc()
+		}
+
 		r.logger.Info("unable to discover endorser", "endorser", endorser.String(), "reputation", totalWeight)
 	}
+
+	r.metrics.discoverTime.Observe(time.Since(start).Seconds())
 }
 
 func (r *Registry) TrustEndorser(endorser common.Address) {
@@ -185,6 +346,8 @@ func (r *Registry) TrustEndorser(endorser common.Address) {
 		r.logger.Warn("trusting a banned endorser! trust takes priority", "endorser", endorser.String())
 	}
 
+	r.metrics.knownEndorsers.Inc()
+	r.metrics.trustedEndorsers.Inc()
 	r.logger.Info("trusting endorser", "endorser", endorser.String(), "prev", r.knownEndorsers[endorser])
 	r.knownEndorsers[endorser] = TrustedEndorser
 }
@@ -220,7 +383,9 @@ func (r *Registry) StatusForEndorser(endorser common.Address) EndorserStatus {
 	r.lock.RLock()
 	defer r.lock.RUnlock()
 
-	return r.knownEndorsers[endorser]
+	status := r.knownEndorsers[endorser]
+	r.metrics.askedForEndorser.WithLabelValues(status.String()).Inc()
+	return status
 }
 
 func (r *Registry) IsAcceptedEndorser(endorser common.Address) bool {

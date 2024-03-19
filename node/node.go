@@ -145,7 +145,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 
 	// Endorser registry
-	registry, err := registry.NewRegistry(&cfg.RegistryConfig, provider, logger)
+	registry, err := registry.NewRegistry(&cfg.RegistryConfig, logger, promPrefix, provider)
 	if err != nil {
 		return nil, err
 	}

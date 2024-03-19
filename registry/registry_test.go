@@ -16,7 +16,7 @@ import (
 func TestTrustEndorser(t *testing.T) {
 	mockSource := new(mocks.MockRegistrySource)
 	logger := httplog.NewLogger("")
-	r, err := registry.NewRegistry(&config.RegistryConfig{}, nil, logger)
+	r, err := registry.NewRegistry(&config.RegistryConfig{}, logger, nil, nil)
 	assert.NoError(t, err)
 
 	endorser := common.HexToAddress("0x08FFc248A190E700421C0aFB4135768406dCebfF")
@@ -28,7 +28,7 @@ func TestTrustEndorser(t *testing.T) {
 
 	r, err = registry.NewRegistry(&config.RegistryConfig{
 		Trusted: []string{endorser.String()},
-	}, nil, logger)
+	}, logger, nil, nil)
 
 	assert.NoError(t, err)
 	assert.True(t, r.IsAcceptedEndorser(endorser))
@@ -40,7 +40,7 @@ func TestUnknownEndorser(t *testing.T) {
 	r, err := registry.NewRegistry(&config.RegistryConfig{
 		AllowUnusable: true,
 		MinReputation: 10,
-	}, nil, logger)
+	}, logger, nil, nil)
 	assert.NoError(t, err)
 
 	endorser := common.HexToAddress("0x08FFc248A190E700421C0aFB4135768406dCebfF")
@@ -57,7 +57,7 @@ func TestAcceptEndorser(t *testing.T) {
 	r, err := registry.NewRegistry(&config.RegistryConfig{
 		AllowUnusable: true,
 		MinReputation: 10,
-	}, nil, logger)
+	}, logger, nil, nil)
 	assert.NoError(t, err)
 
 	endorser := common.HexToAddress("0x08FFc248A190E700421C0aFB4135768406dCebfF")
@@ -75,7 +75,7 @@ func TestTempBanEndorser(t *testing.T) {
 		AllowUnusable:  true,
 		MinReputation:  10,
 		TempBanSeconds: 1,
-	}, nil, logger)
+	}, logger, nil, nil)
 	assert.NoError(t, err)
 
 	endorser := common.HexToAddress("0x08FFc248A190E700421C0aFB4135768406dCebfF")
@@ -101,7 +101,7 @@ func TestPermanentBanEndorser(t *testing.T) {
 		AllowUnusable:  true,
 		MinReputation:  10,
 		TempBanSeconds: 1,
-	}, nil, logger)
+	}, logger, nil, nil)
 	assert.NoError(t, err)
 
 	endorser := common.HexToAddress("0x08FFc248A190E700421C0aFB4135768406dCebfF")
@@ -126,7 +126,7 @@ func TestCacheAcceptEndorser(t *testing.T) {
 	r, err := registry.NewRegistry(&config.RegistryConfig{
 		AllowUnusable: true,
 		MinReputation: 10,
-	}, nil, logger)
+	}, logger, nil, nil)
 	assert.NoError(t, err)
 
 	endorser := common.HexToAddress("0x08FFc248A190E700421C0aFB4135768406dCebfF")
