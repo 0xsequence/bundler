@@ -13,14 +13,12 @@ type Config struct {
 
 	Mnemonic string `toml:"mnemonic"`
 
-	P2PPort       int      `toml:"p2p_port"`
-	RPCPort       int      `toml:"rpc_port"`
-	BootNodes     []string `toml:"boot_nodes"`
-	PriorityNodes []string `toml:"priority_nodes"`
+	RPCPort int `toml:"rpc_port"`
 
 	Logging LoggingConfig `toml:"logging"`
 
 	NetworkConfig   NetworkConfig   `toml:"network"`
+	P2PHostConfig   P2PHostConfig   `toml:"p2p"`
 	MempoolConfig   MempoolConfig   `toml:"mempool"`
 	SendersConfig   SendersConfig   `toml:"senders"`
 	CollectorConfig CollectorConfig `toml:"collector"`
@@ -31,8 +29,6 @@ type Config struct {
 
 	LinearCalldataModel *LinearCalldataModel `toml:"linear_calldata_model"`
 
-	BootNodeAddrs     []multiaddr.Multiaddr `toml:"-"`
-	PriorityNodeAddrs []multiaddr.Multiaddr `toml:"-"`
 }
 
 type LoggingConfig struct {
@@ -56,6 +52,15 @@ type LinearCalldataModel struct {
 	FixedCost       uint64 `toml:"fixed_cost"`
 	ZeroByteCost    uint64 `toml:"zero_byte_cost"`
 	NonZeroByteCost uint64 `toml:"non_zero_byte_cost"`
+}
+
+type P2PHostConfig struct {
+	P2PPort int `toml:"p2p_port"`
+
+	BootNodes         []string              `toml:"boot_nodes"`
+	PriorityNodes     []string              `toml:"priority_nodes"`
+	BootNodeAddrs     []multiaddr.Multiaddr `toml:"-"`
+	PriorityNodeAddrs []multiaddr.Multiaddr `toml:"-"`
 }
 
 type MempoolConfig struct {
@@ -140,6 +145,14 @@ func NewFromFile(file string, env string, cfg *Config) error {
 }
 
 func initConfig(cfg *Config) error {
+	if err := InitP2PHostConfig(&cfg.P2PHostConfig); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func InitP2PHostConfig(cfg *P2PHostConfig) error {
 	bootNodeAddrs := make([]multiaddr.Multiaddr, 0, len(cfg.BootNodes))
 	for _, s := range cfg.BootNodes {
 		addr, err := multiaddr.NewMultiaddr(s)
