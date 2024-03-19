@@ -123,7 +123,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 
 	// IPFS Client
-	ipfs := ipfs.NewClient(cfg.NetworkConfig.IpfsUrl)
+	ipfs := ipfs.NewClient(promPrefix, cfg.NetworkConfig.IpfsUrl)
 
 	// Collector
 	collector, err := collector.NewCollector(&cfg.CollectorConfig, logger, promPrefix, provider)
