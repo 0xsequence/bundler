@@ -86,7 +86,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 
 	// Debugger
-	debugger, err := debugger.NewDebugger(cfg.DebuggerConfig, context.Background(), logger, cfg.NetworkConfig.RpcUrl)
+	debugger, err := debugger.NewDebugger(cfg.DebuggerConfig, context.Background(), logger, promPrefix, cfg.NetworkConfig.RpcUrl)
 	if err != nil {
 		return nil, err
 	}
