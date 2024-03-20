@@ -43,8 +43,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -139,8 +138,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -229,8 +227,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -340,8 +337,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -359,7 +355,7 @@
               "options": {
                 "mode": "exclude",
                 "names": [
-                  "1m /rpc/Bundler/FeeAsks"
+                  "1m /rpc/Bundler/SendOperation"
                 ],
                 "prefix": "All except:",
                 "readOnly": true
@@ -472,8 +468,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -491,7 +486,7 @@
               "options": {
                 "mode": "exclude",
                 "names": [
-                  "/rpc/Bundler/FeeAsks"
+                  "/rpc/Bundler/SendOperation"
                 ],
                 "prefix": "All except:",
                 "readOnly": true
@@ -565,8 +560,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -637,77 +631,48 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
+            "mode": "thresholds"
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
                 "value": 80
               }
             ]
-          },
-          "unit": "s"
+          }
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 13,
+        "h": 7,
         "w": 7,
         "x": 0,
         "y": 19
       },
-      "id": 10,
+      "id": 42,
       "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
+      "pluginVersion": "10.4.0",
       "targets": [
         {
           "datasource": {
@@ -715,8 +680,9 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_mempool_do_reserve_ops_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m])/rate(bundler_mempool_do_reserve_ops_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
-          "legendFormat": "1m avg",
+          "expr": "bundler_endorser_is_operation_ready_attempts{chain_id=\"$chain_id\", id=\"$instance\"}",
+          "instant": false,
+          "legendFormat": "Attempts",
           "range": true,
           "refId": "A"
         },
@@ -726,9 +692,10 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_mempool_do_reserve_ops_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[10m])/rate(bundler_mempool_do_reserve_ops_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[10m])",
+          "expr": "bundler_endorser_is_operation_ready_debugger{chain_id=\"$chain_id\", id=\"$instance\"}",
           "hide": false,
-          "legendFormat": "10m avg",
+          "instant": false,
+          "legendFormat": "Debugger",
           "range": true,
           "refId": "B"
         },
@@ -738,15 +705,55 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_mempool_do_reserve_ops_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[24h])/rate(bundler_mempool_do_reserve_ops_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[24h])",
+          "expr": "bundler_endorser_is_operation_ready_error{chain_id=\"$chain_id\", id=\"$instance\"}",
           "hide": false,
-          "legendFormat": "24hs avg",
+          "instant": false,
+          "legendFormat": "Errors",
           "range": true,
           "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "bundler_endorser_is_operation_ready_reverts{chain_id=\"$chain_id\", id=\"$instance\"}",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Reverts",
+          "range": true,
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "bundler_endorser_is_operation_ready_true_sum{chain_id=\"$chain_id\", id=\"$instance\"}",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "True",
+          "range": true,
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "bundler_endorser_is_operation_ready_false_sum{chain_id=\"$chain_id\", id=\"$instance\"}",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "False",
+          "range": true,
+          "refId": "F"
         }
       ],
-      "title": "Mempool - Time reserving Operations",
-      "type": "timeseries"
+      "title": "Endorser totals",
+      "type": "stat"
     },
     {
       "datasource": {
@@ -795,8 +802,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -890,8 +896,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1052,8 +1057,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1066,12 +1070,12 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 12,
+        "h": 13,
         "w": 7,
         "x": 0,
-        "y": 32
+        "y": 26
       },
-      "id": 14,
+      "id": 10,
       "options": {
         "legend": {
           "calcs": [],
@@ -1091,8 +1095,8 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_collector_fetch_base_fee_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_collector_fetch_base_fee_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
-          "legendFormat": "BaseFee",
+          "expr": "rate(bundler_mempool_do_reserve_ops_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m])/rate(bundler_mempool_do_reserve_ops_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
+          "legendFormat": "1m avg",
           "range": true,
           "refId": "A"
         },
@@ -1102,14 +1106,26 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_uniswap_v2_fetch_reserves_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_uniswap_v2_fetch_reserves_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
+          "expr": "rate(bundler_mempool_do_reserve_ops_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[10m])/rate(bundler_mempool_do_reserve_ops_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[10m])",
           "hide": false,
-          "legendFormat": "Uniswap v2 Pool {{pool}}",
+          "legendFormat": "10m avg",
           "range": true,
           "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "rate(bundler_mempool_do_reserve_ops_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[24h])/rate(bundler_mempool_do_reserve_ops_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[24h])",
+          "hide": false,
+          "legendFormat": "24hs avg",
+          "range": true,
+          "refId": "C"
         }
       ],
-      "title": "Collector - Chain read / avg time",
+      "title": "Mempool - Time reserving Operations",
       "type": "timeseries"
     },
     {
@@ -1159,8 +1175,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1291,8 +1306,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1301,7 +1315,32 @@
             ]
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "__systemRef": "hideSeriesFrom",
+            "matcher": {
+              "id": "byNames",
+              "options": {
+                "mode": "exclude",
+                "names": [
+                  "Average Lifecycle"
+                ],
+                "prefix": "All except:",
+                "readOnly": true
+              }
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": true
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 12,
@@ -1386,8 +1425,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1395,17 +1433,17 @@
               }
             ]
           },
-          "unit": "Bps"
+          "unit": "s"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
+        "h": 12,
         "w": 7,
         "x": 0,
-        "y": 44
+        "y": 39
       },
-      "id": 18,
+      "id": 14,
       "options": {
         "legend": {
           "calcs": [],
@@ -1425,8 +1463,8 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "irate(bundler_p2p_broadcast_sent_bytes_sum{chain_id=\"$chain_id\", id=\"$instance\"}[5s])",
-          "legendFormat": "Sent {{type}}",
+          "expr": "rate(bundler_collector_fetch_base_fee_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_collector_fetch_base_fee_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
+          "legendFormat": "BaseFee",
           "range": true,
           "refId": "A"
         },
@@ -1436,14 +1474,14 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "irate(bundler_p2p_pubsub_received_bytes_sum{chain_id=\"$chain_id\", id=\"$instance\"}[5s])",
+          "expr": "rate(bundler_uniswap_v2_fetch_reserves_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_uniswap_v2_fetch_reserves_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "hide": false,
-          "legendFormat": "Received {{type}}",
+          "legendFormat": "Uniswap v2 Pool {{pool}}",
           "range": true,
           "refId": "B"
         }
       ],
-      "title": "Pubsub Datarate",
+      "title": "Collector - Chain read / avg time",
       "type": "timeseries"
     },
     {
@@ -1494,8 +1532,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1581,8 +1618,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1708,15 +1744,15 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "Bps"
         },
         "overrides": []
       },
@@ -1724,9 +1760,9 @@
         "h": 9,
         "w": 7,
         "x": 0,
-        "y": 53
+        "y": 51
       },
-      "id": 4,
+      "id": 18,
       "options": {
         "legend": {
           "calcs": [],
@@ -1746,8 +1782,8 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "bundler_p2p_found_peers{chain_id=\"$chain_id\", id=\"$instance\"}",
-          "legendFormat": "Seen Peers",
+          "expr": "irate(bundler_p2p_broadcast_sent_bytes_sum{chain_id=\"$chain_id\", id=\"$instance\"}[5s])",
+          "legendFormat": "Sent {{type}}",
           "range": true,
           "refId": "A"
         },
@@ -1757,26 +1793,14 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "bundler_p2p_found_peers_connected{chain_id=\"$chain_id\", id=\"$instance\"}",
+          "expr": "irate(bundler_p2p_pubsub_received_bytes_sum{chain_id=\"$chain_id\", id=\"$instance\"}[5s])",
           "hide": false,
-          "legendFormat": "Connected Peers",
+          "legendFormat": "Received {{type}}",
           "range": true,
           "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "000000001"
-          },
-          "editorMode": "code",
-          "expr": "bundler_p2p_found_peers_failed_connect{chain_id=\"$chain_id\", id=\"$instance\"}",
-          "hide": false,
-          "legendFormat": "Failed connect Peers",
-          "range": true,
-          "refId": "C"
         }
       ],
-      "title": "Found Peers",
+      "title": "Pubsub Datarate",
       "type": "timeseries"
     },
     {
@@ -1826,8 +1850,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1920,8 +1943,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2042,39 +2064,24 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
                 "value": 80
               }
             ]
-          },
-          "unit": "s"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Empty runs"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percentunit"
-              }
-            ]
           }
-        ]
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 9,
         "w": 7,
         "x": 0,
-        "y": 62
+        "y": 60
       },
-      "id": 37,
+      "id": 4,
       "options": {
         "legend": {
           "calcs": [],
@@ -2094,8 +2101,8 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_pruner_banned_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_pruner_banned_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
-          "legendFormat": "Time banned",
+          "expr": "bundler_p2p_found_peers{chain_id=\"$chain_id\", id=\"$instance\"}",
+          "legendFormat": "Seen Peers",
           "range": true,
           "refId": "A"
         },
@@ -2105,9 +2112,9 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_pruner_stale_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_pruner_stale_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
+          "expr": "bundler_p2p_found_peers_connected{chain_id=\"$chain_id\", id=\"$instance\"}",
           "hide": false,
-          "legendFormat": "Time stale per op",
+          "legendFormat": "Connected Peers",
           "range": true,
           "refId": "B"
         },
@@ -2117,14 +2124,14 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_pruner_stale_empty_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
+          "expr": "bundler_p2p_found_peers_failed_connect{chain_id=\"$chain_id\", id=\"$instance\"}",
           "hide": false,
-          "legendFormat": "Empty runs",
+          "legendFormat": "Failed connect Peers",
           "range": true,
           "refId": "C"
         }
       ],
-      "title": "Pruner runs",
+      "title": "Found Peers",
       "type": "timeseries"
     },
     {
@@ -2174,8 +2181,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2298,8 +2304,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2375,6 +2380,291 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Empty runs"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 7,
+        "x": 0,
+        "y": 69
+      },
+      "id": 37,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "rate(bundler_pruner_banned_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_pruner_banned_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
+          "legendFormat": "Time banned",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "rate(bundler_pruner_stale_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_pruner_stale_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
+          "hide": false,
+          "legendFormat": "Time stale per op",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "rate(bundler_pruner_stale_empty_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
+          "hide": false,
+          "legendFormat": "Empty runs",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "Pruner runs",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "000000001"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 9,
+        "x": 7,
+        "y": 71
+      },
+      "id": 41,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "rate(bundler_endorser_is_operation_ready_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_endorser_is_operation_ready_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
+          "legendFormat": "isOperationReady",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "rate(bundler_endorser_is_operation_debug_ready_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_endorser_is_operation_debug_ready_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
+          "hide": false,
+          "legendFormat": "isOperationReady (debug)",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "rate(bundler_endorser_constraint_met_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_endorser_constraint_met_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
+          "hide": false,
+          "legendFormat": "constraintMet (1)",
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "rate(bundler_endorser_constraints_met_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_endorser_constraints_met_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
+          "hide": false,
+          "legendFormat": "constraintMet (op)",
+          "range": true,
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "rate(bundler_endorser_dependency_slot_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_endorser_dependency_slot_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
+          "hide": false,
+          "legendFormat": "dependency slot",
+          "range": true,
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "rate(bundler_endorser_dependency_state_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_endorser_dependency_state_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
+          "hide": false,
+          "legendFormat": "dependency state",
+          "range": true,
+          "refId": "F"
+        }
+      ],
+      "title": "Endorser Timings",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "000000001"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
             "drawStyle": "bars",
             "fillOpacity": 100,
             "gradientMode": "none",
@@ -2405,8 +2695,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2422,7 +2711,7 @@
         "h": 10,
         "w": 7,
         "x": 0,
-        "y": 71
+        "y": 78
       },
       "id": 40,
       "interval": "1m",
@@ -2558,161 +2847,6 @@
       ],
       "title": "Endorser Activity",
       "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "000000001"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 9,
-        "x": 7,
-        "y": 71
-      },
-      "id": 41,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "000000001"
-          },
-          "editorMode": "code",
-          "expr": "rate(bundler_endorser_is_operation_ready_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_endorser_is_operation_ready_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
-          "legendFormat": "isOperationReady",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "000000001"
-          },
-          "editorMode": "code",
-          "expr": "rate(bundler_endorser_is_operation_debug_ready_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_endorser_is_operation_debug_ready_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
-          "hide": false,
-          "legendFormat": "isOperationReady (debug)",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "000000001"
-          },
-          "editorMode": "code",
-          "expr": "rate(bundler_endorser_constraint_met_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_endorser_constraint_met_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
-          "hide": false,
-          "legendFormat": "constraintMet (1)",
-          "range": true,
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "000000001"
-          },
-          "editorMode": "code",
-          "expr": "rate(bundler_endorser_constraints_met_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_endorser_constraints_met_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
-          "hide": false,
-          "legendFormat": "constraintMet (op)",
-          "range": true,
-          "refId": "D"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "000000001"
-          },
-          "editorMode": "code",
-          "expr": "rate(bundler_endorser_dependency_slot_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_endorser_dependency_slot_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
-          "hide": false,
-          "legendFormat": "dependency slot",
-          "range": true,
-          "refId": "E"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "000000001"
-          },
-          "editorMode": "code",
-          "expr": "rate(bundler_endorser_dependency_state_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_endorser_dependency_state_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
-          "hide": false,
-          "legendFormat": "dependency state",
-          "range": true,
-          "refId": "F"
-        }
-      ],
-      "title": "Endorser Timings",
-      "type": "timeseries"
     }
   ],
   "refresh": "5s",
@@ -2724,8 +2858,8 @@
       {
         "current": {
           "selected": false,
-          "text": "42170",
-          "value": "42170"
+          "text": "11155111",
+          "value": "11155111"
         },
         "datasource": {
           "type": "prometheus",
@@ -2752,8 +2886,8 @@
       {
         "current": {
           "selected": false,
-          "text": "0x3BC1C2e7120F1a2cf4535C752BE921ABeD2dc14b",
-          "value": "0x3BC1C2e7120F1a2cf4535C752BE921ABeD2dc14b"
+          "text": "0x179716605Ba7188183Eb388C2d60449e8D8db7A0",
+          "value": "0x179716605Ba7188183Eb388C2d60449e8D8db7A0"
         },
         "datasource": {
           "type": "prometheus",
@@ -2780,13 +2914,13 @@
     ]
   },
   "time": {
-    "from": "now-30m",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "5189 Bundler",
   "uid": "PJoXPh1Iz",
-  "version": 29,
+  "version": 34,
   "weekStart": ""
 }
