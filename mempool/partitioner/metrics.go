@@ -49,8 +49,8 @@ func createMetrics(reg prometheus.Registerer, overlapLimit, wildcardLimit uint) 
 			Buckets: prometheus.LinearBuckets(0, float64(overlapLimit), 20),
 		}),
 
-		wildcardCollisions: prometheus.NewCounter(prometheus.CounterOpts{Name: "mempool_partitioner_wildcard_collisions"}),
-		knownCollisions:    prometheus.NewCounter(prometheus.CounterOpts{Name: "mempool_partitioner_known_collisions"}),
+		wildcardCollisions: prometheus.NewCounter(prometheus.CounterOpts{Name: "mempool_partitioner_wildcard_collisions_sum"}),
+		knownCollisions:    prometheus.NewCounter(prometheus.CounterOpts{Name: "mempool_partitioner_known_collisions_sum"}),
 
 		addedDependencies:   prometheus.NewCounter(prometheus.CounterOpts{Name: "mempool_partitioner_added_dependencies"}),
 		removedDependencies: prometheus.NewCounter(prometheus.CounterOpts{Name: "mempool_partitioner_removed_dependencies"}),

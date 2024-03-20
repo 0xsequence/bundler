@@ -41,7 +41,7 @@ func createMetrics(reg prometheus.Registerer) *metrics {
 	})
 
 	isOperationReadyWildcards := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "endorser_is_operation_ready_wildcards",
+		Name: "endorser_is_operation_ready_wildcards_sum",
 		Help: "Number of attempts to check if an operation that resulted in wildcards",
 	})
 
@@ -61,12 +61,12 @@ func createMetrics(reg prometheus.Registerer) *metrics {
 	})
 
 	isOperationReadyTrue := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "endorser_is_operation_ready_true",
+		Name: "endorser_is_operation_ready_true_sum",
 		Help: "Number of operations with readiness true",
 	})
 
 	isOperationReadyFalse := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "endorser_is_operation_ready_false",
+		Name: "endorser_is_operation_ready_false_sum",
 		Help: "Number of operations with readiness false",
 	})
 
@@ -112,7 +112,7 @@ func createMetrics(reg prometheus.Registerer) *metrics {
 	})
 
 	constraintsMet := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "endorser_constraints_met",
+		Name: "endorser_constraints_met_sum",
 		Help: "Number of constraints met",
 	})
 
@@ -122,12 +122,12 @@ func createMetrics(reg prometheus.Registerer) *metrics {
 	})
 
 	dependencyStateError := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "endorser_dependency_state_error",
+		Name: "endorser_dependency_state_error_sum",
 		Help: "Number of errors when getting the state of dependencies",
 	}, []string{"reason"})
 
 	constraintsMetError := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "endorser_constraints_met_error",
+		Name: "endorser_constraints_met_error_sum",
 		Help: "Number of errors when checking if constraints are met",
 	})
 

@@ -53,7 +53,7 @@ func createMetrics(reg prometheus.Registerer) *metrics {
 	})
 
 	opsRejected := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "mempool_ops_rejected",
+		Name: "mempool_ops_rejected_sum",
 		Help: "Number of operations rejected",
 	}, []string{"reason"})
 
@@ -63,32 +63,32 @@ func createMetrics(reg prometheus.Registerer) *metrics {
 	})
 
 	opsEvicted := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "mempool_ops_evicted",
+		Name: "mempool_ops_evicted_sum",
 		Help: "Number of operations evicted",
 	})
 
 	opsDiscarded := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "mempool_ops_discarded",
+		Name: "mempool_ops_discarded_sum",
 		Help: "Number of operations discarded",
 	})
 
 	opsMarkedForForget := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "mempool_ops_marked_for_forget",
+		Name: "mempool_ops_marked_for_forget_sum",
 		Help: "Number of operations marked for forget",
 	})
 
 	opsForgotten := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "mempool_ops_forgotten",
+		Name: "mempool_ops_forgotten_sum",
 		Help: "Number of operations forgotten",
 	})
 
 	opsReserved := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "mempool_ops_reserved",
+		Name: "mempool_ops_reserved_sum",
 		Help: "Number of operations reserved",
 	})
 
 	opsReleased := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "mempool_ops_released",
+		Name: "mempool_ops_released_sum",
 		Help: "Number of operations released",
 	}, []string{"change"})
 

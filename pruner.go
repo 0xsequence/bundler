@@ -50,17 +50,17 @@ func createPrunerMetrics(reg prometheus.Registerer) *prunerMetrics {
 	})
 
 	pruneStaleReleased := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pruner_stale_released",
+		Name: "pruner_stale_released_sum",
 		Help: "Number of stale operations released",
 	})
 
 	pruneStaleDropped := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pruner_stale_dropped",
+		Name: "pruner_stale_dropped_sum",
 		Help: "Number of stale operations dropped",
 	})
 
 	pruneStaleFailed := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "pruner_stale_failed",
+		Name: "pruner_stale_failed_sum",
 		Help: "Number of failed stale operations",
 	}, []string{"reason"})
 
@@ -70,7 +70,7 @@ func createPrunerMetrics(reg prometheus.Registerer) *prunerMetrics {
 	})
 
 	pruneStaleEmpty := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "pruner_stale_empty",
+		Name: "pruner_stale_empty_sum",
 		Help: "Number of empty stale runs",
 	})
 

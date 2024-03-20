@@ -901,7 +901,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_mempool_ops_discarded[$__rate_interval])",
+          "expr": "increase(bundler_mempool_ops_discarded_sum[$__rate_interval])",
           "interval": "",
           "legendFormat": "Discarded",
           "range": true,
@@ -913,7 +913,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_mempool_ops_forgotten[$__rate_interval])",
+          "expr": "increase(bundler_mempool_ops_forgotten_sum[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Forgotten",
@@ -926,7 +926,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_mempool_ops_marked_for_forget[$__rate_interval])",
+          "expr": "increase(bundler_mempool_ops_marked_for_forget_sum[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Marked for forget",
@@ -939,7 +939,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_mempool_ops_evicted[$__rate_interval])",
+          "expr": "increase(bundler_mempool_ops_evicted_sum[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Evicted",
@@ -952,7 +952,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_mempool_ops_rejected[$__rate_interval])",
+          "expr": "increase(bundler_mempool_ops_rejected_sum[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Rejected {{reason}}",
@@ -1501,7 +1501,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_mempool_partitioner_wildcard_collisions[1m])",
+          "expr": "rate(bundler_mempool_partitioner_wildcard_collisions_sum[1m])",
           "hide": false,
           "legendFormat": "Wildcard collisions",
           "range": true,
@@ -1513,7 +1513,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_mempool_partitioner_known_collisions[1m])",
+          "expr": "rate(bundler_mempool_partitioner_known_collisions_sum[1m])",
           "hide": false,
           "legendFormat": "Known collisions",
           "range": true,
@@ -2081,7 +2081,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_pruner_stale_empty[1m])",
+          "expr": "rate(bundler_pruner_stale_empty_sum[1m])",
           "hide": false,
           "legendFormat": "Empty runs",
           "range": true,
@@ -2177,7 +2177,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_pruner_stale_dropped[$__rate_interval])",
+          "expr": "increase(bundler_pruner_stale_dropped_sum[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Stale dropped",
@@ -2190,7 +2190,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_pruner_stale_failed[$__rate_interval])",
+          "expr": "increase(bundler_pruner_stale_failed_sum[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Failed stale prune {{reason}}",
@@ -2203,7 +2203,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_pruner_stale_released[$__rate_interval])",
+          "expr": "increase(bundler_pruner_stale_released_sum[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Released",
@@ -2418,7 +2418,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_endorser_is_operation_ready_true[$__rate_interval])",
+          "expr": "increase(bundler_endorser_is_operation_ready_true_sum[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "isOperationReady true",
@@ -2431,7 +2431,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_endorser_is_operation_ready_false[$__rate_interval])",
+          "expr": "increase(bundler_endorser_is_operation_ready_false_sum[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "isOperationReady false",
@@ -2444,7 +2444,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_endorser_is_operation_ready_wildcards[$__rate_interval])",
+          "expr": "increase(bundler_endorser_is_operation_ready_wildcards_sum[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "isOperationReady wildcards",
@@ -2457,7 +2457,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_endorser_dependency_state_error[$__rate_interval])",
+          "expr": "increase(bundler_endorser_dependency_state_error_sum[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "dependencyState error {{reason}}",
@@ -2483,7 +2483,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_endorser_constraints_met[$__rate_interval])",
+          "expr": "increase(bundler_endorser_constraints_met_sum[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Constraints met",
@@ -2509,7 +2509,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "irate(bundler_endorser_constraints_met_error[$__rate_interval])",
+          "expr": "irate(bundler_endorser_constraints_met_error_sum[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Constraints met error",
