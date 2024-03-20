@@ -77,14 +77,6 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 	logger := httplog.NewLogger("bundler", loggerOptions)
 
-	// Metrics
-	prom := prometheus.NewRegistry()
-	promPrefix := prometheus.WrapRegistererWithPrefix("bundler_", prom)
-	promPrefix.MustRegister(
-		collectors.NewGoCollector(),
-		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
-	)
-
 	// Provider
 	provider, err := ethrpc.NewProvider(cfg.NetworkConfig.RpcUrl)
 	if err != nil {
@@ -96,15 +88,6 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// Debugger
-	debugger, err := debugger.NewDebugger(cfg.DebuggerConfig, context.Background(), logger, promPrefix, cfg.NetworkConfig.RpcUrl)
-	if err != nil {
-		return nil, err
-	}
-
-	// Endorser
-	endorser := endorser.NewEndorser(logger, promPrefix, provider, debugger)
 
 	// Wallet
 	mnmonic := cfg.Mnemonic
@@ -128,6 +111,26 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		return nil, err
 	}
 	logger.Info("=> setup node wallet", "address", wallet.Address().String())
+
+	// Metrics
+	prom := prometheus.NewRegistry()
+	promPrefix := prometheus.WrapRegistererWithPrefix("bundler_", prom)
+	promPrefix = prometheus.WrapRegistererWith(prometheus.Labels{"id": wallet.Address().String()}, promPrefix)
+	promPrefix = prometheus.WrapRegistererWith(prometheus.Labels{"chain_id": chainID.String()}, promPrefix)
+
+	promPrefix.MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	)
+
+	// Debugger
+	debugger, err := debugger.NewDebugger(cfg.DebuggerConfig, context.Background(), logger, promPrefix, cfg.NetworkConfig.RpcUrl)
+	if err != nil {
+		return nil, err
+	}
+
+	// Endorser
+	endorser := endorser.NewEndorser(logger, promPrefix, provider, debugger)
 
 	// Store
 	// TODO: Add custom store path
