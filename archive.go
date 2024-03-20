@@ -13,6 +13,7 @@ import (
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
+	"github.com/0xsequence/bundler/store"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
 	"github.com/go-chi/httplog/v2"
@@ -29,6 +30,8 @@ type archiveMetrics struct {
 	archiveSkipEmpty prometheus.Counter
 	doneArchive      prometheus.Histogram
 	failedArchive    prometheus.Counter
+
+	failedStoreArchive prometheus.Counter
 
 	receivedArchiveNew   prometheus.Labels
 	receivedArchiveKnown prometheus.Labels
@@ -56,6 +59,11 @@ func createArchiveMetrics(reg prometheus.Registerer) *archiveMetrics {
 	archiveSkipEmpty := prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "archive_skip_empty_count",
 		Help: "Number of empty archives skipped",
+	})
+
+	failedStoreArchive := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "archive_failed_store_count",
+		Help: "Number of failed store archives",
 	})
 
 	doneArchive := prometheus.NewHistogram(prometheus.HistogramOpts{
@@ -98,6 +106,7 @@ func createArchiveMetrics(reg prometheus.Registerer) *archiveMetrics {
 		reg.MustRegister(seenArchiveCids)
 		reg.MustRegister(doneArchive)
 		reg.MustRegister(failedArchive)
+		reg.MustRegister(archiveSkipEmpty)
 	}
 
 	return &archiveMetrics{
@@ -109,6 +118,8 @@ func createArchiveMetrics(reg prometheus.Registerer) *archiveMetrics {
 		archiveSkipEmpty: archiveSkipEmpty,
 		doneArchive:      doneArchive,
 		failedArchive:    failedArchive,
+
+		failedStoreArchive: failedStoreArchive,
 
 		receivedArchiveNew:   receivedArchiveNew,
 		receivedArchiveKnown: receivedArchiveKnown,
@@ -140,7 +151,8 @@ type ArchiveMessage struct {
 type Archive struct {
 	lock sync.Mutex
 
-	ipfs ipfs.Interface
+	ipfs  ipfs.Interface
+	store store.Store
 
 	runEvery     time.Duration
 	forgetAfter  time.Duration
@@ -155,7 +167,7 @@ type Archive struct {
 	Mempool mempool.Interface
 }
 
-func NewArchive(cfg *config.ArchiveConfig, host p2p.Interface, logger *httplog.Logger, metrics prometheus.Registerer, ipfs ipfs.Interface, mempool mempool.Interface) *Archive {
+func NewArchive(cfg *config.ArchiveConfig, host p2p.Interface, logger *httplog.Logger, metrics prometheus.Registerer, store store.Store, ipfs ipfs.Interface, mempool mempool.Interface) *Archive {
 	var runEvery time.Duration
 	if cfg.RunEveryMillis != 0 {
 		runEvery = time.Duration(cfg.RunEveryMillis) * time.Millisecond
@@ -175,8 +187,8 @@ func NewArchive(cfg *config.ArchiveConfig, host p2p.Interface, logger *httplog.L
 	}
 
 	return &Archive{
-		lock: sync.Mutex{},
-		ipfs: ipfs,
+		ipfs:  ipfs,
+		store: store,
 
 		runEvery:    runEvery,
 		forgetAfter: forgetAfter,
@@ -195,6 +207,14 @@ func (a *Archive) Run(ctx context.Context) {
 	if a.ipfs == nil {
 		a.Logger.Info("archive: ipfs url not set, not archiving")
 		return
+	}
+
+	// Try to load the previous archive
+	prevArchive, _ := a.store.ReadFile("prev_archive")
+	if prevArchive != "" {
+		a.Logger.Info("archive: loaded previous archive", "cid", prevArchive)
+	} else {
+		a.Logger.Info("archive: no previous archive found, starting fresh")
 	}
 
 	a.Host.HandleMessageType(proto.MessageType_ARCHIVE, func(peer peer.ID, message []byte) {
@@ -328,6 +348,14 @@ func (a *Archive) doArchive(_ context.Context, ops []string, force bool) error {
 	a.Logger.Info("archive: archived", "ops", len(ops), "cid", cid)
 
 	a.PrevArchive = cid
+
+	// Store the previous archive
+	err = a.store.WriteFile("prev_archive", cid)
+	if err != nil {
+		a.Metrics.failedStoreArchive.Inc()
+		a.Logger.Warn("archive: failed to store previous archive", "error", err)
+	}
+
 	a.seenArchives = make(map[string]string)
 	a.Metrics.seenArchiveCids.Set(0)
 

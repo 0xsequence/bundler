@@ -19,6 +19,7 @@ import (
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/registry"
 	"github.com/0xsequence/bundler/rpc"
+	"github.com/0xsequence/bundler/store"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/ethwallet"
 	"github.com/go-chi/httplog/v2"
@@ -108,6 +109,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	// Wallet
 	mnmonic := cfg.Mnemonic
 	if mnmonic == "" {
+		// TODO: Maybe persist the wallet in a file?
 		entropy, err := ethwallet.RandomEntropy(256)
 		if err != nil {
 			return nil, err
@@ -126,6 +128,15 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		return nil, err
 	}
 	logger.Info("=> setup node wallet", "address", wallet.Address().String())
+
+	// Store
+	// TODO: Add custom store path
+	store, err := store.CreateInstanceStore(wallet.Address().String() + "-" + chainID.String())
+	if err != nil {
+		logger.Warn("=> unable to create instance store", "error", err)
+	} else {
+		logger.Info("=> setup instance store", "path", store.String())
+	}
 
 	// p2p host
 	host, err := p2p.NewHost(&cfg.P2PHostConfig, logger.Logger, promPrefix, wallet, chainID)
@@ -171,7 +182,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	ingress := bundler.NewIngress(&cfg.MempoolConfig, logger, promPrefix, mempool, collector, host)
 
 	// Archive
-	archive := bundler.NewArchive(&cfg.ArchiveConfig, host, logger, promPrefix, ipfs, mempool)
+	archive := bundler.NewArchive(&cfg.ArchiveConfig, host, logger, promPrefix, store, ipfs, mempool)
 
 	// Pruner
 	pruner := bundler.NewPruner(cfg.PrunerConfig, logger, promPrefix, mempool, endorser, registry)
