@@ -223,7 +223,7 @@ func (s *RPC) handler() http.Handler {
 	r.Use(middleware.Heartbeat("/ping"))
 
 	// HTTP request logger
-	r.Use(httplog.RequestLogger(s.Log, []string{"/", "/ping", "/status", "/favicon.ico"}))
+	r.Use(httplog.RequestLogger(s.Log, []string{"/", "/ping", "/status", "/metrics", "/favicon.ico"}))
 
 	// CORS
 	// r.Use(s.corsHandler())
