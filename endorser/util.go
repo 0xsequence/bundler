@@ -181,6 +181,16 @@ func HasChanged(d *Dependency, x, y *AddrDependencyState) (bool, error) {
 		}
 	}
 
+	if len(d.Slots) != len(x.Slots) {
+		return true, nil
+	}
+
+	for i := range d.Slots {
+		if x.Slots[i] != y.Slots[i] {
+			return true, nil
+		}
+	}
+
 	return false, nil
 }
 

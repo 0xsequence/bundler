@@ -8,6 +8,7 @@ import (
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/httplog/v2"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type Feed interface {
@@ -17,7 +18,7 @@ type Feed interface {
 	Start(ctx context.Context) error
 }
 
-func FeedForReference(cfg *config.PriceReference, logger *httplog.Logger, provider ethrpc.Interface) (Feed, error) {
+func FeedForReference(cfg *config.PriceReference, logger *httplog.Logger, metrics prometheus.Registerer, provider ethrpc.Interface) (Feed, error) {
 	if !common.IsHexAddress(cfg.Token) {
 		return nil, fmt.Errorf("\"%v\" is not a token address", cfg.Token)
 	}
@@ -31,7 +32,7 @@ func FeedForReference(cfg *config.PriceReference, logger *httplog.Logger, provid
 	}
 
 	if cfg.UniswapV2 != nil {
-		return NewUniswapV2Feed(provider, logger, cfg.UniswapV2)
+		return NewUniswapV2Feed(provider, logger, metrics, cfg.UniswapV2)
 	}
 
 	return nil, fmt.Errorf("pricefeed: unknown reference type")

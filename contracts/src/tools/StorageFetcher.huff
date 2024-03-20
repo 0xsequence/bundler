@@ -1,0 +1,28 @@
+/// @title Storage Fetcher
+/// @notice SPDX-License-Identifier: Apache 2.0
+/// @author Agustin Aguilar <@Agusx1211> - Horizon Blockchain Games Inc.
+
+// Takes a N * 32 bytes array as an input, and returns the storage values of the given keys.
+#define macro MAIN() = takes (0) returns (0) {
+  0x00         // [i]
+
+  do_another:
+    dup1          // [i, i]
+    calldataload  // [data[i], i]
+    sload         // [sload[data[i]], i]
+    dup2          // [i, sload[data[i]], i]
+    mstore        // [i]
+
+    0x20          // [0x20, i]
+    add           // [(0x20 + i)]
+    
+    calldatasize  // [size, (0x20 + i)]
+    dup2          // [(0x20 + i), size, (0x20 + i)]
+    lt            // [((0x20 + i) < size), (0x20 + i)]
+    do_another    // [do_another, ((0x20 + i) < size), (0x20 + i)]
+    jumpi         // [(0x20 + i)]
+
+  calldatasize    // [size, (0x20 + i)]
+  0x00            // [0x00, size, (0x20 + i)]
+  return          // [(0x20 + i)]
+}

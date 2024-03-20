@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/bundler/debugger"
@@ -14,6 +15,7 @@ import (
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
 	"github.com/go-chi/httplog/v2"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var parsedEndorserABI *abi.ABI
@@ -31,6 +33,7 @@ func useEndorserAbi() *abi.ABI {
 type Endorser struct {
 	parsedEndorserABI *abi.ABI
 	logger            *httplog.Logger
+	metrics           *metrics
 
 	Debugger debugger.Interface
 	Provider *ethrpc.Provider
@@ -38,11 +41,12 @@ type Endorser struct {
 
 var _ Interface = (*Endorser)(nil)
 
-func NewEndorser(logger *httplog.Logger, provider *ethrpc.Provider, debugger debugger.Interface) *Endorser {
+func NewEndorser(logger *httplog.Logger, metrics prometheus.Registerer, provider *ethrpc.Provider, debugger debugger.Interface) *Endorser {
 	return &Endorser{
 		parsedEndorserABI: useEndorserAbi(),
 
 		logger:   logger,
+		metrics:  createMetrics(metrics),
 		Debugger: debugger,
 		Provider: provider,
 	}
@@ -50,20 +54,7 @@ func NewEndorser(logger *httplog.Logger, provider *ethrpc.Provider, debugger deb
 
 func (e *Endorser) buildIsOperationReadyCalldata(op *types.Operation) (common.Address, string, error) {
 	endorser := ethcontract.NewContractCaller(op.Endorser, *e.parsedEndorserABI, e.Provider)
-
-	calldata, err := endorser.Encode(
-		"isOperationReady",
-		op.Entrypoint,
-		op.Data,
-		op.EndorserCallData,
-		op.GasLimit,
-		op.MaxFeePerGas,
-		op.MaxPriorityFeePerGas,
-		op.FeeToken,
-		op.FeeScalingFactor,
-		op.FeeNormalizationFactor,
-		op.HasUntrustedContext,
-	)
+	calldata, err := endorser.Encode("isOperationReady", &op.IEndorserOperation)
 
 	if err != nil {
 		return common.Address{}, "", err
@@ -97,28 +88,28 @@ func (e *Endorser) parseIsOperationReadyRes(res string) (*EndorserResult, error)
 
 	// Second element must be a struct
 	dec2, ok := dec1[1].(struct {
-		Basefee           bool     "json:\"basefee\""
-		Blobbasefee       bool     "json:\"blobbasefee\""
-		Chainid           bool     "json:\"chainid\""
-		Coinbase          bool     "json:\"coinbase\""
-		Difficulty        bool     "json:\"difficulty\""
-		GasLimit          bool     "json:\"gasLimit\""
-		Number            bool     "json:\"number\""
-		Timestamp         bool     "json:\"timestamp\""
-		TxOrigin          bool     "json:\"txOrigin\""
-		TxGasPrice        bool     "json:\"txGasPrice\""
-		MaxBlockNumber    *big.Int "json:\"maxBlockNumber\""
-		MaxBlockTimestamp *big.Int "json:\"maxBlockTimestamp\""
+		BaseFee           bool     `json:"baseFee"`
+		BlobBaseFee       bool     `json:"blobBaseFee"`
+		ChainId           bool     `json:"chainId"`
+		CoinBase          bool     `json:"coinBase"`
+		Difficulty        bool     `json:"difficulty"`
+		GasLimit          bool     `json:"gasLimit"`
+		Number            bool     `json:"number"`
+		Timestamp         bool     `json:"timestamp"`
+		TxOrigin          bool     `json:"txOrigin"`
+		TxGasPrice        bool     `json:"txGasPrice"`
+		MaxBlockNumber    *big.Int `json:"maxBlockNumber"`
+		MaxBlockTimestamp *big.Int `json:"maxBlockTimestamp"`
 	})
 	if !ok {
 		return nil, fmt.Errorf("invalid block dependency")
 	}
 
 	endorserResult.GlobalDependency = abiendorser.IEndorserGlobalDependency{
-		BaseFee:           dec2.Basefee,
-		BlobBaseFee:       dec2.Blobbasefee,
-		ChainId:           dec2.Chainid,
-		CoinBase:          dec2.Coinbase,
+		BaseFee:           dec2.BaseFee,
+		BlobBaseFee:       dec2.BlobBaseFee,
+		ChainId:           dec2.ChainId,
+		CoinBase:          dec2.CoinBase,
 		Difficulty:        dec2.Difficulty,
 		GasLimit:          dec2.GasLimit,
 		Number:            dec2.Number,
@@ -172,8 +163,12 @@ func (e *Endorser) parseIsOperationReadyRes(res string) (*EndorserResult, error)
 }
 
 func (e *Endorser) isOperationReadyCall(ctx context.Context, op *types.Operation) (*EndorserResult, error) {
+	start := time.Now()
+	e.metrics.isOperationReadyAttempts.Inc()
+
 	to, data, err := e.buildIsOperationReadyCalldata(op)
 	if err != nil {
+		e.metrics.isOperationReadyError.Inc()
 		return nil, fmt.Errorf("unable to build calldata: %w", err)
 	}
 
@@ -194,20 +189,35 @@ func (e *Endorser) isOperationReadyCall(ctx context.Context, op *types.Operation
 
 	endorserResult, err := e.parseIsOperationReadyRes(res)
 	if err != nil {
+		e.metrics.isOperationReadyReverts.Inc()
 		return nil, fmt.Errorf("unable to parse result: %w", err)
 	}
 
-	// NOTICE: Untruted context operations should be handled
+	// NOTICE: Untrusted context operations should be handled
 	// by the debugger, but if it's not available we still handle
 	// them, we just mark them as wildcard only.
 	if op.HasUntrustedContext {
+		e.metrics.isOperationReadyWildcards.Inc()
 		endorserResult.WildcardOnly = true
 	}
+
+	if endorserResult.Readiness {
+		e.metrics.isOperationReadyTrue.Inc()
+	} else {
+		e.metrics.isOperationReadyFalse.Inc()
+	}
+
+	e.metrics.isOperationReadyDuration.Observe(time.Since(start).Seconds())
+	egl, _ := op.EndorserGasLimit.Float64()
+	e.metrics.durationPerGas.Observe(time.Since(start).Seconds() / egl)
 
 	return endorserResult, nil
 }
 
 func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Operation) (*EndorserResult, error) {
+	start := time.Now()
+
+	e.metrics.isOperationReadyDebugger.Inc()
 	if e.Debugger == nil {
 		return nil, fmt.Errorf("debugger is not available")
 	}
@@ -241,11 +251,17 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 		return nil, fmt.Errorf("unable to parse untrusted debug: %w", err)
 	}
 
-	return er1.Or(er2), nil
+	merged := er1.Or(er2)
+
+	e.metrics.isOperationDebugReadyDuration.Observe(time.Since(start).Seconds())
+	egl, _ := op.EndorserGasLimit.Float64()
+	e.metrics.debugDurationPerGas.Observe(time.Since(start).Seconds() / egl)
+
+	return merged, nil
 }
 
 func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*EndorserResult, error) {
-	if e.Debugger != nil && (op.HasUntrustedContext || true) {
+	if e.Debugger != nil && op.HasUntrustedContext {
 		// TODO: Sometimes the endorser reverts instead of failing,
 		// we should have a different sort of error for these, or else
 		// we will have to verify them twice.
@@ -254,6 +270,7 @@ func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*
 			return res, nil
 		}
 
+		e.metrics.isOperationReadyDebuggerFailed.Inc()
 		e.logger.Warn("unable to use debugger, falling back to eth_call", "error", err)
 	}
 
@@ -261,6 +278,7 @@ func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*
 }
 
 func (e *Endorser) DependencyState(ctx context.Context, result *EndorserResult) (*EndorserResultState, error) {
+	start := time.Now()
 	state := EndorserResultState{}
 
 	state.AddrDependencies = make(map[common.Address]*AddrDependencyState, len(result.Dependencies))
@@ -272,6 +290,7 @@ func (e *Endorser) DependencyState(ctx context.Context, result *EndorserResult) 
 			var err error
 			state_.Balance, err = e.Provider.BalanceAt(ctx, dependency.Addr, nil)
 			if err != nil {
+				e.metrics.dependencyStateError.With(e.metrics.dependencyStateErrorBalance).Inc()
 				return nil, fmt.Errorf("unable to read balance for %v: %w", dependency.Addr, err)
 			}
 		}
@@ -279,6 +298,7 @@ func (e *Endorser) DependencyState(ctx context.Context, result *EndorserResult) 
 		if dependency.Code {
 			code, err := e.Provider.CodeAt(ctx, dependency.Addr, nil)
 			if err != nil {
+				e.metrics.dependencyStateError.With(e.metrics.dependencyStateErrorCode).Inc()
 				return nil, fmt.Errorf("unable to read code for %v: %w", dependency.Addr, err)
 			}
 			if code == nil {
@@ -290,6 +310,7 @@ func (e *Endorser) DependencyState(ctx context.Context, result *EndorserResult) 
 		if dependency.Nonce {
 			nonce, err := e.Provider.NonceAt(ctx, dependency.Addr, nil)
 			if err != nil {
+				e.metrics.dependencyStateError.With(e.metrics.dependencyStateErrorNonce).Inc()
 				return nil, fmt.Errorf("unable to read nonce for %v: %w", dependency.Addr, err)
 			}
 			state_.Nonce = &nonce
@@ -297,33 +318,48 @@ func (e *Endorser) DependencyState(ctx context.Context, result *EndorserResult) 
 
 		state_.Slots = make([][32]byte, 0, len(dependency.Slots))
 		for _, slot := range dependency.Slots {
+			start2 := time.Now()
 			value, err := e.Provider.StorageAt(ctx, dependency.Addr, slot, nil)
+			e.metrics.dependencySlotDuration.Observe(time.Since(start2).Seconds())
+
 			if err != nil {
+				e.metrics.dependencyStateError.With(e.metrics.dependencyStateErrorSlots).Inc()
 				return nil, fmt.Errorf("unable to read storage for %v at %v: %w", dependency.Addr, hexutil.Encode(slot[:]), err)
 			}
+
 			state_.Slots = append(state_.Slots, [32]byte(value))
 		}
 
 		state.AddrDependencies[dependency.Addr] = &state_
 	}
 
+	e.metrics.dependencyStateDuration.Observe(time.Since(start).Seconds())
 	return &state, nil
 }
 
 func (e *Endorser) ConstraintsMet(ctx context.Context, result *EndorserResult) (bool, error) {
+	start := time.Now()
+
 	for _, dependency := range result.Dependencies {
 		for _, constraint := range dependency.Constraints {
+			start2 := time.Now()
 			ok, err := CheckConstraint(ctx, e.Provider, dependency.Addr, constraint.Slot, constraint.MinValue, constraint.MaxValue)
+			e.metrics.constraintMetDuration.Observe(time.Since(start2).Seconds())
+
 			if err != nil {
+				e.metrics.constraintsMetError.Inc()
 				return false, err
 			}
 
 			if !ok {
+				e.metrics.constraintsNotMet.Inc()
 				return false, nil
 			}
 		}
 	}
 
+	e.metrics.constraintsMet.Inc()
+	e.metrics.constraintsMetDuration.Observe(time.Since(start).Seconds())
 	return true, nil
 }
 

@@ -1,7 +1,13 @@
 package p2p
 
-const (
-	DiscoveryNamespace = "erc5189-bundler"
+import "math/big"
 
-	PubsubTopic = "erc5189-bundler-op-mempool"
+const (
+	DiscoveryNamespace = "erc5189-mempool"
+
+	PubsubTopicPrefix = "erc5189-mempool"
 )
+
+func PubsubTopic(chainID *big.Int) string {
+	return PubsubTopicPrefix + "-" + chainID.String()
+}

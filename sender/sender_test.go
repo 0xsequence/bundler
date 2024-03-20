@@ -15,6 +15,7 @@ import (
 	"github.com/0xsequence/bundler/mocks"
 	"github.com/0xsequence/bundler/pricefeed"
 	"github.com/0xsequence/bundler/proto"
+	"github.com/0xsequence/bundler/registry"
 	"github.com/0xsequence/bundler/sender"
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethtxn"
@@ -33,12 +34,16 @@ func TestReservePullOps(t *testing.T) {
 	mockEndorser := &mocks.MockEndorser{}
 	mockProvider := &mocks.MockProvider{}
 	mockCollector := &mocks.MockCollector{}
+	mockRegistry := &mocks.MockRegistry{}
+
+	mockWallet.On("Address").Return(common.Address{}, nil).Maybe()
 
 	sender := sender.NewSender(
 		&config.SendersConfig{
 			SleepWait: 1,
 		},
 		logger,
+		nil,
 		0,
 		mockWallet,
 		mockProvider,
@@ -46,6 +51,7 @@ func TestReservePullOps(t *testing.T) {
 		mockEndorser,
 		mockValidator,
 		mockCollector,
+		mockRegistry,
 	)
 
 	done := make(chan struct{})
@@ -71,6 +77,9 @@ func TestSimulateOpErr(t *testing.T) {
 	mockEndorser := &mocks.MockEndorser{}
 	mockProvider := &mocks.MockProvider{}
 	mockCollector := &mocks.MockCollector{}
+	mockRegistry := &mocks.MockRegistry{}
+
+	mockWallet.On("Address").Return(common.Address{}, nil).Maybe()
 
 	op := mempool.TrackedOperation{
 		Operation: types.Operation{},
@@ -81,6 +90,7 @@ func TestSimulateOpErr(t *testing.T) {
 			SleepWait: 1,
 		},
 		logger,
+		nil,
 		0,
 		mockWallet,
 		mockProvider,
@@ -88,25 +98,15 @@ func TestSimulateOpErr(t *testing.T) {
 		mockEndorser,
 		mockValidator,
 		mockCollector,
+		mockRegistry,
 	)
 
 	done := make(chan struct{})
-
-	mockWallet.On("Address").Return(common.Address{}, nil).Once()
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{&op}, nil).Once()
 
 	mockValidator.On(
 		"SimulateOperation",
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
 		mock.Anything,
 		mock.Anything,
 		mock.Anything,
@@ -140,6 +140,9 @@ func TestSimulatePaidNotPaid(t *testing.T) {
 	mockEndorser := &mocks.MockEndorser{}
 	mockProvider := &mocks.MockProvider{}
 	mockCollector := &mocks.MockCollector{}
+	mockRegistry := &mocks.MockRegistry{}
+
+	mockWallet.On("Address").Return(common.Address{}, nil).Maybe()
 
 	op := mempool.TrackedOperation{
 		Operation: types.Operation{},
@@ -150,6 +153,7 @@ func TestSimulatePaidNotPaid(t *testing.T) {
 			SleepWait: 1,
 		},
 		logger,
+		nil,
 		0,
 		mockWallet,
 		mockProvider,
@@ -157,25 +161,15 @@ func TestSimulatePaidNotPaid(t *testing.T) {
 		mockEndorser,
 		mockValidator,
 		mockCollector,
+		mockRegistry,
 	)
 
 	done := make(chan struct{})
-
-	mockWallet.On("Address").Return(common.Address{}, nil).Once()
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{&op}, nil).Once()
 
 	mockValidator.On(
 		"SimulateOperation",
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
 		mock.Anything,
 		mock.Anything,
 		mock.Anything,
@@ -212,6 +206,9 @@ func TestSimulatePaidNotPaidConstraintsUnmet(t *testing.T) {
 	mockEndorser := &mocks.MockEndorser{}
 	mockProvider := &mocks.MockProvider{}
 	mockCollector := &mocks.MockCollector{}
+	mockRegistry := &mocks.MockRegistry{}
+
+	mockWallet.On("Address").Return(common.Address{}, nil).Maybe()
 
 	op := mempool.TrackedOperation{
 		Operation: types.Operation{},
@@ -222,6 +219,7 @@ func TestSimulatePaidNotPaidConstraintsUnmet(t *testing.T) {
 			SleepWait: 1,
 		},
 		logger,
+		nil,
 		0,
 		mockWallet,
 		mockProvider,
@@ -229,25 +227,15 @@ func TestSimulatePaidNotPaidConstraintsUnmet(t *testing.T) {
 		mockEndorser,
 		mockValidator,
 		mockCollector,
+		mockRegistry,
 	)
 
 	done := make(chan struct{})
-
-	mockWallet.On("Address").Return(common.Address{}, nil).Once()
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{&op}, nil).Once()
 
 	mockValidator.On(
 		"SimulateOperation",
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
 		mock.Anything,
 		mock.Anything,
 		mock.Anything,
@@ -309,6 +297,9 @@ func TestSimulatePaidNotPaidAndLied(t *testing.T) {
 	mockEndorser := &mocks.MockEndorser{}
 	mockProvider := &mocks.MockProvider{}
 	mockCollector := &mocks.MockCollector{}
+	mockRegistry := &mocks.MockRegistry{}
+
+	mockWallet.On("Address").Return(common.Address{}, nil).Twice()
 
 	op := mempool.TrackedOperation{
 		Operation: types.Operation{},
@@ -319,6 +310,7 @@ func TestSimulatePaidNotPaidAndLied(t *testing.T) {
 			SleepWait: 1,
 		},
 		logger,
+		nil,
 		0,
 		mockWallet,
 		mockProvider,
@@ -326,11 +318,10 @@ func TestSimulatePaidNotPaidAndLied(t *testing.T) {
 		mockEndorser,
 		mockValidator,
 		mockCollector,
+		mockRegistry,
 	)
 
 	done := make(chan struct{})
-
-	mockWallet.On("Address").Return(common.Address{}, nil).Once()
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{&op}, nil).Once()
 
@@ -341,15 +332,6 @@ func TestSimulatePaidNotPaidAndLied(t *testing.T) {
 
 	mockValidator.On(
 		"SimulateOperation",
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
 		mock.Anything,
 		mock.Anything,
 		mock.Anything,
@@ -369,6 +351,7 @@ func TestSimulatePaidNotPaidAndLied(t *testing.T) {
 		Return(nil).Once()
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{}, nil).Maybe()
+	mockRegistry.On("BanEndorser", mock.Anything, mock.Anything).Return().Once()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -377,8 +360,7 @@ func TestSimulatePaidNotPaidAndLied(t *testing.T) {
 
 	<-done
 
-	// TODO: Test that endorser is banned
-
+	mockRegistry.AssertExpectations(t)
 	mockWallet.AssertExpectations(t)
 	mockMempool.AssertExpectations(t)
 	mockValidator.AssertExpectations(t)
@@ -392,6 +374,9 @@ func TestChillIfDoesNotPay(t *testing.T) {
 	mockEndorser := &mocks.MockEndorser{}
 	mockProvider := &mocks.MockProvider{}
 	mockCollector := &mocks.MockCollector{}
+	mockRegistry := &mocks.MockRegistry{}
+
+	mockWallet.On("Address").Return(common.Address{}, nil).Twice()
 
 	op := mempool.TrackedOperation{
 		Operation: types.Operation{
@@ -411,6 +396,7 @@ func TestChillIfDoesNotPay(t *testing.T) {
 			ChillWait:   1,
 		},
 		logger,
+		nil,
 		0,
 		mockWallet,
 		mockProvider,
@@ -418,26 +404,16 @@ func TestChillIfDoesNotPay(t *testing.T) {
 		mockEndorser,
 		mockValidator,
 		mockCollector,
+		mockRegistry,
 	)
 
 	done := make(chan struct{})
-
-	mockWallet.On("Address").Return(common.Address{}, nil).Once()
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{&op}, nil).Once()
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{}, nil).Maybe()
 
 	mockValidator.On(
 		"SimulateOperation",
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
 		mock.Anything,
 		mock.Anything,
 		mock.Anything,
@@ -470,7 +446,7 @@ func TestChillIfDoesNotPay(t *testing.T) {
 	assert.True(t, sender.IsChilled(&op.Operation))
 }
 
-func TestSend(t *testing.T) {
+func TestSendAndBanEndorserFailedTx(t *testing.T) {
 	logger := httplog.NewLogger("").With("", "")
 	mockWallet := &mocks.MockWallet{}
 	mockValidator := &mocks.MockValidator{}
@@ -478,9 +454,15 @@ func TestSend(t *testing.T) {
 	mockEndorser := &mocks.MockEndorser{}
 	mockProvider := &mocks.MockProvider{}
 	mockCollector := &mocks.MockCollector{}
+	mockRegistry := &mocks.MockRegistry{}
+
+	endorserAddr := common.HexToAddress("0x08FFc248A190E700421C0aFB4135768406dCebfF")
+
+	mockWallet.On("Address").Return(common.Address{}, nil).Twice()
 
 	op := mempool.TrackedOperation{
 		Operation: types.Operation{
+			Endorser: endorserAddr,
 			IEndorserOperation: abiendorser.IEndorserOperation{
 				GasLimit:             big.NewInt(1000),
 				MaxFeePerGas:         big.NewInt(213),
@@ -497,6 +479,7 @@ func TestSend(t *testing.T) {
 			PriorityFee: 13,
 		},
 		logger,
+		nil,
 		0,
 		mockWallet,
 		mockProvider,
@@ -504,11 +487,10 @@ func TestSend(t *testing.T) {
 		mockEndorser,
 		mockValidator,
 		mockCollector,
+		mockRegistry,
 	)
 
 	done := make(chan struct{})
-
-	mockWallet.On("Address").Return(common.Address{}, nil).Maybe()
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{&op}, nil).Once()
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{}, nil).Maybe()
@@ -518,12 +500,117 @@ func TestSend(t *testing.T) {
 		mock.Anything,
 		mock.Anything,
 		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything,
+	).Return(abivalidator.OperationValidatorSimulationResult{
+		Paid: true,
+	}, nil).Once()
+
+	mockEndorser.On("IsOperationReady", mock.Anything, mock.Anything).Return(&endorser.EndorserResult{
+		Readiness:    true,
+		Dependencies: []abiendorser.IEndorserDependency{{}},
+	}, nil).Once()
+
+	mockEndorser.On("ConstraintsMet", mock.Anything, mock.Anything).Return(true, nil).Once()
+
+	rtx := ethtypes.Transaction{}
+	mockWallet.On("NewTransaction", mock.Anything, &ethtxn.TransactionRequest{
+		To:       &op.Operation.Entrypoint,
+		GasPrice: op.Operation.MaxFeePerGas,
+		GasTip:   big.NewInt(13),
+		GasLimit: 1010,
+		Data:     op.Operation.Data,
+		ETHValue: big.NewInt(0),
+	}).Return(&rtx, nil).Once()
+
+	var waitFn ethtxn.WaitReceipt
+	_ = waitFn
+
+	waitFn = func(context.Context) (*ethtypes.Receipt, error) {
+		return &ethtypes.Receipt{
+			Status:            0,
+			TxHash:            common.HexToHash("0x1234"),
+			BlockNumber:       big.NewInt(100),
+			EffectiveGasPrice: big.NewInt(213),
+		}, nil
+	}
+
+	mockWallet.On("SendTransaction", mock.Anything, &rtx).Return(&rtx, waitFn, nil).Once()
+	mockMempool.On("ReleaseOps", mock.Anything, mock.Anything, proto.ReadyAtChange_Zero).Return(nil).Once()
+	mockProvider.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(10), nil).Once()
+	mockCollector.On("NativeFeesPerGas", &op.Operation).Return(&collector.NativeFees{
+		MaxFeePerGas:         big.NewInt(213),
+		MaxPriorityFeePerGas: big.NewInt(50),
+	}, &pricefeed.Snapshot{}).Once()
+	mockCollector.On("BaseFee").Return(big.NewInt(100), nil).Once()
+
+	mockRegistry.On("BanEndorser", endorserAddr, registry.PermanentBan).Run(func(args mock.Arguments) {
+		done <- struct{}{}
+	}).Return().Once()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go sender.Run(ctx)
+
+	<-done
+
+	mockWallet.AssertExpectations(t)
+	mockMempool.AssertExpectations(t)
+	mockValidator.AssertExpectations(t)
+
+	assert.True(t, sender.IsBlocked(&op.Operation))
+}
+
+func TestSendAndBanEndorserLowPayment(t *testing.T) {
+	logger := httplog.NewLogger("").With("", "")
+	mockWallet := &mocks.MockWallet{}
+	mockValidator := &mocks.MockValidator{}
+	mockMempool := &mocks.MockMempool{}
+	mockEndorser := &mocks.MockEndorser{}
+	mockProvider := &mocks.MockProvider{}
+	mockCollector := &mocks.MockCollector{}
+	mockRegistry := &mocks.MockRegistry{}
+
+	endorserAddr := common.HexToAddress("0x08FFc248A190E700421C0aFB4135768406dCebfF")
+
+	mockWallet.On("Address").Return(common.Address{}, nil).Maybe()
+
+	op := mempool.TrackedOperation{
+		Operation: types.Operation{
+			Endorser: endorserAddr,
+			IEndorserOperation: abiendorser.IEndorserOperation{
+				GasLimit:             big.NewInt(1000),
+				MaxFeePerGas:         big.NewInt(213),
+				MaxPriorityFeePerGas: big.NewInt(50),
+				Entrypoint:           common.HexToAddress("0xB0e4BDF60bC80cbCAaC52DF8796e579870d2fd00"),
+				Data:                 common.Hex2Bytes("0x1234"),
+			},
+		},
+	}
+
+	sender := sender.NewSender(
+		&config.SendersConfig{
+			SleepWait:   1,
+			PriorityFee: 13,
+		},
+		logger,
+		nil,
+		0,
+		mockWallet,
+		mockProvider,
+		mockMempool,
+		mockEndorser,
+		mockValidator,
+		mockCollector,
+		mockRegistry,
+	)
+
+	done := make(chan struct{})
+
+	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{&op}, nil).Once()
+	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{}, nil).Maybe()
+
+	mockValidator.On(
+		"SimulateOperation",
 		mock.Anything,
 		mock.Anything,
 		mock.Anything,
@@ -546,6 +633,115 @@ func TestSend(t *testing.T) {
 
 	waitFn = func(context.Context) (*ethtypes.Receipt, error) {
 		return &ethtypes.Receipt{
+			Status:            1,
+			TxHash:            common.HexToHash("0x1234"),
+			BlockNumber:       big.NewInt(100),
+			EffectiveGasPrice: big.NewInt(213),
+			GasUsed:           10,
+		}, nil
+	}
+
+	mockWallet.On("SendTransaction", mock.Anything, &rtx).Return(&rtx, waitFn, nil).Once()
+	mockMempool.On("ReleaseOps", mock.Anything, mock.Anything, proto.ReadyAtChange_Zero).Return(nil).Once()
+	mockProvider.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(10), nil).Once()
+	mockCollector.On("NativeFeesPerGas", &op.Operation).Return(&collector.NativeFees{
+		MaxFeePerGas:         big.NewInt(213),
+		MaxPriorityFeePerGas: big.NewInt(50),
+	}, &pricefeed.Snapshot{}).Once()
+	mockCollector.On("BaseFee").Return(big.NewInt(100), nil).Once()
+
+	mockRegistry.On("BanEndorser", endorserAddr, registry.PermanentBan).Run(func(args mock.Arguments) {
+		done <- struct{}{}
+	}).Return().Once()
+
+	mockProvider.On("BalanceAt", mock.Anything, mock.Anything, big.NewInt(99)).Return(big.NewInt(10), nil).Once()
+	mockProvider.On("BalanceAt", mock.Anything, mock.Anything, big.NewInt(100)).Return(big.NewInt(9), nil).Once()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go sender.Run(ctx)
+
+	<-done
+
+	mockWallet.AssertExpectations(t)
+	mockMempool.AssertExpectations(t)
+	mockValidator.AssertExpectations(t)
+
+	assert.True(t, sender.IsBlocked(&op.Operation))
+}
+
+func TestSend(t *testing.T) {
+	logger := httplog.NewLogger("").With("", "")
+	mockWallet := &mocks.MockWallet{}
+	mockValidator := &mocks.MockValidator{}
+	mockMempool := &mocks.MockMempool{}
+	mockEndorser := &mocks.MockEndorser{}
+	mockProvider := &mocks.MockProvider{}
+	mockCollector := &mocks.MockCollector{}
+	mockRegistry := &mocks.MockRegistry{}
+
+	mockWallet.On("Address").Return(common.Address{}, nil).Maybe()
+
+	op := mempool.TrackedOperation{
+		Operation: types.Operation{
+			IEndorserOperation: abiendorser.IEndorserOperation{
+				GasLimit:             big.NewInt(1000),
+				MaxFeePerGas:         big.NewInt(213),
+				MaxPriorityFeePerGas: big.NewInt(50),
+				Entrypoint:           common.HexToAddress("0xB0e4BDF60bC80cbCAaC52DF8796e579870d2fd00"),
+				Data:                 common.Hex2Bytes("0x1234"),
+			},
+		},
+	}
+
+	sender := sender.NewSender(
+		&config.SendersConfig{
+			SleepWait:   1,
+			PriorityFee: 13,
+		},
+		logger,
+		nil,
+		0,
+		mockWallet,
+		mockProvider,
+		mockMempool,
+		mockEndorser,
+		mockValidator,
+		mockCollector,
+		mockRegistry,
+	)
+
+	done := make(chan struct{})
+
+	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{&op}, nil).Once()
+	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{}, nil).Maybe()
+
+	mockValidator.On(
+		"SimulateOperation",
+		mock.Anything,
+		mock.Anything,
+		mock.Anything,
+	).Return(abivalidator.OperationValidatorSimulationResult{
+		Paid: true,
+	}, nil).Once()
+
+	rtx := ethtypes.Transaction{}
+	mockWallet.On("NewTransaction", mock.Anything, &ethtxn.TransactionRequest{
+		To:       &op.Operation.Entrypoint,
+		GasPrice: op.Operation.MaxFeePerGas,
+		GasTip:   big.NewInt(13),
+		GasLimit: 1010,
+		Data:     op.Operation.Data,
+		ETHValue: big.NewInt(0),
+	}).Return(&rtx, nil).Once()
+
+	var waitFn ethtxn.WaitReceipt
+	_ = waitFn
+
+	waitFn = func(context.Context) (*ethtypes.Receipt, error) {
+		return &ethtypes.Receipt{
+			Status:            1,
 			TxHash:            common.HexToHash("0x1234"),
 			BlockNumber:       big.NewInt(100),
 			EffectiveGasPrice: big.NewInt(213),
@@ -564,7 +760,8 @@ func TestSend(t *testing.T) {
 		MaxPriorityFeePerGas: big.NewInt(50),
 	}, &pricefeed.Snapshot{}).Once()
 	mockCollector.On("BaseFee").Return(big.NewInt(100), nil).Once()
-	mockProvider.On("BalanceAt", mock.Anything, mock.Anything, mock.Anything).Return(big.NewInt(1000000000000000000), nil).Twice()
+	mockProvider.On("BalanceAt", mock.Anything, mock.Anything, big.NewInt(99)).Return(big.NewInt(0), nil).Once()
+	mockProvider.On("BalanceAt", mock.Anything, mock.Anything, big.NewInt(100)).Return(big.NewInt(1000000000000000000), nil).Once()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

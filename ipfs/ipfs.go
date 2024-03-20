@@ -7,31 +7,41 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"time"
 
 	chunker "github.com/ipfs/boxo/chunker"
 	"github.com/ipfs/go-cid"
 	mh "github.com/multiformats/go-multihash"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
-type Client string
+type Client struct {
+	metrics *metrics
 
-var _ Interface = Client("")
+	Url string
+}
 
-func NewClient(url string) *Client {
+var _ Interface = &Client{}
+
+func NewClient(metrics prometheus.Registerer, url string) *Client {
 	if url == "" {
 		return nil
 	}
 
-	c := Client(url)
-	return &c
+	return &Client{
+		metrics: createMetrics(metrics),
+		Url:     url,
+	}
 }
 
-func (ipfs Client) Report(data []byte) (string, error) {
-	if ipfs == "" {
+func (ipfs *Client) Report(data []byte) (string, error) {
+	if ipfs == nil {
 		return "", fmt.Errorf("ipfs url not set")
 	}
 
-	ipfsurl := string(ipfs)
+	start := time.Now()
+
+	ipfsurl := string(ipfs.Url)
 	if ipfsurl[len(ipfsurl)-1] != '/' {
 		ipfsurl += "/"
 	}
@@ -43,22 +53,26 @@ func (ipfs Client) Report(data []byte) (string, error) {
 	writer := multipart.NewWriter(body)
 	part, err := writer.CreateFormFile("file", "data")
 	if err != nil {
+		ipfs.metrics.ReportFailed.Inc()
 		return "", err
 	}
 
 	_, err = io.Copy(part, bytes.NewReader(data))
 	if err != nil {
+		ipfs.metrics.ReportFailed.Inc()
 		return "", err
 	}
 
 	err = writer.Close()
 	if err != nil {
+		ipfs.metrics.ReportFailed.Inc()
 		return "", err
 	}
 
 	// Create the request
 	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
+		ipfs.metrics.ReportFailed.Inc()
 		return "", err
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -67,6 +81,7 @@ func (ipfs Client) Report(data []byte) (string, error) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
+		ipfs.metrics.ReportFailed.Inc()
 		return "", err
 	}
 	defer resp.Body.Close()
@@ -74,6 +89,7 @@ func (ipfs Client) Report(data []byte) (string, error) {
 	// Read the response
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
+		ipfs.metrics.ReportFailed.Inc()
 		return "", err
 	}
 
@@ -83,8 +99,12 @@ func (ipfs Client) Report(data []byte) (string, error) {
 
 	err = json.Unmarshal(respBody, &res)
 	if err != nil {
+		ipfs.metrics.ReportFailed.Inc()
 		return "", err
 	}
+
+	ipfs.metrics.ReportedTime.Observe(time.Since(start).Seconds())
+	ipfs.metrics.ReportedBytes.Observe(float64(len(data)))
 
 	return res.Hash, nil
 }

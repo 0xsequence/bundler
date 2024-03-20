@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache 2.0
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.18;
 
 import "solady/utils/FixedPointMathLib.sol";
 
 import "./interfaces/Endorser.sol";
 import "./interfaces/ERC20.sol";
+
 
 contract OperationValidator {
   using FixedPointMathLib for *;

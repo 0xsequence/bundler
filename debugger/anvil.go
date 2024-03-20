@@ -14,15 +14,17 @@ import (
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/0xsequence/ethkit/go-ethereum/rpc"
 	"github.com/go-chi/httplog/v2"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type AnvilDebugger struct {
 	ID     string
 	RpcUrl string
 
-	lock   sync.Mutex
-	logger *slog.Logger
-	ctx    context.Context
+	lock    sync.Mutex
+	logger  *slog.Logger
+	metrics *anvilMetrics
+	ctx     context.Context
 
 	client     *rpc.Client
 	cancel     context.CancelFunc
@@ -32,7 +34,7 @@ type AnvilDebugger struct {
 
 var _ Interface = &AnvilDebugger{}
 
-func NewAnvilDebugger(ctx context.Context, logger *httplog.Logger, rpcUrl string) (*AnvilDebugger, error) {
+func NewAnvilDebugger(ctx context.Context, logger *httplog.Logger, metrics prometheus.Registerer, rpcUrl string) (*AnvilDebugger, error) {
 	if err := checkExists(); err != nil {
 		return nil, err
 	}
@@ -55,6 +57,7 @@ func NewAnvilDebugger(ctx context.Context, logger *httplog.Logger, rpcUrl string
 		ctx:     ctx,
 		ipcAddr: ipcAddr,
 		logger:  logger2,
+		metrics: createAnvilMetrics(metrics),
 
 		RpcUrl: rpcUrl,
 	}, nil
@@ -85,13 +88,16 @@ func (a *AnvilDebugger) waitForIPC(timeout time.Duration) bool {
 	start := time.Now()
 	for {
 		if _, err := os.Stat(a.ipcAddr); err == nil {
+			a.metrics.ipcFileWaitDuration.Observe(float64(time.Since(start)))
 			return true
 		} else if os.IsNotExist(err) {
 			if time.Since(start) > timeout {
+				a.metrics.ipcWaitFailures.With(a.metrics.ipcWaitFailureTimeout).Inc()
 				return false
 			}
 			time.Sleep(100 * time.Millisecond)
 		} else {
+			a.metrics.ipcWaitFailures.With(a.metrics.ipcWaitFailureError).Inc()
 			return false
 		}
 	}
@@ -104,16 +110,21 @@ func (a *AnvilDebugger) Start() error {
 }
 
 func (a *AnvilDebugger) startLocked() error {
+	a.metrics.startAttempts.Inc()
+
 	if a.ctx == nil || a.RpcUrl == "" || a.ipcAddr == "" {
+		a.metrics.startFailures.Inc()
 		return fmt.Errorf("anvil debugger not initialized")
 	}
 
 	if a.cancel != nil {
+		a.metrics.startFailures.Inc()
 		return fmt.Errorf("anvil already started")
 	}
 
 	cmd := exec.Command("anvil", "--fork-url", a.RpcUrl, "--ipc", a.ipcAddr, "--port", "0")
 	if err := cmd.Start(); err != nil {
+		a.metrics.startFailures.Inc()
 		return err
 	}
 
@@ -130,6 +141,7 @@ func (a *AnvilDebugger) startLocked() error {
 
 	if !a.waitForIPC(5 * time.Second) {
 		endProc()
+		a.metrics.startFailures.Inc()
 		return fmt.Errorf("anvil timeout waiting for ipc file")
 	}
 
@@ -137,6 +149,7 @@ func (a *AnvilDebugger) startLocked() error {
 	rc, err := rpc.Dial(a.ipcAddr)
 	if err != nil {
 		endProc()
+		a.metrics.startFailures.Inc()
 		return err
 	}
 
@@ -154,6 +167,7 @@ func (a *AnvilDebugger) startLocked() error {
 
 	a.client = rc
 	a.logger.Info("anvil started", "ipc", a.ipcAddr)
+	a.metrics.startSuccesses.Inc()
 
 	return nil
 }
@@ -171,6 +185,8 @@ func (a *AnvilDebugger) Stop() error {
 }
 
 func (a *AnvilDebugger) stopLocked() error {
+	a.metrics.stopOperations.Inc()
+
 	if a.cancel == nil {
 		return fmt.Errorf("anvil not started")
 	}
@@ -194,6 +210,8 @@ func (a *AnvilDebugger) Reset() error {
 }
 
 func (a *AnvilDebugger) resetLocked() error {
+	a.metrics.resetOperations.Inc()
+
 	if a.cancel == nil {
 		return fmt.Errorf("anvil not started")
 	}
@@ -264,12 +282,16 @@ func (a *AnvilDebugger) tryStartUnlocked() error {
 }
 
 func (a *AnvilDebugger) DebugTraceCall(ctx context.Context, args *DebugCallArgs) (*TransactionTrace, error) {
+	a.metrics.debugTraceCallOperations.Inc()
+	start := time.Now()
+
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
 	if a.cancel == nil {
 		err := a.tryStartUnlocked()
 		if err != nil {
+			a.metrics.debugTraceCallFailures.Inc()
 			return nil, err
 		}
 	}
@@ -280,14 +302,17 @@ func (a *AnvilDebugger) DebugTraceCall(ctx context.Context, args *DebugCallArgs)
 	for i := 0; i < 3; i++ {
 		res, err := a.tryDebugTraceCall(ctx, args)
 		if err == nil {
+			a.metrics.debugTraceCallSuccesses.Inc()
+			a.metrics.debugCallDuration.Observe(float64(time.Since(start)))
 			return res, nil
 		}
 
 		errs = append(errs, err)
+		a.metrics.debugTraceCallRetry.Inc()
 		a.logger.Warn("anvil failed to debug trace call, retrying...", "i", i, "err", err)
-
 		time.Sleep(3 * time.Second)
 	}
 
+	a.metrics.debugTraceCallFailures.Inc()
 	return nil, fmt.Errorf("failed to debug trace call: %v", errs)
 }

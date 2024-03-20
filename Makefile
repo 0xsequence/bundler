@@ -22,6 +22,9 @@ run:
 run2:
 	$(call run,bundler-node,./etc/bundler-2.conf)
 
+run-template:
+	$(call run,bundler-node,./etc/bundler-node.conf.sample)
+
 define build
 	GOGC=off GOBIN=$$PWD/bin \
 	go install -v \

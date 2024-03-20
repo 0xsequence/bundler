@@ -38,6 +38,7 @@ func (o *Operation) ToProtoPure() *proto.Operation {
 	return &proto.Operation{
 		Entrypoint:             prototyp.ToHash(o.Entrypoint),
 		Data:                   prototyp.HashFromBytes(o.Data),
+		FixedGas:               prototyp.ToBigInt(o.FixedGas),
 		GasLimit:               prototyp.ToBigInt(o.GasLimit),
 		FeeToken:               prototyp.ToHash(o.FeeToken),
 		Endorser:               prototyp.ToHash(o.Endorser),
@@ -90,6 +91,7 @@ func NewOperationFromProto(op *proto.Operation) (*Operation, error) {
 		IEndorserOperation: abiendorser.IEndorserOperation{
 			Entrypoint:             entrypoint,
 			Data:                   calldata,
+			FixedGas:               op.FixedGas.Int(),
 			GasLimit:               op.GasLimit.Int(),
 			FeeToken:               feeToken,
 			EndorserCallData:       endorserCalldata,

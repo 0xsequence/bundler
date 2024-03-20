@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"math/big"
 	"math/rand"
 	"sort"
@@ -18,18 +19,22 @@ import (
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/pricefeed"
 	"github.com/0xsequence/bundler/proto"
+	"github.com/0xsequence/bundler/registry"
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethtxn"
 	"github.com/0xsequence/ethkit/go-ethereum"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi/bind"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	ethtypes "github.com/0xsequence/ethkit/go-ethereum/core/types"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type Sender struct {
 	ID uint32
 
-	logger      *slog.Logger
+	logger  *slog.Logger
+	metrics *metrics
+
 	priorityFee *big.Int
 	randomWait  int
 	sleepWait   time.Duration
@@ -45,6 +50,7 @@ type Sender struct {
 	Mempool   mempool.Interface
 	Endorser  endorser.Interface
 	Collector collector.Interface
+	Registry  registry.Interface
 }
 
 var _ Interface = &Sender{}
@@ -52,6 +58,7 @@ var _ Interface = &Sender{}
 func NewSender(
 	cfg *config.SendersConfig,
 	logger *slog.Logger,
+	metrics prometheus.Registerer,
 	id uint32,
 	wallet WalletInterface,
 	provider Provider,
@@ -59,6 +66,7 @@ func NewSender(
 	endorser endorser.Interface,
 	validator ValidatorInterface,
 	Collector collector.Interface,
+	Registry registry.Interface,
 ) *Sender {
 	var chillWait time.Duration
 	if cfg.ChillWait > 0 {
@@ -77,8 +85,9 @@ func NewSender(
 	}
 
 	return &Sender{
-		ID:     id,
-		logger: logger,
+		ID:      id,
+		logger:  logger,
+		metrics: createMetrics(metrics, wallet.Address().String()),
 
 		priorityFee: big.NewInt(int64(cfg.PriorityFee)),
 		randomWait:  cfg.RandomWait,
@@ -94,6 +103,7 @@ func NewSender(
 		Endorser:  endorser,
 		Validator: validator,
 		Collector: Collector,
+		Registry:  Registry,
 	}
 }
 
@@ -116,6 +126,7 @@ func (s *Sender) onRun(ctx context.Context) bool {
 			delete(s.chilledOps, op)
 		}
 	}
+	s.metrics.chilledOps.Set(float64(len(s.chilledOps)))
 
 	ops := s.Mempool.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
 		if len(to) == 0 {
@@ -145,8 +156,16 @@ func (s *Sender) onRun(ctx context.Context) bool {
 	})
 
 	if len(ops) == 0 {
+		s.metrics.skipRunNoOps.Inc()
 		return false
 	}
+
+	if len(ops) > 1 {
+		s.logger.Error("sender: multiple operations reserved, picking the first one", "ops", len(ops))
+	}
+
+	s.metrics.attemptSendOps.Inc()
+	startPrepare := time.Now()
 
 	// Random delay reduces the chances to collide with other senders
 	if s.randomWait > 0 {
@@ -159,17 +178,20 @@ func (s *Sender) onRun(ctx context.Context) bool {
 
 	// If we got an error, we should discard the operation
 	if err != nil {
+		s.metrics.failedSendOps.With(s.metrics.failedSimulateOperation).Inc()
 		s.logger.Warn("sender: error simulating operation", "op", opDigest, "error", err)
 		s.Mempool.DiscardOps(ctx, []string{opDigest})
 		return true
 	}
 
 	// If the endorser lied to us, we should discard the operation
-	// TODO: We should ban the endorser too
 	if !res.Paid {
 		if res.Lied {
+			s.metrics.failedSendOps.With(s.metrics.failedEndorserLied).Inc()
 			s.logger.Warn("sender: endorser lied", "op", opDigest, "endorser", op.Endorser, "innerOk", res.Meta.InnerOk, "innerPaid", res.Meta.InnerPaid.String(), "innerExpected", res.Meta.InnerExpected.String())
+			s.Registry.BanEndorser(op.Endorser, registry.PermanentBan)
 		} else {
+			s.metrics.failedSendOps.With(s.metrics.failedStaleOperation).Inc()
 			s.logger.Info("sender: stale operation", "op", opDigest)
 		}
 		s.Mempool.DiscardOps(ctx, []string{opDigest})
@@ -185,6 +207,7 @@ func (s *Sender) onRun(ctx context.Context) bool {
 		Data: op.Data,
 	})
 	if err != nil {
+		s.metrics.failedSendOps.With(s.metrics.failedEstimateGas).Inc()
 		s.logger.Warn("sender: error estimating gas", "op", opDigest, "error", err)
 		s.Mempool.DiscardOps(ctx, []string{opDigest})
 		return true
@@ -218,6 +241,10 @@ func (s *Sender) onRun(ctx context.Context) bool {
 	// chill it for a while. There are many ever-changing factors
 	// that may make the operation profitable in the future
 	if ourPayment.Cmp(payment) > 0 {
+		s.metrics.unprofitableOps.Inc()
+		s.metrics.chilledOps.Inc()
+		diffFloat, _ := new(big.Int).Sub(payment, ourPayment).Float64()
+		s.metrics.unprofitableOpDiff.Observe(diffFloat)
 		s.logger.Info("sender: operation not profitable", "op", opDigest, "payment", payment.String(), "ourPayment", ourPayment.String())
 		s.chilledOps[opDigest] = time.Now()
 		s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_None)
@@ -237,6 +264,7 @@ func (s *Sender) onRun(ctx context.Context) bool {
 	)
 
 	if err != nil {
+		s.metrics.failedSendOps.With(s.metrics.failedSignTransaction).Inc()
 		s.logger.Warn("sender: error signing transaction", "op", opDigest, "error", err)
 		s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_None)
 		return true
@@ -245,17 +273,26 @@ func (s *Sender) onRun(ctx context.Context) bool {
 	// Try sending the transaction
 	_, wait, err := s.Wallet.SendTransaction(ctx, signedTx)
 	if err != nil {
+		s.metrics.failedSendOps.With(s.metrics.failedSendTransaction).Inc()
 		s.logger.Warn("sender: error sending transaction", "op", opDigest, "error", err)
 		s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_None)
 		return true
 	}
 
+	s.metrics.prepareOpTime.Observe(time.Since(startPrepare).Seconds())
+	s.metrics.executedOps.Inc()
+
+	startReceipt := time.Now()
+
 	receipt, err := wait(ctx)
 	if err != nil {
+		s.metrics.failedReceiptOps.Inc()
 		s.logger.Warn("sender: error waiting for receipt", "op", opDigest, "error", err)
 		s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_None)
 		return true
 	}
+
+	s.metrics.waitReceiptTime.Observe(time.Since(startReceipt).Seconds())
 
 	// Now that we have the receipt, we fire and forget the inspection
 	go s.inspectReceipt(ctx, &op.Operation, receipt, priceSnap)
@@ -263,6 +300,8 @@ func (s *Sender) onRun(ctx context.Context) bool {
 	s.logger.Info("sender: operation executed", "op", opDigest, "tx", receipt.TxHash.String())
 
 	// Block the operation so we don't try to execute it again
+	s.metrics.sendOpTime.Observe(time.Since(startPrepare).Seconds())
+	s.metrics.blockedOps.Inc()
 	s.blockedOps[opDigest] = struct{}{}
 
 	s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_Zero)
@@ -274,7 +313,6 @@ func (s *Sender) IsChilled(op *types.Operation) bool {
 	defer s.lock.Unlock()
 
 	_, ok := s.chilledOps[op.Hash()]
-	fmt.Println("IsChilled?", op.Hash(), ok)
 	return ok
 }
 
@@ -404,12 +442,20 @@ func (s *Sender) inspectReceipt(
 	receipt *ethtypes.Receipt,
 	priceSnap *pricefeed.Snapshot,
 ) {
+	start := time.Now()
+	defer func() {
+		s.metrics.inspectReceiptTime.Observe(time.Since(start).Seconds())
+	}()
+
+	s.metrics.inspectReceiptAttempts.Inc()
+
 	// If the transaction wasn't successful, two things may have happened:
 	// - the operation was executed by someone else
 	// - the endorser "lied" to us, and the simulation was wrong
-	if receipt.Status == 1 {
+	if receipt.Status == 0 {
 		isReady, err := s.isOperationReady(ctx, op)
 		if err != nil || !isReady {
+			s.metrics.inspectReceiptReverted.With(prometheus.Labels{"lied": "false"}).Inc()
 			s.logger.Warn("inspector: likely operation collision", "op", op.Hash(), "tx", receipt.TxHash.String())
 			// The operation was executed by someone else
 			return
@@ -418,8 +464,10 @@ func (s *Sender) inspectReceipt(
 		// The endorser lied to us
 		// it is still marking the operation as ready
 		// but the operation failed to execute
-		// TODO: Ban endorser
+		s.metrics.inspectReceiptReverted.With(prometheus.Labels{"lied": "true"}).Inc()
 		s.logger.Error("inspector: endorser lied", "op", op.Hash(), "tx", receipt.TxHash.String())
+		s.Registry.BanEndorser(op.Endorser, registry.PermanentBan)
+		return
 	}
 
 	// If the operation was successful, we should check if we got paid
@@ -437,13 +485,21 @@ func (s *Sender) inspectReceipt(
 	prevBalance, err := s.balanceOf(ctx, op.FeeToken, prevBlockNum)
 	if err != nil {
 		// We can't check the balance, so we can't do anything
+		s.metrics.inspectReceiptFailed.With(s.metrics.failedInspectReceiptBalanceOf1).Inc()
 		s.logger.Warn("inspector: unable to check prev balance", "op", op.Hash(), "tx", receipt.TxHash.String(), "error", err)
 		return
 	}
 	nextBalance, err := s.balanceOf(ctx, op.FeeToken, txBlockNum)
 	if err != nil {
 		// We can't check the balance, so we can't do anything
+		s.metrics.inspectReceiptFailed.With(s.metrics.failedInspectReceiptBalanceOf2).Inc()
 		s.logger.Warn("inspector: unable to check next balance", "op", op.Hash(), "tx", receipt.TxHash.String(), "error", err)
+		return
+	}
+
+	if receipt.EffectiveGasPrice == nil {
+		s.metrics.inspectReceiptFailed.With(s.metrics.failedInspectReceiptEffectiveGasPrice).Inc()
+		s.logger.Warn("inspector: unable to check effective gas price", "op", op.Hash(), "tx", receipt.TxHash.String())
 		return
 	}
 
@@ -452,8 +508,14 @@ func (s *Sender) inspectReceipt(
 
 	isNative := op.FeeToken == common.Address{}
 	if isNative {
+		balanceDiffFloat, _ := balanceDiff.Float64()
+		balanceDiffFloat = math.Abs(balanceDiffFloat)
+
 		if balanceDiff.Sign() == 1 {
 			// We got paid, end of story
+			s.metrics.inspectReceiptPaid.Inc()
+			s.metrics.overpaidAmount.Observe(balanceDiffFloat)
+
 			s.logger.Info(
 				"inspector: operation paid",
 				"op", op.Hash(),
@@ -462,6 +524,9 @@ func (s *Sender) inspectReceipt(
 			)
 			return
 		}
+
+		s.metrics.inspectReceiptUnderpaid.Inc()
+		s.metrics.underpaidAmountDiff.Observe(balanceDiffFloat)
 		s.logger.Warn(
 			"inspector: operation not paid enough",
 			"op", op.Hash(),
@@ -472,8 +537,14 @@ func (s *Sender) inspectReceipt(
 		// This is a bit more complicated, since we need to convert
 		// the balanceDiff to native token and compare it with the nativeUsed
 		nativePaid := priceSnap.ToNative(balanceDiff)
+		nativeDiff := new(big.Int).Sub(nativePaid, nativeUsed)
+		nativeDiffFloat, _ := nativeDiff.Float64()
+		nativeDiffFloat = math.Abs(nativeDiffFloat)
+
 		if nativePaid.Cmp(nativeUsed) >= 0 {
 			// We got paid, end of story
+			s.metrics.inspectReceiptPaid.Inc()
+			s.metrics.overpaidAmount.Observe(nativeDiffFloat)
 			s.logger.Info(
 				"inspector: operation paid",
 				"op", op.Hash(),
@@ -483,6 +554,9 @@ func (s *Sender) inspectReceipt(
 			)
 			return
 		}
+
+		s.metrics.inspectReceiptUnderpaid.Inc()
+		s.metrics.underpaidAmountDiff.Observe(nativeDiffFloat)
 		s.logger.Warn(
 			"inspector: operation not paid enough",
 			"op", op.Hash(),
@@ -495,7 +569,7 @@ func (s *Sender) inspectReceipt(
 	}
 
 	// The endorser lied to us
-	// TODO: Ban endorser
+	s.Registry.BanEndorser(op.Endorser, registry.PermanentBan)
 }
 
 func (s *Sender) balanceOf(ctx context.Context, token common.Address, blockNum *big.Int) (*big.Int, error) {

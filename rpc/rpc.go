@@ -10,7 +10,6 @@ import (
 
 	"github.com/0xsequence/bundler"
 	"github.com/0xsequence/bundler/admin"
-	"github.com/0xsequence/bundler/calldata"
 	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
@@ -19,6 +18,7 @@ import (
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
+	"github.com/0xsequence/bundler/registry"
 	"github.com/0xsequence/bundler/sender"
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethrpc"
@@ -27,29 +27,66 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/go-chi/httplog/v2"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-type RPC struct {
-	Config *config.Config
-	Log    *httplog.Logger
-	Host   *p2p.Host
-	HTTP   *http.Server
+type metrics struct {
+	methodTime *prometheus.HistogramVec
+}
 
-	mempool       mempool.Interface
-	pruner        *bundler.Pruner
-	archive       *bundler.Archive
-	collector     *collector.Collector
-	senders       []sender.Interface
-	executor      *abivalidator.OperationValidator
-	ipfs          ipfs.Interface
-	admin         *admin.Admin
-	calldataModel calldata.CostModel
+func createMetrics(reg prometheus.Registerer) *metrics {
+	methodTime := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "rpc_method_time",
+		Help:    "Method execution time",
+		Buckets: prometheus.ExponentialBuckets(0.001, 2, 18),
+	}, []string{"method"})
+
+	if reg != nil {
+		reg.MustRegister(methodTime)
+	}
+
+	return &metrics{
+		methodTime: methodTime,
+	}
+}
+
+type RPC struct {
+	Config     *config.Config
+	Log        *httplog.Logger
+	Host       *p2p.Host
+	HTTP       *http.Server
+	Metrics    *metrics
+	Registerer prometheus.Registerer
+	Gatherer   prometheus.Gatherer
+
+	mempool   mempool.Interface
+	archive   *bundler.Archive
+	collector *collector.Collector
+	senders   []sender.Interface
+	executor  *abivalidator.OperationValidator
+	ipfs      ipfs.Interface
+	admin     *admin.Admin
+	registry  registry.Interface
 
 	running   int32
 	startTime time.Time
 }
 
-func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool mempool.Interface, archive *bundler.Archive, provider *ethrpc.Provider, collector *collector.Collector, endorser endorser.Interface, ipfs ipfs.Interface, calldataModel calldata.CostModel) (*RPC, error) {
+func NewRPC(
+	cfg *config.Config,
+	logger *httplog.Logger,
+	metrics prometheus.Registerer,
+	gatherer prometheus.Gatherer,
+	host *p2p.Host,
+	mempool mempool.Interface,
+	archive *bundler.Archive,
+	provider *ethrpc.Provider,
+	collector *collector.Collector,
+	endorser endorser.Interface,
+	ipfs ipfs.Interface,
+	registry registry.Interface,
+) (*RPC, error) {
 	if !common.IsHexAddress(cfg.NetworkConfig.ValidatorContract) {
 		return nil, fmt.Errorf("\"%v\" is not a valid operation validator contract", cfg.NetworkConfig.ValidatorContract)
 	}
@@ -81,6 +118,7 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		senders = append(senders, sender.NewSender(
 			&cfg.SendersConfig,
 			slogger,
+			metrics,
 			uint32(i),
 			wallet,
 			provider,
@@ -88,12 +126,11 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 			endorser,
 			executor,
 			collector,
+			registry,
 		))
 	}
 
-	pruner := bundler.NewPruner(cfg.PrunerConfig, mempool, endorser, logger)
-
-	admin := admin.NewAdmin(logger, ipfs, mempool)
+	admin := admin.NewAdmin(logger, ipfs, mempool, registry)
 
 	s := &RPC{
 		archive:   archive,
@@ -101,15 +138,18 @@ func NewRPC(cfg *config.Config, logger *httplog.Logger, host *p2p.Host, mempool 
 		senders:   senders,
 		collector: collector,
 		executor:  executor,
-		pruner:    pruner,
 		ipfs:      ipfs,
 		admin:     admin,
+		registry:  registry,
 
-		Config:    cfg,
-		Log:       logger,
-		Host:      host,
-		HTTP:      httpServer,
-		startTime: time.Now().UTC(),
+		Config:     cfg,
+		Log:        logger,
+		Metrics:    createMetrics(metrics),
+		Registerer: metrics,
+		Gatherer:   gatherer,
+		Host:       host,
+		HTTP:       httpServer,
+		startTime:  time.Now().UTC(),
 	}
 	return s, nil
 }
@@ -137,9 +177,6 @@ func (s *RPC) Run(ctx context.Context) error {
 	for _, sender := range s.senders {
 		go sender.Run(ctx)
 	}
-
-	// Run the pruner
-	go s.pruner.Run(ctx)
 
 	// Start the http server and serve!
 	err := s.HTTP.ListenAndServe()
@@ -208,27 +245,38 @@ func (s *RPC) handler() http.Handler {
 	// r.Use(httprate.LimitByIP(200, 1*time.Minute))
 
 	// Static routes
-	r.Get("/", indexHandler)
-	r.Get("/favicon.ico", http.HandlerFunc(stubHandler("")))
-	r.Get("/status", s.statusPage)
-	r.Get("/peers", s.peersPage)
+	r.Get("/", s.metered(indexHandler))
+	r.Get("/favicon.ico", s.metered(http.HandlerFunc(stubHandler(""))))
+	r.Get("/status", s.metered(s.statusPage))
+	r.Get("/peers", s.metered(s.peersPage))
+
+	// Add prometheus metrics
+	r.Get("/metrics", s.metered(promhttp.HandlerFor(s.Gatherer, promhttp.HandlerOpts{Registry: s.Registerer}).ServeHTTP))
 
 	// Mount rpc endpoints
 	bundlerRPCHandler := proto.NewBundlerServer(s)
-	r.Post("/rpc/Bundler/*", bundlerRPCHandler.ServeHTTP)
+	r.Post("/rpc/Bundler/*", s.metered(bundlerRPCHandler.ServeHTTP))
 
 	// TODO: take config flag with debug_mode true/false
 	debugRPCHandler := proto.NewDebugServer(&Debug{RPC: s})
-	r.Post("/rpc/Debug/*", debugRPCHandler.ServeHTTP)
+	r.Post("/rpc/Debug/*", s.metered(debugRPCHandler.ServeHTTP))
 
 	// TODO: Add JWT for Admin space
 	adminRPCHandler := proto.NewAdminServer(s.admin)
-	r.Post("/rpc/Admin/*", adminRPCHandler.ServeHTTP)
+	r.Post("/rpc/Admin/*", s.metered(adminRPCHandler.ServeHTTP))
 
 	return r
 }
 
-// Ping is a healthcheck that returns an empty message.
+func (s *RPC) metered(next http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		s.Metrics.methodTime.WithLabelValues(r.URL.Path).Observe(time.Since(start).Seconds())
+	})
+}
+
+// Ping is a health-check that returns an empty message.
 func (s *RPC) Ping(ctx context.Context) (bool, error) {
 	return true, nil
 }

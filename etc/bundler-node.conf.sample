@@ -1,32 +1,49 @@
 mnemonic = ""
 
-p2p_port = 0
 rpc_port = 3000
 
-boot_nodes = [
-  "/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-  "/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
-  "/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-  "/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
-  "/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
-]
+[p2p]
+  p2p_port = 0
+
+  boot_nodes = [
+    "/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+    "/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
+    "/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+    "/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
+    "/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+    "/ip4/24.199.127.126/tcp/4000/p2p/12D3KooWC4xKePNkVwHRzQ2vn1jjpvVtXsKWWmTGLLis2bgwPTSZ"
+  ]
+
+[debugger]
+  mode = "none" # options: anvil, nonce, native (tbd)
+
+[endorser_registry]
+  MinReputation = 1
+  TempBanSeconds = 86400
+
+  [[endorser_registry.sources]]
+    Weight = 1
+    Address = "0x95C4D1d59ADa7361192dA8208dA0D63e29DE250f"
 
 [collector]
-  min_priority_fee = 1000000000
-  priority_fee_mul = 1
+  min_priority_fee = 2500000
 
   [[collector.references]]
-    token = "0x0000000000000000000000000000000000000000"
+  token = "0x750ba8b76187092B0D1E87E28daaf484d1b5273b"
+
+  [collector.references.uniswap_v2]
+    pool = "0x26d96cfC6DF8262b1bb327a2df0eDE02FDfC8874"
+    base_token = "0x722E8BdD2ce80A4422E880164f2079488e115365"
 
 [senders]
-  num_senders = 1
+  num_senders = 0
   random_wait = 1000
   sleep_wait  = 1000
 
 [network]
   ipfs_url = "http://localhost:5001"
   rpc_url = "https://nodes.sequence.app/arbitrum-nova"
-  validator_contract = "0x6A75f326e3F467868677D61F4247c8c3d151B2cB"
+  validator_contract = "0x3D47d212892636984282b10dbDcB545Aec918508"
 
 [mempool]
   max_size = 1000

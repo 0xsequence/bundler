@@ -1,10 +1,14 @@
 package p2p
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
+	"math/big"
+	"math/rand"
 	"sync/atomic"
 	"time"
 
@@ -26,17 +30,21 @@ import (
 	quic "github.com/libp2p/go-libp2p/p2p/transport/quic"
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type Host struct {
-	cfg      *config.Config
+	cfg      *config.P2PHostConfig
 	logger   *slog.Logger
+	metrics  *metrics
 	host     host.Host
 	pubsub   *pubsub.PubSub
 	topic    *pubsub.Topic
 	handlers map[proto.MessageType][]MsgHandler
 
 	peerPrivKey crypto.PrivKey
+
+	chainID *big.Int
 
 	ctx     context.Context
 	ctxStop context.CancelFunc
@@ -46,7 +54,7 @@ type Host struct {
 
 var _ Interface = &Host{}
 
-func NewHost(cfg *config.Config, logger *slog.Logger, wallet *ethwallet.Wallet) (*Host, error) {
+func NewHost(cfg *config.P2PHostConfig, logger *slog.Logger, metrics prometheus.Registerer, wallet *ethwallet.Wallet, chainID *big.Int) (*Host, error) {
 
 	// Use private key at HD node account index 0 as the peer private key.
 	peerPrivKeyBytes, err := hexutil.Decode(wallet.PrivateKeyHex())
@@ -54,7 +62,10 @@ func NewHost(cfg *config.Config, logger *slog.Logger, wallet *ethwallet.Wallet) 
 		return nil, err
 	}
 
-	peerPrivKey, err := crypto.UnmarshalSecp256k1PrivateKey(peerPrivKeyBytes)
+	// Generate a deterministic private key from the given bytes
+	// but use Ed25519, as libp2p does not support secp256k1
+	// (it does still work, but with secp256k1 things are unstable)
+	peerPrivKey, _, err := crypto.GenerateEd25519Key(bytes.NewReader(peerPrivKeyBytes))
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +77,7 @@ func NewHost(cfg *config.Config, logger *slog.Logger, wallet *ethwallet.Wallet) 
 	logger = logger.With("hostId", id.String())
 
 	connmgr, err := connmgr.NewConnManager(
-		100, // Lowwater
+		300, // Lowwater
 		400, // HighWater,
 		connmgr.WithGracePeriod(time.Minute),
 	)
@@ -116,10 +127,15 @@ func NewHost(cfg *config.Config, logger *slog.Logger, wallet *ethwallet.Wallet) 
 		//
 		// This service is highly rate-limited and should not cause any
 		// performance issues.
-		// libp2p.EnableNATService(),
+		libp2p.EnableNATService(),
 
 		// ..
 		libp2p.DisableRelay(),
+
+		libp2p.EnableHolePunching(),
+
+		// Metrics
+		libp2p.PrometheusRegisterer(metrics),
 
 		// TODO: review all libp2p options and defaults
 	)
@@ -131,9 +147,11 @@ func NewHost(cfg *config.Config, logger *slog.Logger, wallet *ethwallet.Wallet) 
 	nd := &Host{
 		cfg:         cfg,
 		logger:      logger,
+		metrics:     createMetrics(metrics),
 		host:        h,
 		peerPrivKey: peerPrivKey,
 		handlers:    map[proto.MessageType][]MsgHandler{},
+		chainID:     chainID,
 	}
 
 	return nd, nil
@@ -148,8 +166,10 @@ func (n *Host) Run(ctx context.Context) error {
 
 	n.ctx, n.ctxStop = context.WithCancel(ctx)
 
-	hostAddr := getHostAddress(n.host)
-	n.logger.Info(fmt.Sprintf("-> node: listening on %s", hostAddr), "op", "run", "addr", hostAddr)
+	hostAddrs := getHostAddresses(n.host)
+	for _, hostAddr := range hostAddrs {
+		n.logger.Info("-> node: listening libp2p", "op", "run", "addr", hostAddr)
+	}
 
 	bootPeers, err := AddrInfoFromP2pAddrs(n.cfg.BootNodeAddrs)
 	if err != nil {
@@ -162,7 +182,18 @@ func (n *Host) Run(ctx context.Context) error {
 		return err
 	}
 
-	err = n.setupPubsub()
+	priorityPeers, err := AddrInfoFromP2pAddrs(n.cfg.PriorityNodeAddrs)
+	if err != nil {
+		n.logger.Error("error while parsing libp2p priority node addrs", "err", err)
+		return err
+	}
+
+	for _, peerInfo := range priorityPeers {
+		n.logger.Info("protecting priority peer", "peerId", peerInfo.ID.String())
+		n.host.ConnManager().Protect(peerInfo.ID, "priority")
+	}
+
+	err = n.setupPubsub(n.chainID)
 	if err != nil {
 		return err
 	}
@@ -205,12 +236,27 @@ func (n *Host) bootstrap(bootPeers []peer.AddrInfo) error {
 	}
 
 	// connect with bootstrap peers
-	for _, bootPeer := range bootPeers {
-		if err := n.host.Connect(n.ctx, bootPeer); err != nil {
-			n.logger.Error(fmt.Sprintf("error while connecting with boot peer %s", bootPeer.String()), "err", err)
-			continue
+	if len(bootPeers) != 0 {
+		firstDone := make(chan error, 1)
+		for _, bootPeer := range bootPeers {
+			go func(ctx context.Context, peerInfo peer.AddrInfo) {
+				cerr := n.attemptBootConnect(n.ctx, peerInfo)
+				err := <-cerr
+
+				select {
+				case firstDone <- err:
+				default:
+				}
+			}(n.ctx, bootPeer)
 		}
-		n.logger.Info("connected with the given bootstrap peer", "peerId", bootPeer.String())
+
+		// wait for at least one successful connection
+		err = <-firstDone
+		if err != nil {
+			return fmt.Errorf("failed to connect with any of the given bootstrap peers: %w", err)
+		}
+	} else {
+		n.logger.Warn("no bootstrap peers provided, starting in standalone mode")
 	}
 
 	// advertise our existence at the given namespace.
@@ -226,23 +272,63 @@ func (n *Host) bootstrap(bootPeers []peer.AddrInfo) error {
 	go func() {
 		peerCh := kdht.FindProvidersAsync(n.ctx, discoveryNameSpaceCid, 0)
 		for peerInfo := range peerCh {
+			n.metrics.foundPeers.Inc()
+
 			if peerInfo.ID == n.host.ID() {
 				// do not dial ourselves
+				n.metrics.foundSelfAsPeer.Inc()
 				continue
 			}
 
 			if err := n.host.Connect(n.ctx, peerInfo); err != nil {
+				n.metrics.foundPeersFailedConnect.Inc()
 				n.logger.Error(fmt.Sprintf("failed to connect with namespaced peer %s", peerInfo.String()), "err", err)
 				continue
 			}
 
 			// tag the peer so that we can offer it higher priority among peers
+			n.metrics.foundPeersConnected.Inc()
 			n.logger.Info("connected with namespaced peer", "peerId", peerInfo.String())
-			n.host.ConnManager().TagPeer(peerInfo.ID, DiscoveryNamespace, 500)
+			n.host.ConnManager().TagPeer(peerInfo.ID, "discovered", 500)
 		}
 	}()
 
 	return nil
+}
+
+func (n *Host) attemptBootConnect(ctx context.Context, peerInfo peer.AddrInfo) chan error {
+	res := make(chan error, 1)
+
+	go func(ctx context.Context, peerInfo peer.AddrInfo) {
+		defer close(res)
+
+		for i := 0.0; i <= 25; i += 1.0 {
+			if ctx.Err() != nil {
+				res <- fmt.Errorf("context cancelled during boot peer connection attempt")
+				return
+			}
+
+			if err := n.host.Connect(ctx, peerInfo); err != nil {
+				// Add a random jitter to avoid synchronized reconnection attempts
+				jitter := rand.Float64() * i
+				retryIn := time.Duration(math.Pow(2, i)+jitter) * time.Second
+				n.metrics.bootnodesRetries.Inc()
+				n.logger.Error(fmt.Sprintf("error while connecting with boot peer %s", peerInfo.String()), "err", err, "retryIn", retryIn)
+				time.Sleep(retryIn + time.Duration(float64(retryIn)*rand.Float64()))
+				continue
+			}
+
+			n.metrics.bootnodesConnected.Inc()
+			n.logger.Info("connected with the given bootstrap peer", "peerId", peerInfo.String())
+			res <- nil
+			return
+		}
+
+		n.metrics.bootnodesFailed.Inc()
+		res <- fmt.Errorf("failed to connect with boot peer %s", peerInfo.String())
+	}(ctx, peerInfo)
+
+	return res
 }
 
 func (n *Host) HostID() peer.ID {
@@ -254,12 +340,7 @@ func (n *Host) HostID() peer.ID {
 }
 
 func (n *Host) Address() (string, error) {
-	addr, err := PeerIDToETHAddress(n.host.ID())
-	if err != nil {
-		return "", err
-	}
-
-	return addr.String(), nil
+	return n.host.ID().String(), nil
 }
 
 func (n *Host) Sign(data []byte) ([]byte, error) {
@@ -290,7 +371,7 @@ func (n *Host) PriorityPeers() []peer.ID {
 	priorityPeers := []peer.ID{}
 	for _, p := range n.host.Network().Peers() {
 		tag := n.host.ConnManager().GetTagInfo(p)
-		if tag != nil && tag.Tags[DiscoveryNamespace] > 0 {
+		if tag != nil && tag.Tags["priority"] > 0 {
 			priorityPeers = append(priorityPeers, p)
 		}
 	}
@@ -306,6 +387,8 @@ func (n *Host) Broadcast(payload proto.Message) error {
 	if err != nil {
 		return err
 	}
+
+	n.metrics.broadcastSentBytes.WithLabelValues(payload.Type.String()).Observe(float64(len(data)))
 
 	return n.topic.Publish(n.ctx, data)
 }

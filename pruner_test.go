@@ -21,6 +21,7 @@ import (
 
 func TestIdlePull(t *testing.T) {
 	mockMempool := &mocks.MockMempool{}
+	mockRegistry := &mocks.MockRegistry{}
 
 	done := make(chan bool, 2)
 
@@ -31,8 +32,9 @@ func TestIdlePull(t *testing.T) {
 	).Maybe()
 
 	pruner := bundler.NewPruner(config.PrunerConfig{
-		RunWaitMillis: 1,
-	}, mockMempool, nil, nil)
+		RunWaitMillis:   1,
+		NoBannedPruning: true,
+	}, nil, nil, mockMempool, nil, mockRegistry)
 	ctx, cancel := context.WithCancel(context.Background())
 	go pruner.Run(ctx)
 
@@ -48,6 +50,7 @@ func TestIdlePull(t *testing.T) {
 func TestPullAndDiscardStateErr(t *testing.T) {
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
+	mockRegistry := &mocks.MockRegistry{}
 	logger := httplog.NewLogger("")
 
 	op1 := &mempool.TrackedOperation{
@@ -69,8 +72,9 @@ func TestPullAndDiscardStateErr(t *testing.T) {
 	).Once()
 
 	pruner := bundler.NewPruner(config.PrunerConfig{
-		RunWaitMillis: 1,
-	}, mockMempool, mockEndorser, logger)
+		RunWaitMillis:   1,
+		NoBannedPruning: true,
+	}, logger, nil, mockMempool, mockEndorser, mockRegistry)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pruner.Run(ctx)
@@ -82,6 +86,8 @@ func TestPullAndDiscardStateErr(t *testing.T) {
 func TestPullAndDiscardHasChangedErr(t *testing.T) {
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
+	mockRegistry := &mocks.MockRegistry{}
+
 	logger := httplog.NewLogger("")
 
 	er1 := &endorser.EndorserResult{
@@ -113,8 +119,9 @@ func TestPullAndDiscardHasChangedErr(t *testing.T) {
 	).Once()
 
 	pruner := bundler.NewPruner(config.PrunerConfig{
-		RunWaitMillis: 1,
-	}, mockMempool, mockEndorser, logger)
+		RunWaitMillis:   1,
+		NoBannedPruning: true,
+	}, logger, nil, mockMempool, mockEndorser, mockRegistry)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pruner.Run(ctx)
@@ -126,6 +133,8 @@ func TestPullAndDiscardHasChangedErr(t *testing.T) {
 func TestPullAndReleaseNotChanged(t *testing.T) {
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
+	mockRegistry := &mocks.MockRegistry{}
+
 	logger := httplog.NewLogger("")
 
 	er1 := &endorser.EndorserResult{
@@ -162,8 +171,9 @@ func TestPullAndReleaseNotChanged(t *testing.T) {
 	).Once()
 
 	pruner := bundler.NewPruner(config.PrunerConfig{
-		RunWaitMillis: 1,
-	}, mockMempool, mockEndorser, logger)
+		RunWaitMillis:   1,
+		NoBannedPruning: true,
+	}, logger, nil, mockMempool, mockEndorser, mockRegistry)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pruner.Run(ctx)
@@ -175,6 +185,8 @@ func TestPullAndReleaseNotChanged(t *testing.T) {
 func TestDiscardNotReady(t *testing.T) {
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
+	mockRegistry := &mocks.MockRegistry{}
+
 	logger := httplog.NewLogger("")
 
 	da := common.HexToAddress("0x999999cf1046e68e36E1aA2E0E07105eDDD1f08E")
@@ -235,8 +247,9 @@ func TestDiscardNotReady(t *testing.T) {
 	}).Return().Once()
 
 	pruner := bundler.NewPruner(config.PrunerConfig{
-		RunWaitMillis: 1,
-	}, mockMempool, mockEndorser, logger)
+		RunWaitMillis:   1,
+		NoBannedPruning: true,
+	}, logger, nil, mockMempool, mockEndorser, mockRegistry)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pruner.Run(ctx)
@@ -248,6 +261,7 @@ func TestDiscardNotReady(t *testing.T) {
 func TestKeepReady(t *testing.T) {
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
+	mockRegistry := &mocks.MockRegistry{}
 	logger := httplog.NewLogger("")
 
 	da := common.HexToAddress("0x999999cf1046e68e36E1aA2E0E07105eDDD1f08E")
@@ -313,8 +327,9 @@ func TestKeepReady(t *testing.T) {
 	}).Return().Once()
 
 	pruner := bundler.NewPruner(config.PrunerConfig{
-		RunWaitMillis: 1,
-	}, mockMempool, mockEndorser, logger)
+		RunWaitMillis:   1,
+		NoBannedPruning: true,
+	}, logger, nil, mockMempool, mockEndorser, mockRegistry)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pruner.Run(ctx)
@@ -325,11 +340,13 @@ func TestKeepReady(t *testing.T) {
 
 func TestSkipRecentOps(t *testing.T) {
 	mockMempool := &mocks.MockMempool{}
+	mockRegistry := &mocks.MockRegistry{}
 
 	done := make(chan bool)
 	pruner := bundler.NewPruner(config.PrunerConfig{
-		RunWaitMillis: 1,
-	}, mockMempool, nil, nil)
+		RunWaitMillis:   1,
+		NoBannedPruning: true,
+	}, nil, nil, mockMempool, nil, mockRegistry)
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
 		clb := args.Get(1).(func([]*mempool.TrackedOperation) []*mempool.TrackedOperation)
@@ -352,9 +369,10 @@ func TestSkipRecentOps(t *testing.T) {
 	cancel()
 }
 
-func TestRevalidateIfWildcarOnly(t *testing.T) {
+func TestRevalidateIfWildcardOnly(t *testing.T) {
 	mockMempool := &mocks.MockMempool{}
 	mockEndorser := &mocks.MockEndorser{}
+	mockRegistry := &mocks.MockRegistry{}
 	logger := httplog.NewLogger("")
 
 	er1 := &endorser.EndorserResult{
@@ -388,8 +406,9 @@ func TestRevalidateIfWildcarOnly(t *testing.T) {
 	}, nil).Once()
 
 	pruner := bundler.NewPruner(config.PrunerConfig{
-		RunWaitMillis: 1,
-	}, mockMempool, mockEndorser, logger)
+		RunWaitMillis:   1,
+		NoBannedPruning: true,
+	}, logger, nil, mockMempool, mockEndorser, mockRegistry)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pruner.Run(ctx)

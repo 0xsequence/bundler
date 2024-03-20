@@ -13,21 +13,22 @@ type Config struct {
 
 	Mnemonic string `toml:"mnemonic"`
 
-	P2PPort   int      `toml:"p2p_port"`
-	RPCPort   int      `toml:"rpc_port"`
-	BootNodes []string `toml:"boot_nodes"`
+	RPCPort int `toml:"rpc_port"`
 
 	Logging LoggingConfig `toml:"logging"`
 
-	NetworkConfig       NetworkConfig        `toml:"network"`
-	MempoolConfig       MempoolConfig        `toml:"mempool"`
-	SendersConfig       SendersConfig        `toml:"senders"`
-	CollectorConfig     CollectorConfig      `toml:"collector"`
-	PrunerConfig        PrunerConfig         `toml:"pruner"`
-	ArchiveConfig       ArchiveConfig        `toml:"archive"`
+	NetworkConfig   NetworkConfig   `toml:"network"`
+	P2PHostConfig   P2PHostConfig   `toml:"p2p"`
+	MempoolConfig   MempoolConfig   `toml:"mempool"`
+	SendersConfig   SendersConfig   `toml:"senders"`
+	CollectorConfig CollectorConfig `toml:"collector"`
+	PrunerConfig    PrunerConfig    `toml:"pruner"`
+	ArchiveConfig   ArchiveConfig   `toml:"archive"`
+	RegistryConfig  RegistryConfig  `toml:"endorser_registry"`
+	DebuggerConfig  DebuggerConfig  `toml:"debugger"`
+
 	LinearCalldataModel *LinearCalldataModel `toml:"linear_calldata_model"`
 
-	BootNodeAddrs []multiaddr.Multiaddr `toml:"-"`
 }
 
 type LoggingConfig struct {
@@ -53,6 +54,15 @@ type LinearCalldataModel struct {
 	NonZeroByteCost uint64 `toml:"non_zero_byte_cost"`
 }
 
+type P2PHostConfig struct {
+	P2PPort int `toml:"p2p_port"`
+
+	BootNodes         []string              `toml:"boot_nodes"`
+	PriorityNodes     []string              `toml:"priority_nodes"`
+	BootNodeAddrs     []multiaddr.Multiaddr `toml:"-"`
+	PriorityNodeAddrs []multiaddr.Multiaddr `toml:"-"`
+}
+
 type MempoolConfig struct {
 	Size        uint `toml:"max_size"`
 	IngressSize uint `toml:"max_ingress_size"`
@@ -66,6 +76,9 @@ type MempoolConfig struct {
 type PrunerConfig struct {
 	GracePeriodSeconds int `toml:"grace_period"`
 	RunWaitMillis      int `toml:"run_wait_millis"`
+
+	NoStalePruning  bool `toml:"no_stale_pruning"`
+	NoBannedPruning bool `toml:"no_banned_pruning"`
 }
 
 type SendersConfig struct {
@@ -99,6 +112,24 @@ type UniswapV2Reference struct {
 	BaseToken string `toml:"base_token"`
 }
 
+type RegistryConfig struct {
+	AllowUnusable  bool    `toml:"allow_unusable"`
+	MinReputation  float64 `toml:"min_reputation"`
+	TempBanSeconds int     `toml:"temp_ban_duration"`
+
+	Sources []RegistrySource `toml:"sources"`
+	Trusted []string         `toml:"trusted"`
+}
+
+type DebuggerConfig struct {
+	Mode string `toml:"mode"`
+}
+
+type RegistrySource struct {
+	Weight  float64 `toml:"weight"`
+	Address string  `toml:"address"`
+}
+
 func NewFromFile(file string, env string, cfg *Config) error {
 	if file == "" {
 		file = env
@@ -114,6 +145,14 @@ func NewFromFile(file string, env string, cfg *Config) error {
 }
 
 func initConfig(cfg *Config) error {
+	if err := InitP2PHostConfig(&cfg.P2PHostConfig); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func InitP2PHostConfig(cfg *P2PHostConfig) error {
 	bootNodeAddrs := make([]multiaddr.Multiaddr, 0, len(cfg.BootNodes))
 	for _, s := range cfg.BootNodes {
 		addr, err := multiaddr.NewMultiaddr(s)
@@ -123,6 +162,16 @@ func initConfig(cfg *Config) error {
 		bootNodeAddrs = append(bootNodeAddrs, addr)
 	}
 	cfg.BootNodeAddrs = bootNodeAddrs
+
+	priorityNodeAddrs := make([]multiaddr.Multiaddr, 0, len(cfg.PriorityNodes))
+	for _, s := range cfg.PriorityNodes {
+		addr, err := multiaddr.NewMultiaddr(s)
+		if err != nil {
+			return err
+		}
+		priorityNodeAddrs = append(priorityNodeAddrs, addr)
+	}
+	cfg.PriorityNodeAddrs = priorityNodeAddrs
 
 	return nil
 }

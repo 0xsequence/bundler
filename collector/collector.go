@@ -15,6 +15,7 @@ import (
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/0xsequence/go-sequence/lib/prototyp"
 	"github.com/go-chi/httplog/v2"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type Collector struct {
@@ -27,14 +28,15 @@ type Collector struct {
 
 	feeds map[common.Address]pricefeed.Feed
 
-	logger *httplog.Logger
+	logger  *httplog.Logger
+	metrics *metrics
 
 	Provider ethrpc.Interface
 }
 
 var _ Interface = &Collector{}
 
-func NewCollector(cfg *config.CollectorConfig, logger *httplog.Logger, provider ethrpc.Interface) (*Collector, error) {
+func NewCollector(cfg *config.CollectorConfig, logger *httplog.Logger, metrics prometheus.Registerer, provider ethrpc.Interface) (*Collector, error) {
 	feeds := make(map[common.Address]pricefeed.Feed)
 
 	priorityFee := new(big.Int).SetInt64(cfg.PriorityFee)
@@ -43,13 +45,14 @@ func NewCollector(cfg *config.CollectorConfig, logger *httplog.Logger, provider 
 		cfg:         cfg,
 		lock:        sync.Mutex{},
 		feeds:       feeds,
+		metrics:     createMetrics(metrics),
 		logger:      logger,
 		priorityFee: priorityFee,
 		Provider:    provider,
 	}
 
 	for _, ref := range cfg.References {
-		feed, err := pricefeed.FeedForReference(&ref, logger, provider)
+		feed, err := pricefeed.FeedForReference(&ref, logger, metrics, provider)
 		if err != nil {
 			return nil, err
 		}
@@ -119,13 +122,17 @@ func (c *Collector) Feeds() []pricefeed.Feed {
 }
 
 func (c *Collector) FetchBaseFee(ctx context.Context) {
+	start := time.Now()
 	block, err := c.Provider.BlockByNumber(ctx, nil)
 	if err != nil {
+		c.metrics.failedFetchBaseFee.Inc()
 		c.logger.Warn("collector: error fetching block", "error", err)
 		return
 	}
 
 	c.lastBaseFee = block.BaseFee()
+	c.metrics.baseFee.Set(float64(c.lastBaseFee.Int64()))
+	c.metrics.fetchBaseFeeDuration.Observe(time.Since(start).Seconds())
 	c.logger.Debug("collector: base fee fetched", "fee", c.lastBaseFee.String())
 }
 
@@ -148,6 +155,8 @@ func (c *Collector) MinFeePerGas(feeToken common.Address) (*big.Int, error) {
 		}
 		minFeePerGas = snap.FromNative(minFeePerGas)
 	}
+
+	c.metrics.minFeePerGas.WithLabelValues(feeToken.Hex()).Set(float64(minFeePerGas.Int64()))
 
 	return minFeePerGas, nil
 }

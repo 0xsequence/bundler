@@ -17,9 +17,14 @@ import (
 	"github.com/0xsequence/bundler/ipfs"
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/p2p"
+	"github.com/0xsequence/bundler/registry"
 	"github.com/0xsequence/bundler/rpc"
+	"github.com/0xsequence/bundler/store"
 	"github.com/0xsequence/ethkit/ethrpc"
+	"github.com/0xsequence/ethkit/ethwallet"
 	"github.com/go-chi/httplog/v2"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -33,6 +38,8 @@ type Node struct {
 	Archive   *bundler.Archive
 	Ingress   *bundler.Ingress
 	Collector *collector.Collector
+	Registry  registry.Interface
+	Pruner    *bundler.Pruner
 
 	ctx       context.Context
 	ctxStopFn context.CancelFunc
@@ -70,40 +77,78 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 	logger := httplog.NewLogger("bundler", loggerOptions)
 
+	// Metrics
+	prom := prometheus.NewRegistry()
+	promPrefix := prometheus.WrapRegistererWithPrefix("bundler_", prom)
+	promPrefix.MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	)
+
 	// Provider
 	provider, err := ethrpc.NewProvider(cfg.NetworkConfig.RpcUrl)
 	if err != nil {
 		return nil, err
 	}
 
+	// ChainID
+	chainID, err := provider.ChainID(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
 	// Debugger
-	// TODO: More options
-	debugger, err := debugger.NewAnvilDebugger(context.Background(), logger, cfg.NetworkConfig.RpcUrl)
+	debugger, err := debugger.NewDebugger(cfg.DebuggerConfig, context.Background(), logger, promPrefix, cfg.NetworkConfig.RpcUrl)
 	if err != nil {
 		return nil, err
 	}
 
 	// Endorser
-	endorser := endorser.NewEndorser(logger, provider, debugger)
+	endorser := endorser.NewEndorser(logger, promPrefix, provider, debugger)
 
-	// wallet
-	wallet, err := rpc.SetupWallet(cfg.Mnemonic, 0, provider)
+	// Wallet
+	mnmonic := cfg.Mnemonic
+	if mnmonic == "" {
+		// TODO: Maybe persist the wallet in a file?
+		entropy, err := ethwallet.RandomEntropy(256)
+		if err != nil {
+			return nil, err
+		}
+
+		mnmonic, err = ethwallet.EntropyToMnemonic(entropy)
+		if err != nil {
+			return nil, err
+		}
+
+		logger.Info("=> no mnemonic provided, using temporal wallet")
+	}
+
+	wallet, err := rpc.SetupWallet(mnmonic, 0, provider)
 	if err != nil {
 		return nil, err
 	}
 	logger.Info("=> setup node wallet", "address", wallet.Address().String())
 
+	// Store
+	// TODO: Add custom store path
+	store, err := store.CreateInstanceStore(wallet.Address().String() + "-" + chainID.String())
+	if err != nil {
+		logger.Warn("=> unable to create instance store", "error", err)
+	} else {
+		logger.Info("=> setup instance store", "path", store.String())
+	}
+
 	// p2p host
-	host, err := p2p.NewHost(cfg, logger.Logger, wallet)
+	host, err := p2p.NewHost(&cfg.P2PHostConfig, logger.Logger, promPrefix, wallet, chainID)
 	if err != nil {
 		return nil, err
 	}
 
 	// IPFS Client
-	ipfs := ipfs.NewClient(cfg.NetworkConfig.IpfsUrl)
+	ipfs := ipfs.NewClient(promPrefix, cfg.NetworkConfig.IpfsUrl)
 
 	// Collector
-	collector, err := collector.NewCollector(&cfg.CollectorConfig, logger, provider)
+	collector, err := collector.NewCollector(&cfg.CollectorConfig, logger, promPrefix, provider)
 	if err != nil {
 		return nil, err
 	}
@@ -121,20 +166,29 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		calldataModel = calldata.DefaultModel()
 	}
 
+	// Endorser registry
+	registry, err := registry.NewRegistry(&cfg.RegistryConfig, logger, promPrefix, provider)
+	if err != nil {
+		return nil, err
+	}
+
 	// Mempool
-	mempool, err := mempool.NewMempool(&cfg.MempoolConfig, logger, endorser, host, collector, ipfs, calldataModel)
+	mempool, err := mempool.NewMempool(&cfg.MempoolConfig, logger, promPrefix, endorser, host, collector, ipfs, calldataModel, registry)
 	if err != nil {
 		return nil, err
 	}
 
 	// Ingress
-	ingress := bundler.NewIngress(&cfg.MempoolConfig, logger, mempool, collector, host)
+	ingress := bundler.NewIngress(&cfg.MempoolConfig, logger, promPrefix, mempool, collector, host)
 
 	// Archive
-	archive := bundler.NewArchive(&cfg.ArchiveConfig, host, logger, ipfs, mempool)
+	archive := bundler.NewArchive(&cfg.ArchiveConfig, host, logger, promPrefix, store, ipfs, mempool)
+
+	// Pruner
+	pruner := bundler.NewPruner(cfg.PrunerConfig, logger, promPrefix, mempool, endorser, registry)
 
 	// RPC
-	rpc, err := rpc.NewRPC(cfg, logger, host, mempool, archive, provider, collector, endorser, ipfs, calldataModel)
+	rpc, err := rpc.NewRPC(cfg, logger, promPrefix, prom, host, mempool, archive, provider, collector, endorser, ipfs, registry)
 	if err != nil {
 		return nil, err
 	}
@@ -151,6 +205,8 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		Archive:   archive,
 		Ingress:   ingress,
 		Collector: collector,
+		Registry:  registry,
+		Pruner:    pruner,
 	}
 
 	return server, nil
@@ -219,6 +275,13 @@ func (s *Node) Run() error {
 			return err
 		})
 	}
+
+	g.Go(func() error {
+		// Run the pruner
+		oplog.Info("-> pruner: run")
+		s.Pruner.Run(ctx)
+		return nil
+	})
 
 	// Once run context is done, trigger a server-stop.
 	go func() {
