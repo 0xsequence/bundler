@@ -12,7 +12,7 @@ import (
 )
 
 func TestAdd1(t *testing.T) {
-	p := partitioner.NewPartitioner(1, 1)
+	p := partitioner.NewPartitioner(nil, 1, 1)
 
 	ok, deps := p.Add(&types.Operation{}, &endorser.EndorserResult{})
 	assert.True(t, ok)
@@ -20,7 +20,7 @@ func TestAdd1(t *testing.T) {
 }
 
 func TestAdd2Independent(t *testing.T) {
-	p := partitioner.NewPartitioner(2, 2)
+	p := partitioner.NewPartitioner(nil, 2, 2)
 
 	ok, deps := p.Add(&types.Operation{
 		IEndorserOperation: abiendorser.IEndorserOperation{
@@ -40,7 +40,7 @@ func TestAdd2Independent(t *testing.T) {
 }
 
 func TestAdd2IndependentWithDependencies(t *testing.T) {
-	p := partitioner.NewPartitioner(2, 2)
+	p := partitioner.NewPartitioner(nil, 2, 2)
 
 	ok, deps := p.Add(&types.Operation{
 		IEndorserOperation: abiendorser.IEndorserOperation{
@@ -74,7 +74,7 @@ func TestAdd2IndependentWithDependencies(t *testing.T) {
 }
 
 func TestAdd2IndependentWithDependenciesButRoom(t *testing.T) {
-	p := partitioner.NewPartitioner(2, 2)
+	p := partitioner.NewPartitioner(nil, 2, 2)
 
 	ok, deps := p.Add(&types.Operation{
 		IEndorserOperation: abiendorser.IEndorserOperation{
@@ -108,7 +108,7 @@ func TestAdd2IndependentWithDependenciesButRoom(t *testing.T) {
 }
 
 func TestBlockAddTwoWithDependencies(t *testing.T) {
-	p := partitioner.NewPartitioner(1, 1)
+	p := partitioner.NewPartitioner(nil, 1, 1)
 
 	op1 := &types.Operation{
 		IEndorserOperation: abiendorser.IEndorserOperation{
@@ -146,7 +146,7 @@ func TestBlockAddTwoWithDependencies(t *testing.T) {
 }
 
 func TestBlockAddTwoWithWildcard(t *testing.T) {
-	p := partitioner.NewPartitioner(1, 1)
+	p := partitioner.NewPartitioner(nil, 1, 1)
 
 	op1 := &types.Operation{
 		IEndorserOperation: abiendorser.IEndorserOperation{
@@ -177,7 +177,7 @@ func TestBlockAddTwoWithWildcard(t *testing.T) {
 }
 
 func TestAddTwoWithWildcardWithRoom(t *testing.T) {
-	p := partitioner.NewPartitioner(2, 2)
+	p := partitioner.NewPartitioner(nil, 2, 2)
 
 	op1 := &types.Operation{
 		IEndorserOperation: abiendorser.IEndorserOperation{
@@ -208,7 +208,7 @@ func TestAddTwoWithWildcardWithRoom(t *testing.T) {
 }
 
 func TestMultipleOverlap(t *testing.T) {
-	p := partitioner.NewPartitioner(2, 2)
+	p := partitioner.NewPartitioner(nil, 2, 2)
 
 	op1 := &types.Operation{
 		IEndorserOperation: abiendorser.IEndorserOperation{
@@ -284,7 +284,7 @@ func TestMultipleOverlap(t *testing.T) {
 }
 
 func TestMultidimentionalOverlap(t *testing.T) {
-	p := partitioner.NewPartitioner(2, 2)
+	p := partitioner.NewPartitioner(nil, 2, 2)
 
 	op1 := &types.Operation{
 		IEndorserOperation: abiendorser.IEndorserOperation{
@@ -378,7 +378,7 @@ func TestMultidimentionalOverlap(t *testing.T) {
 }
 
 func TestRemoveOps(t *testing.T) {
-	p := partitioner.NewPartitioner(2, 2)
+	p := partitioner.NewPartitioner(nil, 2, 2)
 
 	op1 := &types.Operation{
 		IEndorserOperation: abiendorser.IEndorserOperation{

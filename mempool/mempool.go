@@ -85,7 +85,7 @@ func NewMempool(
 
 		Operations: []*TrackedOperation{},
 
-		partitioner: partitioner.NewPartitioner(overLapLimit, wildcardLimit),
+		partitioner: partitioner.NewPartitioner(metrics, overLapLimit, wildcardLimit),
 
 		known: &KnownOperations{
 			lock:    sync.RWMutex{},

@@ -2,14 +2,17 @@ package partitioner
 
 import (
 	"sync"
+	"time"
 
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/types"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/sha3"
 )
 
 type Partitioner struct {
-	lock sync.Mutex
+	lock    sync.Mutex
+	metrics *metrics
 
 	OverlapLimit  uint
 	WildcardLimit uint
@@ -18,8 +21,9 @@ type Partitioner struct {
 	OpToDependencies map[string][]string
 }
 
-func NewPartitioner(overlapLimit, wildcardLimit uint) *Partitioner {
+func NewPartitioner(metrics prometheus.Registerer, overlapLimit, wildcardLimit uint) *Partitioner {
 	return &Partitioner{
+		metrics:          createMetrics(metrics, overlapLimit, wildcardLimit),
 		OverlapLimit:     overlapLimit,
 		WildcardLimit:    wildcardLimit,
 		DependencyToOps:  make(map[string][]*types.Operation),
@@ -100,6 +104,11 @@ func depsOfResult(res *endorser.EndorserResult) []string {
 }
 
 func (p *Partitioner) Add(op *types.Operation, deps *endorser.EndorserResult) (bool, [][]*types.Operation) {
+	start := time.Now()
+	defer func() {
+		p.metrics.addTimes.Observe(time.Since(start).Seconds())
+	}()
+
 	oph := string(op.Hash())
 
 	// Find all the dependencies that make the operation overlap
@@ -113,6 +122,7 @@ func (p *Partitioner) Add(op *types.Operation, deps *endorser.EndorserResult) (b
 	// If the operation is already known, this is a no-op
 	// return true as it technically was added
 	if _, ok := p.OpToDependencies[oph]; ok {
+		p.metrics.knownCollisions.Inc()
 		return true, nil
 	}
 
@@ -122,6 +132,7 @@ func (p *Partitioner) Add(op *types.Operation, deps *endorser.EndorserResult) (b
 			dh := dhashes[0]
 			ops := make([]*types.Operation, len(p.DependencyToOps[dh]))
 			copy(ops, p.DependencyToOps[dh])
+			p.metrics.wildcardCollisions.Inc()
 			return false, [][]*types.Operation{ops}
 		}
 	} else {
@@ -136,15 +147,13 @@ func (p *Partitioner) Add(op *types.Operation, deps *endorser.EndorserResult) (b
 		}
 
 		if len(overlaps) > 0 {
+			p.metrics.overlapCollisions.Observe(float64(len(overlaps)))
 			return false, overlaps
 		}
 	}
 
 	// Add the operation to the partitioner
-	p.OpToDependencies[oph] = dhashes
-	for _, dh := range dhashes {
-		p.DependencyToOps[dh] = append(p.DependencyToOps[dh], op)
-	}
+	p.addDependencies(op, dhashes)
 
 	return true, nil
 }
@@ -156,6 +165,7 @@ func (p *Partitioner) AddWildcard(op *types.Operation) (bool, [][]*types.Operati
 	defer p.lock.Unlock()
 
 	if _, ok := p.OpToDependencies[oph]; ok {
+		p.metrics.knownCollisions.Inc()
 		return true, nil
 	}
 
@@ -163,33 +173,80 @@ func (p *Partitioner) AddWildcard(op *types.Operation) (bool, [][]*types.Operati
 		// Copy for safety
 		ops := make([]*types.Operation, len(p.DependencyToOps[wildcard]))
 		copy(ops, p.DependencyToOps[wildcard])
+		p.metrics.wildcardCollisions.Inc()
 		return false, [][]*types.Operation{ops}
 	}
 
 	// Add the operation to the partitioner
-	p.OpToDependencies[oph] = []string{wildcard}
-	p.DependencyToOps[wildcard] = append(p.DependencyToOps[wildcard], op)
+	p.addDependencies(op, []string{wildcard})
 
 	return true, nil
 }
 
 func (p *Partitioner) Remove(ops []string) {
+	start := time.Now()
+	defer func() {
+		p.metrics.removeTimes.Observe(time.Since(start).Seconds())
+	}()
+
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
 	for _, oph := range ops {
 		// Remove the operation from the partitioner
-		for _, dh := range p.OpToDependencies[oph] {
-			ops := p.DependencyToOps[dh]
-			for i, o := range ops {
-				if o.Hash() == oph {
-					ops = append(ops[:i], ops[i+1:]...)
-					break
-				}
-			}
-			p.DependencyToOps[dh] = ops
+		p.removeDependencies(oph)
+	}
+}
+
+func (p *Partitioner) addDependencies(op *types.Operation, deps []string) {
+	p.metrics.knownOps.Inc()
+	p.metrics.addedDependencies.Add(float64(len(deps)))
+
+	for _, dh := range deps {
+		p.DependencyToOps[dh] = append(p.DependencyToOps[dh], op)
+
+		if len(p.DependencyToOps[dh]) == int(p.OverlapLimit) {
+			p.metrics.fullDependencies.Inc()
+			p.metrics.partiallyFilledDeps.Dec()
+		} else {
+			p.metrics.partiallyFilledDeps.Inc()
 		}
 
-		delete(p.OpToDependencies, oph)
+		if dh == wildcard {
+			p.metrics.wildcardDeps.Inc()
+		}
 	}
+
+	p.OpToDependencies[string(op.Hash())] = deps
+}
+
+func (p *Partitioner) removeDependencies(oph string) {
+	for _, dh := range p.OpToDependencies[oph] {
+		ops := p.DependencyToOps[dh]
+
+		p.metrics.removedDependencies.Add(float64(len(ops)))
+
+		for i, o := range ops {
+			if o.Hash() == oph {
+				ops = append(ops[:i], ops[i+1:]...)
+				break
+			}
+		}
+
+		p.DependencyToOps[dh] = ops
+
+		if len(p.DependencyToOps[dh]) == int(p.OverlapLimit-1) {
+			p.metrics.partiallyFilledDeps.Inc()
+			p.metrics.fullDependencies.Dec()
+		} else if len(p.DependencyToOps[dh]) == 0 {
+			p.metrics.partiallyFilledDeps.Dec()
+		}
+
+		if dh == wildcard {
+			p.metrics.wildcardDeps.Dec()
+		}
+	}
+
+	delete(p.OpToDependencies, oph)
+	p.metrics.knownOps.Dec()
 }
