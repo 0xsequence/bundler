@@ -181,9 +181,10 @@ func (e *Endorser) isOperationReadyCall(ctx context.Context, op *types.Operation
 	}
 
 	var res string
-	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall, nil, nil)
+	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall)
 	_, err = e.Provider.Do(ctx, rpcCall.Into(&res))
 	if err != nil {
+		e.metrics.isOperationReadyError.Inc()
 		return nil, err
 	}
 
