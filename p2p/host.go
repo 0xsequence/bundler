@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"math/big"
 	"math/rand"
 	"sync/atomic"
 	"time"
@@ -43,6 +44,8 @@ type Host struct {
 
 	peerPrivKey crypto.PrivKey
 
+	chainID *big.Int
+
 	ctx     context.Context
 	ctxStop context.CancelFunc
 	running int32
@@ -51,7 +54,7 @@ type Host struct {
 
 var _ Interface = &Host{}
 
-func NewHost(cfg *config.P2PHostConfig, logger *slog.Logger, metrics prometheus.Registerer, wallet *ethwallet.Wallet) (*Host, error) {
+func NewHost(cfg *config.P2PHostConfig, logger *slog.Logger, metrics prometheus.Registerer, wallet *ethwallet.Wallet, chainID *big.Int) (*Host, error) {
 
 	// Use private key at HD node account index 0 as the peer private key.
 	peerPrivKeyBytes, err := hexutil.Decode(wallet.PrivateKeyHex())
@@ -148,6 +151,7 @@ func NewHost(cfg *config.P2PHostConfig, logger *slog.Logger, metrics prometheus.
 		host:        h,
 		peerPrivKey: peerPrivKey,
 		handlers:    map[proto.MessageType][]MsgHandler{},
+		chainID:     chainID,
 	}
 
 	return nd, nil
@@ -189,7 +193,7 @@ func (n *Host) Run(ctx context.Context) error {
 		n.host.ConnManager().Protect(peerInfo.ID, "priority")
 	}
 
-	err = n.setupPubsub()
+	err = n.setupPubsub(n.chainID)
 	if err != nil {
 		return err
 	}

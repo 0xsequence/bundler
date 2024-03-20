@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"encoding/json"
+	"math/big"
 	"time"
 
 	"github.com/0xsequence/bundler/proto"
@@ -16,7 +17,7 @@ func (n *Host) HandleMessageType(messageType proto.MessageType, handler MsgHandl
 	}
 }
 
-func (n *Host) setupPubsub() error {
+func (n *Host) setupPubsub(chainId *big.Int) error {
 	logger := n.logger
 
 	psOptions := []pubsub.Option{
@@ -32,7 +33,7 @@ func (n *Host) setupPubsub() error {
 		logger.Error("unable to create gossip pub sub", "err", err)
 		return err
 	}
-	topic, err := ps.Join(PubsubTopic)
+	topic, err := ps.Join(PubsubTopic(chainId))
 	if err != nil {
 		logger.Error("while creating pub sub topic", "err", err)
 		return err

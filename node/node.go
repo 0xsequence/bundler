@@ -90,6 +90,12 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		return nil, err
 	}
 
+	// ChainID
+	chainID, err := provider.ChainID(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
 	// Debugger
 	debugger, err := debugger.NewDebugger(cfg.DebuggerConfig, context.Background(), logger, promPrefix, cfg.NetworkConfig.RpcUrl)
 	if err != nil {
@@ -122,7 +128,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	logger.Info("=> setup node wallet", "address", wallet.Address().String())
 
 	// p2p host
-	host, err := p2p.NewHost(&cfg.P2PHostConfig, logger.Logger, promPrefix, wallet)
+	host, err := p2p.NewHost(&cfg.P2PHostConfig, logger.Logger, promPrefix, wallet, chainID)
 	if err != nil {
 		return nil, err
 	}
