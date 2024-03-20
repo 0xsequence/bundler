@@ -84,20 +84,24 @@
             "type": "prometheus",
             "uid": "000000001"
           },
-          "editorMode": "builder",
-          "expr": "bundler_p2p_bootnodes_connected",
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "bundler_p2p_bootnodes_connected{chain_id=\"$chain_id\", id=\"$instance\"}",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
           "legendFormat": "Connected",
           "range": true,
-          "refId": "A"
+          "refId": "A",
+          "useBackend": false
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "000000001"
           },
-          "editorMode": "builder",
+          "editorMode": "code",
           "exemplar": false,
-          "expr": "bundler_p2p_bootnodes_failed",
+          "expr": "bundler_p2p_bootnodes_failed{chain_id=\"$chain_id\", id=\"$instance\"}",
           "hide": false,
           "instant": false,
           "legendFormat": "Failed",
@@ -109,8 +113,8 @@
             "type": "prometheus",
             "uid": "000000001"
           },
-          "editorMode": "builder",
-          "expr": "bundler_p2p_bootnodes_retries",
+          "editorMode": "code",
+          "expr": "bundler_p2p_bootnodes_retries{chain_id=\"$chain_id\", id=\"$instance\"}",
           "hide": false,
           "legendFormat": "Retries",
           "range": true,
@@ -177,7 +181,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "bundler_mempool_ops",
+          "expr": "bundler_mempool_ops{chain_id=\"$chain_id\", id=\"$instance\"}",
           "legendFormat": "Mempool Ops",
           "range": true,
           "refId": "A"
@@ -188,7 +192,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "bundler_mempool_known",
+          "expr": "bundler_mempool_known{chain_id=\"$chain_id\", id=\"$instance\"}",
           "hide": false,
           "legendFormat": "Known Ops",
           "range": true,
@@ -200,7 +204,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "bundler_mempool_reserved",
+          "expr": "bundler_mempool_reserved{chain_id=\"$chain_id\", id=\"$instance\"}",
           "hide": false,
           "legendFormat": "Reserved",
           "range": true,
@@ -268,7 +272,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "bundler_p2p_pubsub_received_bytes_count",
+          "expr": "bundler_p2p_pubsub_received_bytes_count{chain_id=\"$chain_id\", id=\"$instance\"}",
           "legendFormat": "Received {{type}}",
           "range": true,
           "refId": "A"
@@ -279,7 +283,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "bundler_p2p_broadcast_sent_bytes_count",
+          "expr": "bundler_p2p_broadcast_sent_bytes_count{chain_id=\"$chain_id\", id=\"$instance\"}",
           "hide": false,
           "legendFormat": "Sent {{type}}",
           "range": true,
@@ -347,7 +351,32 @@
           },
           "unit": "s"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "__systemRef": "hideSeriesFrom",
+            "matcher": {
+              "id": "byNames",
+              "options": {
+                "mode": "exclude",
+                "names": [
+                  "1m /rpc/Bundler/FeeAsks"
+                ],
+                "prefix": "All except:",
+                "readOnly": true
+              }
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": true
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 12,
@@ -375,7 +404,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_rpc_method_time_sum[1m]) / rate(bundler_rpc_method_time_count[1m])",
+          "expr": "rate(bundler_rpc_method_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_rpc_method_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "legendFormat": "1m {{method}}",
           "range": true,
           "refId": "A"
@@ -386,7 +415,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_rpc_method_time_sum[60m]) / rate(bundler_rpc_method_time_count[60m])",
+          "expr": "rate(bundler_rpc_method_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[60m]) / rate(bundler_rpc_method_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[60m])",
           "hide": false,
           "legendFormat": "60m {{method}}",
           "range": true,
@@ -510,7 +539,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "increase(bundler_rpc_method_time_count[$__rate_interval])",
+          "expr": "increase(bundler_rpc_method_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
           "instant": false,
           "interval": "",
           "legendFormat": "{{method}}",
@@ -579,7 +608,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "bundler_sender_executed_ops",
+          "expr": "bundler_sender_executed_ops{chain_id=\"$chain_id\", id=\"$instance\"}",
           "legendFormat": "Executed Ops",
           "range": true,
           "refId": "A"
@@ -590,7 +619,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "bundler_sender_chilled_ops",
+          "expr": "bundler_sender_chilled_ops{chain_id=\"$chain_id\", id=\"$instance\"}",
           "hide": false,
           "legendFormat": "Chilled Ops",
           "range": true,
@@ -686,7 +715,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_mempool_do_reserve_ops_time_sum[1m])/rate(bundler_mempool_do_reserve_ops_time_count[1m])",
+          "expr": "rate(bundler_mempool_do_reserve_ops_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m])/rate(bundler_mempool_do_reserve_ops_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "legendFormat": "1m avg",
           "range": true,
           "refId": "A"
@@ -697,7 +726,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_mempool_do_reserve_ops_time_sum[10m])/rate(bundler_mempool_do_reserve_ops_time_count[10m])",
+          "expr": "rate(bundler_mempool_do_reserve_ops_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[10m])/rate(bundler_mempool_do_reserve_ops_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[10m])",
           "hide": false,
           "legendFormat": "10m avg",
           "range": true,
@@ -709,7 +738,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_mempool_do_reserve_ops_time_sum[24h])/rate(bundler_mempool_do_reserve_ops_time_count[24h])",
+          "expr": "rate(bundler_mempool_do_reserve_ops_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[24h])/rate(bundler_mempool_do_reserve_ops_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[24h])",
           "hide": false,
           "legendFormat": "24hs avg",
           "range": true,
@@ -805,7 +834,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "bundler_collector_base_fee / (100000000)",
+          "expr": "bundler_collector_base_fee{chain_id=\"$chain_id\", id=\"$instance\"} / (100000000)",
           "legendFormat": "BaseFee",
           "range": true,
           "refId": "A"
@@ -901,7 +930,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_mempool_ops_discarded_sum[$__rate_interval])",
+          "expr": "increase(bundler_mempool_ops_discarded_sum{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
           "interval": "",
           "legendFormat": "Discarded",
           "range": true,
@@ -913,7 +942,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_mempool_ops_forgotten_sum[$__rate_interval])",
+          "expr": "increase(bundler_mempool_ops_forgotten_sum{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Forgotten",
@@ -926,7 +955,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_mempool_ops_marked_for_forget_sum[$__rate_interval])",
+          "expr": "increase(bundler_mempool_ops_marked_for_forget_sum{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Marked for forget",
@@ -939,7 +968,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_mempool_ops_evicted_sum[$__rate_interval])",
+          "expr": "increase(bundler_mempool_ops_evicted_sum{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Evicted",
@@ -952,7 +981,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_mempool_ops_rejected_sum[$__rate_interval])",
+          "expr": "increase(bundler_mempool_ops_rejected_sum{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Rejected {{reason}}",
@@ -965,7 +994,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_mempool_op_added_time_count[$__rate_interval])",
+          "expr": "increase(bundler_mempool_op_added_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Added",
@@ -1062,7 +1091,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_collector_fetch_base_fee_duration_sum[1m]) / rate(bundler_collector_fetch_base_fee_duration_count[1m])",
+          "expr": "rate(bundler_collector_fetch_base_fee_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_collector_fetch_base_fee_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "legendFormat": "BaseFee",
           "range": true,
           "refId": "A"
@@ -1073,7 +1102,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_uniswap_v2_fetch_reserves_time_sum[1m]) / rate(bundler_uniswap_v2_fetch_reserves_time_count[1m])",
+          "expr": "rate(bundler_uniswap_v2_fetch_reserves_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_uniswap_v2_fetch_reserves_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "hide": false,
           "legendFormat": "Uniswap v2 Pool {{pool}}",
           "range": true,
@@ -1181,7 +1210,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "bundler_mempool_partitioner_partially_filled_dependencies",
+          "expr": "bundler_mempool_partitioner_partially_filled_dependencies{chain_id=\"$chain_id\", id=\"$instance\"}",
           "hide": false,
           "legendFormat": "Partially filled dependencies",
           "range": true,
@@ -1193,7 +1222,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "bundler_mempool_partitioner_full_dependencies",
+          "expr": "bundler_mempool_partitioner_full_dependencies{chain_id=\"$chain_id\", id=\"$instance\"}",
           "hide": false,
           "legendFormat": "Full dependencies",
           "range": true,
@@ -1205,7 +1234,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "bundler_mempool_partitioner_known_ops",
+          "expr": "bundler_mempool_partitioner_known_ops{chain_id=\"$chain_id\", id=\"$instance\"}",
           "hide": false,
           "legendFormat": "Known Operations",
           "range": true,
@@ -1300,7 +1329,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_mempool_op_lifetime_sum[1m]) / rate(bundler_mempool_op_lifetime_count[1m])",
+          "expr": "rate(bundler_mempool_op_lifetime_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_mempool_op_lifetime_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "hide": false,
           "legendFormat": "Average Lifecycle",
           "range": true,
@@ -1357,7 +1386,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1395,7 +1425,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "irate(bundler_p2p_broadcast_sent_bytes_sum[5s])",
+          "expr": "irate(bundler_p2p_broadcast_sent_bytes_sum{chain_id=\"$chain_id\", id=\"$instance\"}[5s])",
           "legendFormat": "Sent {{type}}",
           "range": true,
           "refId": "A"
@@ -1406,7 +1436,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "irate(bundler_p2p_pubsub_received_bytes_sum[5s])",
+          "expr": "irate(bundler_p2p_pubsub_received_bytes_sum{chain_id=\"$chain_id\", id=\"$instance\"}[5s])",
           "hide": false,
           "legendFormat": "Received {{type}}",
           "range": true,
@@ -1464,7 +1494,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1501,7 +1532,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_mempool_partitioner_wildcard_collisions_sum[1m])",
+          "expr": "rate(bundler_mempool_partitioner_wildcard_collisions_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "hide": false,
           "legendFormat": "Wildcard collisions",
           "range": true,
@@ -1513,7 +1544,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_mempool_partitioner_known_collisions_sum[1m])",
+          "expr": "rate(bundler_mempool_partitioner_known_collisions_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "hide": false,
           "legendFormat": "Known collisions",
           "range": true,
@@ -1525,7 +1556,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_mempool_partitioner_overlap_collisions_count[1m])",
+          "expr": "rate(bundler_mempool_partitioner_overlap_collisions_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "hide": false,
           "legendFormat": "Overlap collisions",
           "range": true,
@@ -1550,7 +1581,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1606,7 +1638,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "bundler_ipfs_reported_bytes_sum",
+          "expr": "bundler_ipfs_reported_bytes_sum{chain_id=\"$chain_id\", id=\"$instance\"}",
           "legendFormat": "IPFS Upload",
           "range": true,
           "refId": "A"
@@ -1618,7 +1650,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "bundler_ipfs_reported_bytes_count",
+          "expr": "bundler_ipfs_reported_bytes_count{chain_id=\"$chain_id\", id=\"$instance\"}",
           "hide": false,
           "instant": false,
           "legendFormat": "IPFS Objects",
@@ -1676,7 +1708,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1712,8 +1745,8 @@
             "type": "prometheus",
             "uid": "000000001"
           },
-          "editorMode": "builder",
-          "expr": "bundler_p2p_found_peers",
+          "editorMode": "code",
+          "expr": "bundler_p2p_found_peers{chain_id=\"$chain_id\", id=\"$instance\"}",
           "legendFormat": "Seen Peers",
           "range": true,
           "refId": "A"
@@ -1723,8 +1756,8 @@
             "type": "prometheus",
             "uid": "000000001"
           },
-          "editorMode": "builder",
-          "expr": "bundler_p2p_found_peers_connected",
+          "editorMode": "code",
+          "expr": "bundler_p2p_found_peers_connected{chain_id=\"$chain_id\", id=\"$instance\"}",
           "hide": false,
           "legendFormat": "Connected Peers",
           "range": true,
@@ -1735,8 +1768,8 @@
             "type": "prometheus",
             "uid": "000000001"
           },
-          "editorMode": "builder",
-          "expr": "bundler_p2p_found_peers_failed_connect",
+          "editorMode": "code",
+          "expr": "bundler_p2p_found_peers_failed_connect{chain_id=\"$chain_id\", id=\"$instance\"}",
           "hide": false,
           "legendFormat": "Failed connect Peers",
           "range": true,
@@ -1793,7 +1826,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1830,7 +1864,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "bundler_uniswap_v2_rate",
+          "expr": "bundler_uniswap_v2_rate{chain_id=\"$chain_id\", id=\"$instance\"}",
           "legendFormat": "Uniswap V2 {{pool}}",
           "range": true,
           "refId": "A"
@@ -1886,7 +1920,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1937,7 +1972,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_ipfs_reported_bytes_sum[1m])",
+          "expr": "rate(bundler_ipfs_reported_bytes_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "legendFormat": "IPFS Upload",
           "range": true,
           "refId": "A"
@@ -1949,7 +1984,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "rate(bundler_ipfs_reported_bytes_count[1m])",
+          "expr": "rate(bundler_ipfs_reported_bytes_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "hide": false,
           "instant": false,
           "legendFormat": "IPFS Objects",
@@ -2007,7 +2042,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2058,7 +2094,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_pruner_banned_time_sum[1m]) / rate(bundler_pruner_banned_time_count [1m])",
+          "expr": "rate(bundler_pruner_banned_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_pruner_banned_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "legendFormat": "Time banned",
           "range": true,
           "refId": "A"
@@ -2069,7 +2105,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_pruner_stale_time_sum[1m]) / rate(bundler_pruner_stale_time_count [1m])",
+          "expr": "rate(bundler_pruner_stale_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_pruner_stale_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "hide": false,
           "legendFormat": "Time stale per op",
           "range": true,
@@ -2081,7 +2117,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_pruner_stale_empty_sum[1m])",
+          "expr": "rate(bundler_pruner_stale_empty_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "hide": false,
           "legendFormat": "Empty runs",
           "range": true,
@@ -2138,7 +2174,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2177,7 +2214,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_pruner_stale_dropped_sum[$__rate_interval])",
+          "expr": "increase(bundler_pruner_stale_dropped_sum{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Stale dropped",
@@ -2190,7 +2227,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_pruner_stale_failed_sum[$__rate_interval])",
+          "expr": "increase(bundler_pruner_stale_failed_sum{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Failed stale prune {{reason}}",
@@ -2203,7 +2240,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_pruner_stale_released_sum[$__rate_interval])",
+          "expr": "increase(bundler_pruner_stale_released_sum{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Released",
@@ -2261,7 +2298,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2299,7 +2337,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "irate(bundler_p2p_broadcast_sent_bytes_count[5s])",
+          "expr": "irate(bundler_p2p_broadcast_sent_bytes_count{chain_id=\"$chain_id\", id=\"$instance\"}[5s])",
           "legendFormat": "Sent {{type}}",
           "range": true,
           "refId": "A"
@@ -2310,7 +2348,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "irate(bundler_p2p_pubsub_received_bytes_count[5s])",
+          "expr": "irate(bundler_p2p_pubsub_received_bytes_count{chain_id=\"$chain_id\", id=\"$instance\"}[5s])",
           "hide": false,
           "legendFormat": "Received {{type}}",
           "range": true,
@@ -2367,7 +2405,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2406,7 +2445,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_endorser_is_operation_ready_error[$__rate_interval])",
+          "expr": "increase(bundler_endorser_is_operation_ready_error{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
           "interval": "",
           "legendFormat": "IsOperationReady error",
           "range": true,
@@ -2418,7 +2457,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_endorser_is_operation_ready_true_sum[$__rate_interval])",
+          "expr": "increase(bundler_endorser_is_operation_ready_true_sum{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "isOperationReady true",
@@ -2431,7 +2470,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_endorser_is_operation_ready_false_sum[$__rate_interval])",
+          "expr": "increase(bundler_endorser_is_operation_ready_false_sum{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "isOperationReady false",
@@ -2444,7 +2483,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_endorser_is_operation_ready_wildcards_sum[$__rate_interval])",
+          "expr": "increase(bundler_endorser_is_operation_ready_wildcards_sum{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "isOperationReady wildcards",
@@ -2457,7 +2496,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_endorser_dependency_state_error_sum[$__rate_interval])",
+          "expr": "increase(bundler_endorser_dependency_state_error_sum{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "dependencyState error {{reason}}",
@@ -2470,7 +2509,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_endorser_dependency_state_duration_count[$__rate_interval])",
+          "expr": "increase(bundler_endorser_dependency_state_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Dependency state",
@@ -2483,7 +2522,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "increase(bundler_endorser_constraints_met_sum[$__rate_interval])",
+          "expr": "increase(bundler_endorser_constraints_met_sum{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Constraints met",
@@ -2496,7 +2535,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "irate(bundler_endorser_constraints_not_met[$__rate_interval])",
+          "expr": "irate(bundler_endorser_constraints_not_met{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Constraints not met",
@@ -2509,7 +2548,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "irate(bundler_endorser_constraints_met_error_sum[$__rate_interval])",
+          "expr": "irate(bundler_endorser_constraints_met_error_sum{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
           "hide": false,
           "interval": "",
           "legendFormat": "Constraints met error",
@@ -2567,7 +2606,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2605,7 +2645,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_endorser_is_operation_ready_duration_sum[1m]) / rate(bundler_endorser_is_operation_ready_duration_count[1m])",
+          "expr": "rate(bundler_endorser_is_operation_ready_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_endorser_is_operation_ready_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "legendFormat": "isOperationReady",
           "range": true,
           "refId": "A"
@@ -2616,7 +2656,7 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "rate(bundler_endorser_is_operation_debug_ready_duration_sum[1m]) / rate(bundler_endorser_is_operation_debug_ready_duration_count[1m])",
+          "expr": "rate(bundler_endorser_is_operation_debug_ready_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_endorser_is_operation_debug_ready_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "hide": false,
           "legendFormat": "isOperationReady (debug)",
           "range": true,
@@ -2627,8 +2667,8 @@
             "type": "prometheus",
             "uid": "000000001"
           },
-          "editorMode": "builder",
-          "expr": "rate(bundler_endorser_constraint_met_duration_sum[1m]) / rate(bundler_endorser_constraint_met_duration_count[1m])",
+          "editorMode": "code",
+          "expr": "rate(bundler_endorser_constraint_met_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_endorser_constraint_met_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "hide": false,
           "legendFormat": "constraintMet (1)",
           "range": true,
@@ -2639,8 +2679,8 @@
             "type": "prometheus",
             "uid": "000000001"
           },
-          "editorMode": "builder",
-          "expr": "rate(bundler_endorser_constraints_met_duration_sum[1m]) / rate(bundler_endorser_constraints_met_duration_count[1m])",
+          "editorMode": "code",
+          "expr": "rate(bundler_endorser_constraints_met_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_endorser_constraints_met_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "hide": false,
           "legendFormat": "constraintMet (op)",
           "range": true,
@@ -2651,8 +2691,8 @@
             "type": "prometheus",
             "uid": "000000001"
           },
-          "editorMode": "builder",
-          "expr": "rate(bundler_endorser_dependency_slot_duration_sum[1m]) / rate(bundler_endorser_dependency_slot_duration_count[1m])",
+          "editorMode": "code",
+          "expr": "rate(bundler_endorser_dependency_slot_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_endorser_dependency_slot_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "hide": false,
           "legendFormat": "dependency slot",
           "range": true,
@@ -2663,8 +2703,8 @@
             "type": "prometheus",
             "uid": "000000001"
           },
-          "editorMode": "builder",
-          "expr": "rate(bundler_endorser_dependency_state_duration_sum[1m]) / rate(bundler_endorser_dependency_state_duration_count[1m])",
+          "editorMode": "code",
+          "expr": "rate(bundler_endorser_dependency_state_duration_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_endorser_dependency_state_duration_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "hide": false,
           "legendFormat": "dependency state",
           "range": true,
@@ -2675,21 +2715,78 @@
       "type": "timeseries"
     }
   ],
-  "refresh": "",
+  "refresh": "5s",
   "revision": 1,
   "schemaVersion": 39,
   "tags": [],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "42170",
+          "value": "42170"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "000000001"
+        },
+        "definition": "label_values(chain_id)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Chain ID",
+        "multi": false,
+        "name": "chain_id",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(chain_id)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "0x3BC1C2e7120F1a2cf4535C752BE921ABeD2dc14b",
+          "value": "0x3BC1C2e7120F1a2cf4535C752BE921ABeD2dc14b"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "000000001"
+        },
+        "definition": "label_values(bundler_mempool_known,id)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Instance",
+        "multi": false,
+        "name": "instance",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(bundler_mempool_known,id)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      }
+    ]
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "5189 Bundler",
   "uid": "PJoXPh1Iz",
-  "version": 26,
+  "version": 29,
   "weekStart": ""
 }
