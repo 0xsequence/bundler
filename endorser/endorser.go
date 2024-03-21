@@ -304,7 +304,8 @@ func (e *Endorser) isOperationReadyCall(ctx context.Context, op *types.Operation
 	}
 
 	var res string
-	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall, nil, debugOverrideArgs)
+	// Some RPC providers may not support the debugOverrideArgs
+	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall, "latest", debugOverrideArgs)
 	_, err = e.Provider.Do(ctx, rpcCall.Into(&res))
 	if err != nil {
 		e.metrics.isOperationReadyError.Inc()
