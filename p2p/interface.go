@@ -7,7 +7,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-type MsgHandler func(ctx context.Context, p peer.ID, msg *pubsub.Message) pubsub.ValidationResult
+type MsgHandler func(ctx context.Context, p peer.ID, data []byte) pubsub.ValidationResult
 
 type Interface interface {
 	BroadcastData(ctx context.Context, topic PubsubTopic, payload []byte) error

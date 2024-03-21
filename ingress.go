@@ -106,7 +106,7 @@ func NewIngress(
 }
 
 func (i *Ingress) registerHandler(ctx context.Context) {
-	i.Host.HandleTopic(ctx, p2p.OperationTopic, func(ctx context.Context, p peer.ID, msg *pubsub.Message) pubsub.ValidationResult {
+	i.Host.HandleTopic(ctx, p2p.OperationTopic, func(ctx context.Context, p peer.ID, data []byte) pubsub.ValidationResult {
 		i.metrics.pendingOps.Inc()
 		i.logger.Info("ingress: received operation")
 
@@ -119,7 +119,7 @@ func (i *Ingress) registerHandler(ctx context.Context) {
 
 		// Try to parse the operation
 		var protoOp proto.Operation
-		err := json.Unmarshal(msg.Data, &protoOp)
+		err := json.Unmarshal(data, &protoOp)
 		if err != nil {
 			i.metrics.droppedOps.With(i.metrics.dropReasonUnmarshal).Inc()
 			i.logger.Warn("invalid operation message - parse proto", "err", err)

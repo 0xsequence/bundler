@@ -218,9 +218,9 @@ func (a *Archive) Run(ctx context.Context) {
 		a.Logger.Info("archive: no previous archive found, starting fresh")
 	}
 
-	a.Host.HandleTopic(ctx, p2p.ArchiveTopic, func(ctx context.Context, peer peer.ID, msg *pubsub.Message) pubsub.ValidationResult {
+	a.Host.HandleTopic(ctx, p2p.ArchiveTopic, func(ctx context.Context, peer peer.ID, data []byte) pubsub.ValidationResult {
 		var amsg *ArchiveMessage
-		err := json.Unmarshal(msg.Data, &amsg)
+		err := json.Unmarshal(data, &amsg)
 		if err != nil {
 			a.Logger.Warn("archive: invalid message", "peer", peer)
 			a.Metrics.receivedInvalidArchive.With(a.Metrics.invalidArchiveBadMsgReason).Inc()

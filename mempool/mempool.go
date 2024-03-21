@@ -13,7 +13,6 @@ import (
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/ipfs"
 	"github.com/0xsequence/bundler/mempool/partitioner"
-	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/registry"
 	"github.com/0xsequence/bundler/types"
@@ -26,7 +25,6 @@ type Mempool struct {
 	metrics *metrics
 
 	Ipfs          ipfs.Interface
-	Host          p2p.Interface
 	Collector     collector.Interface
 	Endorser      endorser.Interface
 	CalldataModel calldata.CostModel
@@ -48,7 +46,6 @@ func NewMempool(
 	logger *httplog.Logger,
 	metrics prometheus.Registerer,
 	endorser endorser.Interface,
-	host p2p.Interface,
 	collector collector.Interface,
 	ipfs ipfs.Interface,
 	calldataModel calldata.CostModel,
@@ -75,7 +72,6 @@ func NewMempool(
 		metrics: createMetrics(metrics),
 
 		Ipfs:          ipfs,
-		Host:          host,
 		Endorser:      endorser,
 		Collector:     collector,
 		CalldataModel: calldataModel,

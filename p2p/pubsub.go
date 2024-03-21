@@ -120,7 +120,7 @@ func (n *Host) HandleTopic(ctx context.Context, topic PubsubTopic, handler MsgHa
 			return pubsub.ValidationAccept
 		}
 
-		return handler(ctx, p, msg)
+		return handler(ctx, p, msg.Data)
 	})
 
 	if err != nil {
