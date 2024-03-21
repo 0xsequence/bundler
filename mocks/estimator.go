@@ -7,6 +7,7 @@ import (
 	"github.com/0xsequence/bundler/sender"
 	ethereum "github.com/0xsequence/ethkit/go-ethereum"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
+	"github.com/0xsequence/ethkit/go-ethereum/core/types"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -32,6 +33,11 @@ func (m *MockProvider) CodeAt(ctx context.Context, contract common.Address, bloc
 func (m *MockProvider) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
 	args := m.Called(ctx, msg)
 	return args.Get(0).(uint64), args.Error(1)
+}
+
+func (m *MockProvider) BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error) {
+	args := m.Called(ctx, hash)
+	return args.Get(0).(*types.Block), args.Error(1)
 }
 
 var _ sender.Provider = &MockProvider{}
