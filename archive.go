@@ -17,6 +17,7 @@ import (
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
 	"github.com/go-chi/httplog/v2"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -217,23 +218,23 @@ func (a *Archive) Run(ctx context.Context) {
 		a.Logger.Info("archive: no previous archive found, starting fresh")
 	}
 
-	a.Host.HandleMessageType(proto.MessageType_ARCHIVE, func(peer peer.ID, message []byte) {
-		a.lock.Lock()
-		defer a.lock.Unlock()
-
+	a.Host.HandleTopic(ctx, p2p.ArchiveTopic, func(ctx context.Context, peer peer.ID, data []byte) pubsub.ValidationResult {
 		var amsg *ArchiveMessage
-		err := json.Unmarshal(message, &amsg)
+		err := json.Unmarshal(data, &amsg)
 		if err != nil {
 			a.Logger.Warn("archive: invalid message", "peer", peer)
 			a.Metrics.receivedInvalidArchive.With(a.Metrics.invalidArchiveBadMsgReason).Inc()
-			return
+			return pubsub.ValidationReject
 		}
 
 		if !ipfs.IsCid(amsg.ArchiveCid) {
 			a.Logger.Warn("archive: invalid cid", "peer", peer, "cid", amsg.ArchiveCid)
 			a.Metrics.receivedInvalidArchive.With(a.Metrics.invalidArchiveBadCidReason).Inc()
-			return
+			return pubsub.ValidationReject
 		}
+
+		a.lock.Lock()
+		defer a.lock.Unlock()
 
 		ps := peer.String()
 		if _, ok := a.seenArchives[ps]; ok {
@@ -243,9 +244,12 @@ func (a *Archive) Run(ctx context.Context) {
 		}
 
 		a.seenArchives[ps] = amsg.ArchiveCid
+		a.Logger.Info("archive: received archive", "peer", peer, "cid", amsg.ArchiveCid)
 
-		a.Metrics.seenArchiveCids.Set(float64(len(a.seenArchives)))
+		return pubsub.ValidationAccept
 	})
+
+	a.Logger.Info("archive: handler registered")
 
 	for ctx.Err() == nil {
 		time.Sleep(a.runEvery)
@@ -267,13 +271,13 @@ func (a *Archive) SeenArchives() map[string]string {
 }
 
 func (a *Archive) Stop(ctx context.Context) {
-	a.Logger.Info("archive: stopping..")
+	a.Logger.Info("-> archive: stopping..")
 	a.TriggerArchive(ctx, 0, true)
 
 	// Delay 250ms to ensure the archive is published
 	// to the network before exiting
 	time.Sleep(250 * time.Millisecond)
-	a.Logger.Info("archive: stopped, published last archive", "cid", a.PrevArchive)
+	a.Logger.Info("-> archive: stopped, published last archive", "cid", a.PrevArchive)
 }
 
 func (a *Archive) TriggerArchive(ctx context.Context, age time.Duration, force bool) {
@@ -282,11 +286,11 @@ func (a *Archive) TriggerArchive(ctx context.Context, age time.Duration, force b
 	err := a.doArchive(ctx, archive, force)
 	if err != nil {
 		a.Metrics.failedArchive.Inc()
-		a.Logger.Error("archive: error archiving", "ops", len(archive), "error", err)
+		a.Logger.Error("-> archive: error archiving", "ops", len(archive), "error", err)
 	}
 }
 
-func (a *Archive) doArchive(_ context.Context, ops []string, force bool) error {
+func (a *Archive) doArchive(ctx context.Context, ops []string, force bool) error {
 	if len(ops) == 0 && !force {
 		a.Metrics.archiveSkipEmpty.Inc()
 		return nil
@@ -345,8 +349,6 @@ func (a *Archive) doArchive(_ context.Context, ops []string, force bool) error {
 		return err
 	}
 
-	a.Logger.Info("archive: archived", "ops", len(ops), "cid", cid)
-
 	a.PrevArchive = cid
 
 	// Store the previous archive
@@ -359,17 +361,13 @@ func (a *Archive) doArchive(_ context.Context, ops []string, force bool) error {
 	a.seenArchives = make(map[string]string)
 	a.Metrics.seenArchiveCids.Set(0)
 
-	// Broadcast the archive
-	err = a.Host.Broadcast(proto.Message{
-		Type:    proto.MessageType_ARCHIVE,
-		Message: &ArchiveMessage{ArchiveCid: cid},
-	})
-
+	err = a.Host.Broadcast(ctx, p2p.ArchiveTopic, &ArchiveMessage{ArchiveCid: cid})
 	if err != nil {
 		return err
 	}
 
 	a.Metrics.doneArchive.Observe(float64(len(ops)))
+	a.Logger.Info("archive: archived", "ops", len(ops), "cid", cid)
 
 	return nil
 }

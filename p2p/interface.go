@@ -1,15 +1,18 @@
 package p2p
 
 import (
-	"github.com/0xsequence/bundler/proto"
+	"context"
+
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-type MsgHandler func(from peer.ID, message []byte)
+type MsgHandler func(ctx context.Context, p peer.ID, data []byte) pubsub.ValidationResult
 
 type Interface interface {
-	Broadcast(payload proto.Message) error
-	HandleMessageType(messageType proto.MessageType, handler MsgHandler)
+	BroadcastData(ctx context.Context, topic PubsubTopic, payload []byte) error
+	Broadcast(ctx context.Context, topic PubsubTopic, payload interface{}) error
+	HandleTopic(ctx context.Context, topic PubsubTopic, handler MsgHandler) error
 	Address() (string, error)
 	Sign(data []byte) ([]byte, error)
 }

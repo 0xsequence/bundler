@@ -257,10 +257,6 @@ func (s *RPC) handler() http.Handler {
 	bundlerRPCHandler := proto.NewBundlerServer(s)
 	r.Post("/rpc/Bundler/*", s.metered(bundlerRPCHandler.ServeHTTP))
 
-	// TODO: take config flag with debug_mode true/false
-	debugRPCHandler := proto.NewDebugServer(&Debug{RPC: s})
-	r.Post("/rpc/Debug/*", s.metered(debugRPCHandler.ServeHTTP))
-
 	// TODO: Add JWT for Admin space
 	adminRPCHandler := proto.NewAdminServer(s.admin)
 	r.Post("/rpc/Admin/*", s.metered(adminRPCHandler.ServeHTTP))
@@ -300,6 +296,9 @@ func (s *RPC) SendOperation(ctx context.Context, pop *proto.Operation) (string, 
 	if err != nil {
 		return "", err
 	}
+
+	// If the operation is fine, broadcast it to the network
+	s.Host.Broadcast(ctx, p2p.OperationTopic, op.ToProtoPure())
 
 	return op.Hash(), nil
 }

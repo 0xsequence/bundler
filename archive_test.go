@@ -10,7 +10,7 @@ import (
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/ipfs"
 	"github.com/0xsequence/bundler/mocks"
-	"github.com/0xsequence/bundler/proto"
+	"github.com/0xsequence/bundler/p2p"
 	"github.com/go-chi/httplog/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/assert"
@@ -73,10 +73,7 @@ func TestDoArchive(t *testing.T) {
 		"0x456",
 	}).Once()
 
-	host.On("Broadcast", proto.Message{
-		Type:    proto.MessageType_ARCHIVE,
-		Message: &bundler.ArchiveMessage{ArchiveCid: cid},
-	}).Return(nil).Once()
+	host.On("Broadcast", mock.Anything, p2p.ArchiveTopic, &bundler.ArchiveMessage{ArchiveCid: cid}).Return(nil).Once()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	archive.TriggerArchive(ctx, time.Minute, false)
@@ -95,9 +92,9 @@ func TestListenArchives(t *testing.T) {
 
 	archive := bundler.NewArchive(&config.ArchiveConfig{}, host, logger, nil, "", mipfs, mempool)
 
-	handlerregistered := make(chan struct{})
-	host.On("HandleMessageType", proto.MessageType_ARCHIVE, mock.Anything).Run(func(mock.Arguments) {
-		handlerregistered <- struct{}{}
+	cHandler := make(chan p2p.MsgHandler)
+	host.On("HandleTopic", mock.Anything, p2p.ArchiveTopic, mock.Anything).Run(func(args mock.Arguments) {
+		cHandler <- args[2].(p2p.MsgHandler)
 	}).Return(nil).Once()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -105,9 +102,12 @@ func TestListenArchives(t *testing.T) {
 
 	cid, _ := ipfs.Cid([]byte("hello test 2"))
 
-	<-handlerregistered
+	handler := <-cHandler
 
-	host.ExtBroadcast(peer.ID("123"), proto.MessageType_ARCHIVE, bundler.ArchiveMessage{ArchiveCid: cid})
+	ad := &bundler.ArchiveMessage{ArchiveCid: cid}
+	data, err := json.Marshal(ad)
+	assert.Nil(t, err)
+	handler(ctx, peer.ID("123"), data)
 
 	for len(archive.SeenArchives()) == 0 {
 	}
@@ -134,12 +134,7 @@ func TestListenArchives(t *testing.T) {
 	}).Return(cid2, nil).Once()
 	mempool.On("ForgetOps", time.Minute).Return([]string{}).Once()
 
-	host.On("Broadcast", proto.Message{
-		Type: proto.MessageType_ARCHIVE,
-		Message: &bundler.ArchiveMessage{
-			ArchiveCid: cid2,
-		},
-	}).Return(nil).Once()
+	host.On("Broadcast", mock.Anything, p2p.ArchiveTopic, &bundler.ArchiveMessage{ArchiveCid: cid2}).Return(nil).Once()
 
 	archive.TriggerArchive(ctx, time.Minute, true)
 
@@ -167,7 +162,7 @@ func TestChainArchives(t *testing.T) {
 	host.On("Address").Return("0x3BC1C2e7120F1a2cf4535C752BE921ABeD2dc14b", nil).Twice()
 	host.On("Sign", mock.Anything).Return([]byte{0x01, 0x02, 0x03}, nil).Twice()
 	mempool.On("ForgetOps", time.Minute).Return([]string{}).Twice()
-	host.On("Broadcast", mock.Anything).Return(nil).Twice()
+	host.On("Broadcast", mock.Anything, mock.Anything, mock.Anything).Return(nil).Twice()
 
 	mipfs.On("Report", mock.Anything).Return(cid1, nil).Once()
 
@@ -231,11 +226,8 @@ func TestRunArchiver(t *testing.T) {
 
 	mempool.On("ForgetOps", time.Second*13).Return([]string{}).Maybe()
 
-	host.On("Broadcast", proto.Message{
-		Type:    proto.MessageType_ARCHIVE,
-		Message: &bundler.ArchiveMessage{ArchiveCid: cid},
-	}).Return(nil).Once()
-	host.On("HandleMessageType", proto.MessageType_ARCHIVE, mock.Anything).Return(nil).Once()
+	host.On("Broadcast", mock.Anything, p2p.ArchiveTopic, &bundler.ArchiveMessage{ArchiveCid: cid}).Return(nil).Once()
+	host.On("HandleTopic", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go archive.Run(ctx)
