@@ -26,6 +26,7 @@ func (n *Host) setupPubsub(chainId *big.Int) error {
 
 		// TODO: only use pubsubtracer in debug mode
 		pubsub.WithEventTracer(&PubSubTracer{logger: logger}),
+		pubsub.WithRawTracer(newMetricsTracer(n.metrics)),
 	}
 
 	ps, err := pubsub.NewGossipSub(n.ctx, n.host, psOptions...)
