@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"sync"
 	"time"
 
 	"github.com/0xsequence/bundler/collector"
@@ -15,33 +13,27 @@ import (
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/types"
 	"github.com/go-chi/httplog/v2"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 type ingressMetrics struct {
-	inputOps    prometheus.Counter
-	acceptedOps prometheus.Counter
-
 	pendingOps prometheus.Gauge
 
 	processTime prometheus.Histogram
 
-	droppedOps             *prometheus.CounterVec
-	dropReasonKnown        prometheus.Labels
+	acceptedOps prometheus.Counter
+	droppedOps  *prometheus.CounterVec
+
+	dropReasonUnmarshal    prometheus.Labels
+	dropReasonFromProto    prometheus.Labels
 	dropReasonLowFee       prometheus.Labels
 	dropReasonErrorPayment prometheus.Labels
-	dropReasonInTransit    prometheus.Labels
 	dropReasonMempool      prometheus.Labels
 }
 
 type Ingress struct {
-	handlerRegistered bool
-
-	lock      sync.Mutex
-	buffer    chan *types.Operation
-	intransit map[string]struct{}
-
 	logger  *httplog.Logger
 	metrics *ingressMetrics
 
@@ -51,19 +43,14 @@ type Ingress struct {
 }
 
 func createIngressMetrics(reg prometheus.Registerer) *ingressMetrics {
-	inputOps := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "ingress_input_count",
-		Help: "Number of operations received",
+	acceptedOps := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "ingress_accepted_ops",
+		Help: "Number of operations accepted",
 	})
 
 	pendingOps := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "ingress_pending_ops",
 		Help: "Number of operations pending",
-	})
-
-	acceptedOps := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "ingress_accepted_count",
-		Help: "Number of operations accepted by the mempool",
 	})
 
 	droppedOps := prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -78,24 +65,24 @@ func createIngressMetrics(reg prometheus.Registerer) *ingressMetrics {
 	})
 
 	if reg != nil {
-		reg.MustRegister(inputOps)
-		reg.MustRegister(droppedOps)
-		reg.MustRegister(pendingOps)
-		reg.MustRegister(acceptedOps)
-		reg.MustRegister(processTime)
+		reg.MustRegister(
+			acceptedOps,
+			pendingOps,
+			droppedOps,
+			processTime,
+		)
 	}
 
 	return &ingressMetrics{
-		inputOps:    inputOps,
-		pendingOps:  pendingOps,
 		acceptedOps: acceptedOps,
+		pendingOps:  pendingOps,
 		droppedOps:  droppedOps,
 		processTime: processTime,
 
-		dropReasonKnown:        prometheus.Labels{"reason": "known"},
+		dropReasonUnmarshal:    prometheus.Labels{"reason": "unmarshal"},
+		dropReasonFromProto:    prometheus.Labels{"reason": "from_proto"},
 		dropReasonLowFee:       prometheus.Labels{"reason": "low_fee"},
 		dropReasonErrorPayment: prometheus.Labels{"reason": "error_payment"},
-		dropReasonInTransit:    prometheus.Labels{"reason": "in_transit"},
 		dropReasonMempool:      prometheus.Labels{"reason": "mempool"},
 	}
 }
@@ -109,10 +96,6 @@ func NewIngress(
 	host p2p.Interface,
 ) *Ingress {
 	return &Ingress{
-		lock:      sync.Mutex{},
-		buffer:    make(chan *types.Operation, cfg.IngressSize),
-		intransit: make(map[string]struct{}, cfg.IngressSize),
-
 		logger:  logger,
 		metrics: createIngressMetrics(metrics),
 
@@ -122,106 +105,70 @@ func NewIngress(
 	}
 }
 
-func (i *Ingress) InBuffer() int {
-	return len(i.buffer)
-}
+func (i *Ingress) registerHandler(ctx context.Context) {
+	i.Host.HandleTopic(ctx, p2p.OperationTopic, func(ctx context.Context, p peer.ID, msg *pubsub.Message) pubsub.ValidationResult {
+		i.metrics.pendingOps.Inc()
+		i.logger.Info("ingress: received operation")
 
-func (i *Ingress) registerHandler() {
-	if i.handlerRegistered {
-		return
-	}
+		start := time.Now()
 
-	i.handlerRegistered = true
-	i.Host.HandleMessageType(proto.MessageType_NEW_OPERATION, func(_ peer.ID, message []byte) {
-		var protoOperation proto.Operation
-		err := json.Unmarshal(message, &protoOperation)
-		if err != nil {
-			// TODO: Mark peer as bad
-			i.logger.Warn("invalid operation message - parse proto", "err", err)
-			return
-		}
-
-		operation, err := types.NewOperationFromProto(&protoOperation)
-		if err != nil {
-			// TODO: Mark peer as bad
-			i.logger.Warn("invalid operation message - parse operation", "err", err)
-			return
-		}
-
-		err = i.Add(operation)
-		if err != nil {
-			i.logger.Warn("failed to add operation", "err", err, "op", operation.Hash())
-		}
-	})
-}
-
-func (i *Ingress) Add(op *types.Operation) error {
-	i.metrics.inputOps.Inc()
-
-	// If on the mempool known list, we should ignore it
-	if i.Mempool.IsKnownOp(op) {
-		i.metrics.droppedOps.With(i.metrics.dropReasonKnown).Inc()
-		return nil
-	}
-
-	// Pass it trough the collector, since
-	// it can quickly reject it if it doesn't
-	// pay enough fees
-	if err := i.Collector.ValidatePayment(op); err != nil {
-		if errors.Is(err, collector.InsufficientFeeError) {
-			i.logger.Info("%v", err)
-			i.metrics.droppedOps.With(i.metrics.dropReasonLowFee).Inc()
-			return nil
-		} else {
-			i.metrics.droppedOps.With(i.metrics.dropReasonErrorPayment).Inc()
-			return err
-		}
-	}
-
-	i.lock.Lock()
-	defer i.lock.Unlock()
-
-	// If in transit we should ignore it
-	if _, ok := i.intransit[op.Hash()]; ok {
-		i.metrics.droppedOps.With(i.metrics.dropReasonInTransit).Inc()
-		return nil
-	}
-
-	i.metrics.pendingOps.Inc()
-
-	select {
-	case i.buffer <- op:
-		i.intransit[op.Hash()] = struct{}{}
-		return nil
-	default:
-		return fmt.Errorf("ingress: buffer full")
-	}
-}
-
-func (i *Ingress) Run(ctx context.Context) {
-	i.registerHandler()
-
-	for {
-		select {
-		case op := <-i.buffer:
+		defer func() {
 			i.metrics.pendingOps.Dec()
-
-			start := time.Now()
-			err := i.Mempool.AddOperation(ctx, op, false)
 			i.metrics.processTime.Observe(time.Since(start).Seconds())
+		}()
 
-			if err != nil {
-				i.metrics.droppedOps.With(i.metrics.dropReasonMempool).Inc()
-				i.logger.Warn("ingress: failed to promote operation", "error", err, "op", op.Hash())
-			} else {
-				i.metrics.acceptedOps.Inc()
-			}
-
-			i.lock.Lock()
-			delete(i.intransit, op.Hash())
-			i.lock.Unlock()
-		case <-ctx.Done():
-			return
+		// Try to parse the operation
+		var protoOp proto.Operation
+		err := json.Unmarshal(msg.Data, &protoOp)
+		if err != nil {
+			i.metrics.droppedOps.With(i.metrics.dropReasonUnmarshal).Inc()
+			i.logger.Warn("invalid operation message - parse proto", "err", err)
+			return pubsub.ValidationReject
 		}
-	}
+
+		// Try to convert the operation
+		op, err := types.NewOperationFromProto(&protoOp)
+		if err != nil {
+			i.metrics.droppedOps.With(i.metrics.dropReasonFromProto).Inc()
+			i.logger.Warn("invalid operation message - parse operation", "err", err)
+			return pubsub.ValidationReject
+		}
+
+		// Pass it trough the collector, since
+		// it can quickly reject it if it doesn't
+		// pay enough fees. Don't reject it, only ignore it
+		// since it may be a valid operation.
+		if err := i.Collector.ValidatePayment(op); err != nil {
+			if errors.Is(err, collector.InsufficientFeeError) {
+				i.logger.Info("%v", err)
+				i.metrics.droppedOps.With(i.metrics.dropReasonLowFee).Inc()
+				return pubsub.ValidationIgnore
+			} else {
+				i.metrics.droppedOps.With(i.metrics.dropReasonErrorPayment).Inc()
+				return pubsub.ValidationIgnore
+			}
+		}
+
+		// If the mempool reject it, only ignore it
+		// as it may be a valid operation, our mempool
+		// may be full or the operation may have been invalidated
+		// in flight.
+		err = i.Mempool.AddOperation(ctx, op, false)
+		if err != nil {
+			i.metrics.droppedOps.With(i.metrics.dropReasonMempool).Inc()
+			i.logger.Info("ingress: rejected by the mempool", "error", err, "op", op.Hash())
+			return pubsub.ValidationIgnore
+		}
+
+		i.metrics.acceptedOps.Inc()
+		return pubsub.ValidationAccept
+	})
+
+	i.logger.Info("ingress: handler registered")
+}
+
+func (i *Ingress) Run(ctx context.Context) error {
+	i.registerHandler(ctx)
+
+	return nil
 }
