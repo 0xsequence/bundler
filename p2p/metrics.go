@@ -15,12 +15,10 @@ type metrics struct {
 	broadcastErrors    prometheus.Counter
 	broadcastSentBytes *prometheus.HistogramVec
 
-	pubsubReceivedErrors  prometheus.Counter
-	pubsubFilteredSelf    prometheus.Counter
-	pubsubFailedUnmarshal prometheus.Counter
-	pubsubUnhandledMsg    prometheus.Counter
-	pubsubReceivedBytes   *prometheus.HistogramVec
-	pubsubHandledTime     *prometheus.HistogramVec
+	pubsubReceivedErrors prometheus.Counter
+	pubsubFilteredSelf   prometheus.Counter
+	pubsubReceivedBytes  *prometheus.HistogramVec
+	pubsubHandledTime    *prometheus.HistogramVec
 
 	pubsubAddedPeers     prometheus.Counter
 	pubsubRemovedPeers   prometheus.Counter
@@ -73,7 +71,7 @@ func createMetrics(reg prometheus.Registerer) *metrics {
 		Name:    "p2p_broadcast_sent_bytes",
 		Help:    "Number of bytes sent in broadcast",
 		Buckets: prometheus.ExponentialBuckets(1, 2, 26),
-	}, []string{"type"})
+	}, []string{"topic"})
 
 	pubsubReceivedErrors := prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "p2p_pubsub_received_errors",
@@ -85,27 +83,17 @@ func createMetrics(reg prometheus.Registerer) *metrics {
 		Help: "Number of pubsub messages filtered from self",
 	})
 
-	pubsubFailedUnmarshal := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "p2p_pubsub_failed_unmarshal",
-		Help: "Number of pubsub messages failed to unmarshal",
-	})
-
-	pubsubUnhandledMsg := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "p2p_pubsub_unhandled_msg",
-		Help: "Number of pubsub messages unhandled",
-	})
-
 	pubsubHandledTime := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "p2p_pubsub_handled_time",
 		Help:    "Time taken to handle pubsub messages",
 		Buckets: prometheus.ExponentialBuckets(1e-6, 2, 15),
-	}, []string{"type"})
+	}, []string{"topic", "result"})
 
 	pubsubReceivedBytes := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "p2p_pubsub_received_bytes",
 		Help:    "Number of bytes received in pubsub",
 		Buckets: prometheus.ExponentialBuckets(1, 2, 26),
-	}, []string{"type"})
+	}, []string{"topic", "result"})
 
 	foundPeers := prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "p2p_found_peers",
@@ -237,8 +225,6 @@ func createMetrics(reg prometheus.Registerer) *metrics {
 			broadcastSentBytes,
 			pubsubReceivedErrors,
 			pubsubFilteredSelf,
-			pubsubFailedUnmarshal,
-			pubsubUnhandledMsg,
 			pubsubHandledTime,
 			pubsubReceivedBytes,
 			foundPeers,
@@ -281,12 +267,10 @@ func createMetrics(reg prometheus.Registerer) *metrics {
 		foundPeersFailedConnect: foundPeersFailedConnect,
 		foundPeersConnected:     foundPeersConnected,
 
-		pubsubReceivedErrors:  pubsubReceivedErrors,
-		pubsubFilteredSelf:    pubsubFilteredSelf,
-		pubsubFailedUnmarshal: pubsubFailedUnmarshal,
-		pubsubUnhandledMsg:    pubsubUnhandledMsg,
-		pubsubReceivedBytes:   pubsubReceivedBytes,
-		pubsubHandledTime:     pubsubHandledTime,
+		pubsubReceivedErrors: pubsubReceivedErrors,
+		pubsubFilteredSelf:   pubsubFilteredSelf,
+		pubsubReceivedBytes:  pubsubReceivedBytes,
+		pubsubHandledTime:    pubsubHandledTime,
 
 		pubsubAddedPeers:     pubsubAddedPeers,
 		pubsubRemovedPeers:   pubsubRemovedPeers,

@@ -74,10 +74,19 @@ func (n *Host) BroadcastData(ctx context.Context, topic PubsubTopic, data []byte
 	subtopic := topic.For(n.chainID)
 	reg, ok := n.topics[subtopic]
 	if !ok {
+		n.metrics.broadcastErrors.Inc()
 		return fmt.Errorf("topic %s not found", subtopic)
 	}
 
-	return reg.Publish(ctx, data)
+	err := reg.Publish(ctx, data)
+	if err != nil {
+		n.metrics.broadcastErrors.Inc()
+		n.logger.Error("while broadcasting pubsub message", "topic", topic, "err", err)
+	}
+
+	n.metrics.broadcastSentBytes.WithLabelValues(subtopic).Observe(float64(len(data)))
+
+	return err
 }
 
 func (n *Host) HandleTopic(ctx context.Context, topic PubsubTopic, handler MsgHandler) error {
@@ -117,10 +126,17 @@ func (n *Host) HandleTopic(ctx context.Context, topic PubsubTopic, handler MsgHa
 		// Do not validate our own messages
 		// or else everything takes double the time
 		if p == sid {
+			n.metrics.pubsubFilteredSelf.Inc()
 			return pubsub.ValidationAccept
 		}
 
-		return handler(ctx, p, msg.Data)
+		start := time.Now()
+		res := handler(ctx, p, msg.Data)
+
+		n.metrics.pubsubReceivedBytes.WithLabelValues(subtopic, fmt.Sprint(res)).Observe(float64(len(msg.Data)))
+		n.metrics.pubsubHandledTime.WithLabelValues(subtopic, fmt.Sprint(res)).Observe(time.Since(start).Seconds())
+
+		return res
 	})
 
 	if err != nil {
@@ -145,6 +161,7 @@ func (n *Host) HandleTopic(ctx context.Context, topic PubsubTopic, handler MsgHa
 
 			_, err := sub.Next(ctx)
 			if err != nil {
+				n.metrics.pubsubReceivedErrors.Inc()
 				n.logger.Error("while receiving pubsub message", "err", err)
 				continue
 			}
