@@ -140,13 +140,13 @@ func (e *Endorser) callOverrideArgs(ctx context.Context, endorserAddr common.Add
 	overrideArgs := debugger.DebugOverrideArgs{}
 	to := endorserAddr
 	for _, setting := range settings {
-		if (setting.OldAddr == endorserAddr) {
+		if setting.OldAddr == endorserAddr {
 			// Update the endorser location
 			to = setting.NewAddr
 		}
 
 		overrideArg := debugger.DebugOverride{}
-		if (setting.OldAddr != setting.NewAddr) {
+		if setting.OldAddr != setting.NewAddr {
 			// Code replacement
 			replacementCode, err := e.Provider.CodeAt(ctx, setting.OldAddr, nil)
 			if err != nil {
@@ -377,7 +377,6 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 		}
 	}
 
-
 	er1, err := e.parseIsOperationReadyRes(trace.ReturnValue)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse isoperationready debugger result: %w", err)
@@ -398,6 +397,44 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 	return merged, nil
 }
 
+func (e *Endorser) simulateCall(ctx context.Context, op *types.Operation) (*EndorserResult, error) {
+	start := time.Now()
+	e.metrics.failoverSimulationAttempts.Inc()
+
+	txData := &struct {
+		To   common.Address `json:"to"`
+		Data string         `json:"data"`
+	}{
+		To:   op.Entrypoint,
+		Data: "0x" + common.Bytes2Hex(op.Data),
+	}
+
+	e.logger.Debug("simulation call", "to", txData.To, "data", txData.Data)
+
+	var res string
+	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, txData)
+	_, err := e.Provider.Do(ctx, rpcCall.Into(&res))
+	if err != nil {
+		e.metrics.failoverSimulationError.Inc()
+		return nil, fmt.Errorf("unable to simulate call: %w", err)
+	}
+	e.metrics.failoverSimulationSuccess.Inc()
+
+	e.logger.Debug("simulation call success", "res", res)
+
+	e.metrics.failoverSimulationDuration.Observe(time.Since(start).Seconds())
+	gasLimit := big.NewInt(0).Add(op.FixedGas, op.GasLimit)
+	limitFloat, _ := gasLimit.Float64()
+	e.metrics.durationPerGas.Observe(time.Since(start).Seconds() / limitFloat)
+
+	// We can't get the dependencies from the simulation, so we just mark it as wildcard only
+	e.metrics.isOperationReadyWildcards.Inc()
+	return &EndorserResult{
+		Readiness:    true,
+		WildcardOnly: true,
+	}, nil
+}
+
 func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*EndorserResult, error) {
 	if e.Debugger != nil && op.HasUntrustedContext {
 		// TODO: Sometimes the endorser reverts instead of failing,
@@ -412,7 +449,15 @@ func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*
 		e.logger.Warn("unable to use debugger, falling back to eth_call and ignoring untrusted context", "error", err)
 	}
 
-	return e.isOperationReadyCall(ctx, op)
+	// Use eth_call
+	res, err := e.isOperationReadyCall(ctx, op)
+	if err == nil {
+		return res, nil
+	}
+	e.logger.Warn("unable to use endorser, falling back to call simulation and ignoring dependencies", "error", err)
+
+	// Fail over to pure calldata simulation
+	return e.simulateCall(ctx, op)
 }
 
 func (e *Endorser) DependencyState(ctx context.Context, result *EndorserResult) (*EndorserResultState, error) {
