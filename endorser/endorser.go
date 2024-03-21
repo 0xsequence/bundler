@@ -112,7 +112,7 @@ func (e *Endorser) simulationSettingsCall(ctx context.Context, endorserAddr comm
 	}
 
 	var res string
-	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall, nil, *debugOverrideArgs)
+	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall)
 	_, err = e.Provider.Do(ctx, rpcCall.Into(&res))
 	if err != nil {
 		return nil, err
@@ -304,7 +304,7 @@ func (e *Endorser) isOperationReadyCall(ctx context.Context, op *types.Operation
 	}
 
 	var res string
-	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall)
+	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall, nil, debugOverrideArgs)
 	_, err = e.Provider.Do(ctx, rpcCall.Into(&res))
 	if err != nil {
 		e.metrics.isOperationReadyError.Inc()
