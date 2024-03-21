@@ -271,7 +271,7 @@ func (s *Sender) onRun(ctx context.Context) bool {
 	}
 
 	// Try sending the transaction
-	_, wait, err := s.Wallet.SendTransaction(ctx, signedTx)
+	tx, wait, err := s.Wallet.SendTransaction(ctx, signedTx)
 	if err != nil {
 		s.metrics.failedSendOps.With(s.metrics.failedSendTransaction).Inc()
 		s.logger.Warn("sender: error sending transaction", "op", opDigest, "error", err)
@@ -295,7 +295,7 @@ func (s *Sender) onRun(ctx context.Context) bool {
 	s.metrics.waitReceiptTime.Observe(time.Since(startReceipt).Seconds())
 
 	// Now that we have the receipt, we fire and forget the inspection
-	go s.inspectReceipt(ctx, &op.Operation, receipt, priceSnap)
+	go s.inspectReceipt(ctx, &op.Operation, tx, receipt, priceSnap)
 
 	s.logger.Info("sender: operation executed", "op", opDigest, "tx", receipt.TxHash.String())
 
@@ -439,6 +439,7 @@ func (s *Sender) isOperationReady(
 func (s *Sender) inspectReceipt(
 	ctx context.Context,
 	op *types.Operation,
+	tx *ethtypes.Transaction,
 	receipt *ethtypes.Receipt,
 	priceSnap *pricefeed.Snapshot,
 ) {
@@ -497,14 +498,15 @@ func (s *Sender) inspectReceipt(
 		return
 	}
 
-	if receipt.EffectiveGasPrice == nil {
+	effectiveGasPrice, err := s.fetchEffectiveGasPrice(ctx, tx, receipt)
+	if err != nil {
 		s.metrics.inspectReceiptFailed.With(s.metrics.failedInspectReceiptEffectiveGasPrice).Inc()
-		s.logger.Warn("inspector: unable to check effective gas price", "op", op.Hash(), "tx", receipt.TxHash.String())
+		s.logger.Warn("inspector: unable to check effective gas price", "op", op.Hash(), "tx", receipt.TxHash.String(), "error", err)
 		return
 	}
 
 	balanceDiff := new(big.Int).Sub(nextBalance, prevBalance)
-	nativeUsed := new(big.Int).Mul(receipt.EffectiveGasPrice, big.NewInt(int64(receipt.GasUsed)))
+	nativeUsed := new(big.Int).Mul(effectiveGasPrice, big.NewInt(int64(receipt.GasUsed)))
 
 	isNative := op.FeeToken == common.Address{}
 	if isNative {
@@ -587,4 +589,27 @@ func (s *Sender) balanceOf(ctx context.Context, token common.Address, blockNum *
 	return tokenContract.BalanceOf(&bind.CallOpts{
 		BlockNumber: blockNum,
 	}, s.Wallet.Address())
+}
+
+func (s *Sender) fetchEffectiveGasPrice(
+	ctx context.Context,
+	tx *ethtypes.Transaction,
+	receipt *ethtypes.Receipt,
+) (*big.Int, error) {
+	// If it exists on the receipt, we can use it
+	if receipt.EffectiveGasPrice != nil {
+		return receipt.EffectiveGasPrice, nil
+	}
+
+	// If not, we need to compute it.
+	// it is the baseFee of the block + the priorityFee
+	block, err := s.Provider.BlockByHash(ctx, receipt.BlockHash)
+	if err != nil {
+		return nil, fmt.Errorf("unable to fetch block by hash: %w", err)
+	}
+
+	baseFee := new(big.Int).SetUint64(block.BaseFee().Uint64())
+	priorityFee := new(big.Int).SetUint64(tx.GasTipCap().Uint64())
+
+	return new(big.Int).Add(baseFee, priorityFee), nil
 }
