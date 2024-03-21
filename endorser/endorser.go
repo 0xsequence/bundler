@@ -52,6 +52,124 @@ func NewEndorser(logger *httplog.Logger, metrics prometheus.Registerer, provider
 	}
 }
 
+// SimulationSettings
+
+func (e *Endorser) parseSimulationSettingsRes(res string) ([]*SimulationSetting, error) {
+	resBytes := common.FromHex(res)
+
+	settingsResult := []*SimulationSetting{}
+
+	values, err := e.parsedEndorserABI.Methods["simulationSettings"].Outputs.Unpack(resBytes)
+	if err != nil {
+		return nil, fmt.Errorf("unable to unpack result: %w", err)
+	}
+
+	// Must be an array of structs
+	vals, ok := values[0].([]struct {
+		OldAddr common.Address "json:\"oldAddr\""
+		NewAddr common.Address "json:\"newAddr\""
+		Slots   []struct {
+			Slot  [32]byte "json:\"slot\""
+			Value [32]byte "json:\"value\""
+		} "json:\"slots\""
+	})
+	if !ok {
+		return nil, fmt.Errorf("invalid settings")
+	}
+
+	for _, val := range vals {
+		setting := &SimulationSetting{
+			OldAddr: val.OldAddr,
+			NewAddr: val.NewAddr,
+			Slots:   make([]SlotReplacement, 0, len(val.Slots)),
+		}
+		for _, slot := range val.Slots {
+			setting.Slots = append(setting.Slots, SlotReplacement{
+				Slot:  slot.Slot,
+				Value: slot.Value,
+			})
+		}
+		settingsResult = append(settingsResult, setting)
+	}
+
+	return settingsResult, nil
+}
+
+func (e *Endorser) simulationSettingsCall(ctx context.Context, endorserAddr common.Address) ([]*SimulationSetting, error) {
+	endorser := ethcontract.NewContractCaller(endorserAddr, *e.parsedEndorserABI, e.Provider)
+	calldata, err := endorser.Encode("simulationSettings")
+
+	if err != nil {
+		return nil, err
+	}
+
+	endorserCall := &struct {
+		To   common.Address `json:"to"`
+		Data string         `json:"data"`
+	}{
+		To:   endorserAddr,
+		Data: "0x" + common.Bytes2Hex(calldata),
+	}
+
+	var res string
+	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall)
+	_, err = e.Provider.Do(ctx, rpcCall.Into(&res))
+	if err != nil {
+		return nil, err
+	}
+
+	e.logger.Debug("simulation settings call", "res", res)
+
+	settingsResult, err := e.parseSimulationSettingsRes(res)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse simulation settings result: %w", err)
+	}
+
+	return settingsResult, nil
+}
+
+func (e *Endorser) SimulationSettings(ctx context.Context, endorserAddr common.Address) ([]*SimulationSetting, error) {
+	return e.simulationSettingsCall(ctx, endorserAddr)
+}
+
+func (e *Endorser) callOverrideArgs(ctx context.Context, endorserAddr common.Address) (common.Address, *debugger.DebugOverrideArgs, error) {
+	settings, err := e.simulationSettingsCall(ctx, endorserAddr)
+	if err != nil {
+		return common.Address{}, nil, fmt.Errorf("unable to get simulation settings: %w", err)
+	}
+	overrideArgs := debugger.DebugOverrideArgs{}
+	to := endorserAddr
+	for _, setting := range settings {
+		if (setting.OldAddr == endorserAddr) {
+			// Update the endorser location
+			to = setting.NewAddr
+		}
+
+		overrideArg := debugger.DebugOverride{}
+		if (setting.OldAddr != setting.NewAddr) {
+			// Code replacement
+			replacementCode, err := e.Provider.CodeAt(ctx, setting.OldAddr, nil)
+			if err != nil {
+				return common.Address{}, nil, fmt.Errorf("unable to read code for %v: %w", setting.OldAddr, err)
+			}
+			codeStr := "0x" + common.Bytes2Hex(replacementCode)
+			overrideArg.Code = &codeStr
+		}
+		// Slots
+		if len(setting.Slots) > 0 {
+			overrideArg.StateDiff = make(map[common.Hash]common.Hash)
+		}
+		for _, slot := range setting.Slots {
+			overrideArg.StateDiff[common.BytesToHash(slot.Slot[:])] = common.BytesToHash(slot.Value[:])
+		}
+
+		overrideArgs[setting.OldAddr] = &overrideArg
+	}
+	return to, &overrideArgs, nil
+}
+
+// IsOperationReady
+
 func (e *Endorser) buildIsOperationReadyCalldata(op *types.Operation) (common.Address, string, error) {
 	endorser := ethcontract.NewContractCaller(op.Endorser, *e.parsedEndorserABI, e.Provider)
 	calldata, err := endorser.Encode("isOperationReady", &op.IEndorserOperation)
@@ -172,6 +290,11 @@ func (e *Endorser) isOperationReadyCall(ctx context.Context, op *types.Operation
 		return nil, fmt.Errorf("unable to build calldata: %w", err)
 	}
 
+	to, debugOverrideArgs, err := e.callOverrideArgs(ctx, to)
+	if err != nil {
+		return nil, fmt.Errorf("unable to build debug override args: %w", err)
+	}
+
 	endorserCall := &struct {
 		To   common.Address `json:"to"`
 		Data string         `json:"data"`
@@ -181,7 +304,7 @@ func (e *Endorser) isOperationReadyCall(ctx context.Context, op *types.Operation
 	}
 
 	var res string
-	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall)
+	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall, nil, debugOverrideArgs)
 	_, err = e.Provider.Do(ctx, rpcCall.Into(&res))
 	if err != nil {
 		e.metrics.isOperationReadyError.Inc()
@@ -191,7 +314,7 @@ func (e *Endorser) isOperationReadyCall(ctx context.Context, op *types.Operation
 	endorserResult, err := e.parseIsOperationReadyRes(res)
 	if err != nil {
 		e.metrics.isOperationReadyReverts.Inc()
-		return nil, fmt.Errorf("unable to parse result: %w", err)
+		return nil, fmt.Errorf("unable to parse isoperationready result: %w", err)
 	}
 
 	// NOTICE: Untrusted context operations should be handled
@@ -228,6 +351,11 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 		return nil, fmt.Errorf("unable to build calldata: %w", err)
 	}
 
+	to, debugOverrideArgs, err := e.callOverrideArgs(ctx, to)
+	if err != nil {
+		return nil, fmt.Errorf("unable to build debug override args: %w", err)
+	}
+
 	// Use random caller
 	// NOTICE: This is a temporary solution
 	debugCallArgs := &debugger.DebugCallArgs{
@@ -236,14 +364,22 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 		Data: common.FromHex(data),
 	}
 
-	trace, err := e.Debugger.DebugTraceCall(ctx, debugCallArgs)
+	trace, err := e.Debugger.DebugTraceCall(ctx, debugCallArgs, debugOverrideArgs)
 	if err != nil {
 		return nil, fmt.Errorf("unable to trace call: %w", err)
 	}
+	// Log the trace
+	for _, log := range trace.StructLogs {
+		// If Op startswith "LOG", then it's a debug trace log
+		if len(log.Op) > 3 && log.Op[:3] == "LOG" {
+			e.logger.Debug("debug trace log", "log", log)
+		}
+	}
+
 
 	er1, err := e.parseIsOperationReadyRes(trace.ReturnValue)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse result: %w", err)
+		return nil, fmt.Errorf("unable to parse isoperationready debugger result: %w", err)
 	}
 
 	// Generate dependencies from untrusted context
@@ -272,7 +408,7 @@ func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*
 		}
 
 		e.metrics.isOperationReadyDebuggerFailed.Inc()
-		e.logger.Warn("unable to use debugger, falling back to eth_call", "error", err)
+		e.logger.Warn("unable to use debugger, falling back to eth_call and ignoring untrusted context", "error", err)
 	}
 
 	return e.isOperationReadyCall(ctx, op)
