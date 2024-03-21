@@ -82,6 +82,11 @@ func NewHost(cfg *config.P2PHostConfig, logger *slog.Logger, metrics prometheus.
 		return nil, err
 	}
 
+	var registerOpts libp2p.Option
+	if metrics != nil {
+		registerOpts = libp2p.PrometheusRegisterer(metrics)
+	}
+
 	h, err := libp2p.New(
 		// Use the keypair we generated
 		libp2p.Identity(peerPrivKey),
@@ -132,7 +137,7 @@ func NewHost(cfg *config.P2PHostConfig, logger *slog.Logger, metrics prometheus.
 		libp2p.EnableHolePunching(),
 
 		// Metrics
-		libp2p.PrometheusRegisterer(metrics),
+		registerOpts,
 
 		// TODO: review all libp2p options and defaults
 	)
