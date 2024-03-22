@@ -163,7 +163,7 @@ func (e *Endorser) callOverrideArgs(ctx context.Context, endorserAddr common.Add
 			overrideArg.StateDiff[common.BytesToHash(slot.Slot[:])] = common.BytesToHash(slot.Value[:])
 		}
 
-		overrideArgs[setting.OldAddr] = &overrideArg
+		overrideArgs[setting.NewAddr] = &overrideArg
 	}
 	return to, &overrideArgs, nil
 }
