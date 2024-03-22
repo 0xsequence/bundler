@@ -33,10 +33,11 @@ type metrics struct {
 	prepareOpTime      prometheus.Histogram
 	waitReceiptTime    prometheus.Histogram
 	inspectReceiptTime prometheus.Histogram
+	simulateOpTime     prometheus.Histogram
 
-	overpaidAmount      prometheus.Histogram
-	underpaidAmountDiff prometheus.Histogram
-	unprofitableOpDiff  prometheus.Histogram
+	overpaidAmount     prometheus.Histogram
+	underpaidAmount    prometheus.Histogram
+	unprofitableOpDiff prometheus.Histogram
 
 	skipRunNoOps prometheus.Counter
 }
@@ -126,14 +127,20 @@ func createMetrics(reg prometheus.Registerer, sender string) *metrics {
 		Buckets: prometheus.DefBuckets,
 	})
 
+	simulateOpTime := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "sender_simulate_op_time",
+		Help:    "Time it takes to simulate an operation",
+		Buckets: prometheus.DefBuckets,
+	})
+
 	overpaidAmount := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "sender_overpaid_amount",
 		Help:    "Amount overpaid in native token",
 		Buckets: prometheus.ExponentialBuckets(1000000000, 2, 32),
 	})
 
-	underpaidAmountDiff := prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    "sender_underpaid_amount_diff",
+	underpaidAmount := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "sender_underpaid_amount",
 		Help:    "Amount underpaid in native token",
 		Buckets: prometheus.ExponentialBuckets(1000000000, 2, 32),
 	})
@@ -168,8 +175,9 @@ func createMetrics(reg prometheus.Registerer, sender string) *metrics {
 			prepareOpTime,
 			waitReceiptTime,
 			inspectReceiptTime,
+			simulateOpTime,
 			overpaidAmount,
-			underpaidAmountDiff,
+			underpaidAmount,
 			unprofitableOpDiff,
 			skipRunNoOps,
 		)
@@ -206,10 +214,11 @@ func createMetrics(reg prometheus.Registerer, sender string) *metrics {
 		prepareOpTime:      prepareOpTime,
 		waitReceiptTime:    waitReceiptTime,
 		inspectReceiptTime: inspectReceiptTime,
+		simulateOpTime:     simulateOpTime,
 
-		overpaidAmount:      overpaidAmount,
-		underpaidAmountDiff: underpaidAmountDiff,
-		unprofitableOpDiff:  unprofitableOpDiff,
+		overpaidAmount:     overpaidAmount,
+		underpaidAmount:    underpaidAmount,
+		unprofitableOpDiff: unprofitableOpDiff,
 
 		skipRunNoOps: skipRunNoOps,
 	}

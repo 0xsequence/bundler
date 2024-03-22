@@ -159,7 +159,7 @@ func createMetrics(reg prometheus.Registerer) *metrics {
 	pubsubMessageReject := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "p2p_pubsub_message_reject",
 		Help: "Number of pubsub messages rejected",
-	}, []string{"topic"})
+	}, []string{"topic", "reason"})
 
 	pubsubMessageDuplicate := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "p2p_pubsub_message_duplicate",

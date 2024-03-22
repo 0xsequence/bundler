@@ -166,6 +166,9 @@ func (s *Sender) onRun(ctx context.Context) bool {
 
 	s.metrics.attemptSendOps.Inc()
 	startPrepare := time.Now()
+	defer func() {
+		s.metrics.sendOpTime.Observe(time.Since(startPrepare).Seconds())
+	}()
 
 	// Random delay reduces the chances to collide with other senders
 	if s.randomWait > 0 {
@@ -300,7 +303,6 @@ func (s *Sender) onRun(ctx context.Context) bool {
 	s.logger.Info("sender: operation executed", "op", opDigest, "tx", receipt.TxHash.String())
 
 	// Block the operation so we don't try to execute it again
-	s.metrics.sendOpTime.Observe(time.Since(startPrepare).Seconds())
 	s.metrics.blockedOps.Inc()
 	s.blockedOps[opDigest] = struct{}{}
 
@@ -353,6 +355,11 @@ func parseMeta(res *abivalidator.OperationValidatorSimulationResult) (*SimulateR
 }
 
 func (s *Sender) simulateOperation(ctx context.Context, op *types.Operation) (*SimulateResult, error) {
+	start := time.Now()
+	defer func() {
+		s.metrics.simulateOpTime.Observe(time.Since(start).Seconds())
+	}()
+
 	result, err := s.Validator.SimulateOperation(
 		&bind.CallOpts{
 			Context: ctx,
@@ -528,7 +535,7 @@ func (s *Sender) inspectReceipt(
 		}
 
 		s.metrics.inspectReceiptUnderpaid.Inc()
-		s.metrics.underpaidAmountDiff.Observe(balanceDiffFloat)
+		s.metrics.underpaidAmount.Observe(balanceDiffFloat)
 		s.logger.Warn(
 			"inspector: operation not paid enough",
 			"op", op.Hash(),
@@ -558,7 +565,7 @@ func (s *Sender) inspectReceipt(
 		}
 
 		s.metrics.inspectReceiptUnderpaid.Inc()
-		s.metrics.underpaidAmountDiff.Observe(nativeDiffFloat)
+		s.metrics.underpaidAmount.Observe(nativeDiffFloat)
 		s.logger.Warn(
 			"inspector: operation not paid enough",
 			"op", op.Hash(),

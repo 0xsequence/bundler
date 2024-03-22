@@ -29,12 +29,1130 @@
   "liveNow": false,
   "panels": [
     {
-      "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
         "y": 0
+      },
+      "id": 58,
+      "title": "Sender",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "000000001"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "displayName": "Executed Ops",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "id": 54,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "bundler_sender_executed_ops{chain_id=\"$chain_id\", id=\"$instance\"}",
+          "legendFormat": "Executed Ops",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Sender",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "000000001"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "displayName": "Chilled",
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "id": 60,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "bundler_sender_chilled_ops{chain_id=\"$chain_id\", id=\"$instance\"}",
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Chilled operations",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "000000001"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 100,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 0,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Chilled"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "{chain_id=\"11155111\", id=\"0x179716605Ba7188183Eb388C2d60449e8D8db7A0\", instance=\"100.87.235.152:4000\", job=\"dev5189\", sender=\"0xe6aD765FA3efe1608E5F8Ed4c53d1c51A4Bd037c\"}"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 1
+      },
+      "id": 59,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "increase(bundler_sender_executed_ops{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Executed",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "increase(bundler_sender_chilled_ops{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Chilled",
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "increase(sender_failed_send_ops{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "increase(sender_failed_receipt_ops{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "D"
+        }
+      ],
+      "title": "Sender activity",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "000000001"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 6,
+          "displayName": "Profit",
+          "mappings": [],
+          "max": 50,
+          "min": -50,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "ETH"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 0,
+        "y": 9
+      },
+      "id": 66,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": false,
+        "sizing": "auto"
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "(bundler_sender_overpaid_amount_sum{chain_id=\"$chain_id\", id=\"$instance\"}\n-\n(bundler_sender_underpaid_amount_sum{chain_id=\"$chain_id\", id=\"$instance\"} or (bundler_sender_overpaid_amount_sum{chain_id=\"$chain_id\", id=\"$instance\"} * 0))) / 1000000000000000000",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Net profit",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "000000001"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#6c6c6c",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.00001
+              }
+            ]
+          },
+          "unit": "ETH"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Earnings"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 4,
+        "y": 9
+      },
+      "id": 67,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "bundler_sender_overpaid_amount_sum{chain_id=\"$chain_id\", id=\"$instance\"} / 1000000000000000000",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Earnings",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "bundler_sender_underpaid_amount_diff_sum{chain_id=\"$chain_id\", id=\"$instance\"} / 1000000000000000000",
+          "legendFormat": "Losses",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Sender",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "000000001"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 100,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 0,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Chilled"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "{chain_id=\"11155111\", id=\"0x179716605Ba7188183Eb388C2d60449e8D8db7A0\", instance=\"100.87.235.152:4000\", job=\"dev5189\", sender=\"0xe6aD765FA3efe1608E5F8Ed4c53d1c51A4Bd037c\"}"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 9
+      },
+      "id": 62,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "increase(sender_inspect_receipt_reverted{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Reverted lied {{lied}}",
+          "range": true,
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "increase(sender_inspect_receipt_failed{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Failed {{reason}}",
+          "range": true,
+          "refId": "F"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "increase(bundler_sender_inspect_receipt_paid{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Paid",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "increase(bundler_sender_inspect_receipt_underpaid{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Underpaid",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Receipt Results",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "000000001"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 0,
+        "y": 17
+      },
+      "id": 63,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "rate(bundler_sender_inspect_receipt_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[5m]) / rate(bundler_sender_inspect_receipt_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[5m])",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "5m avg",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "rate(bundler_sender_inspect_receipt_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) / rate(bundler_sender_inspect_receipt_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
+          "format": "time_series",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "1m avg",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "rate(bundler_sender_inspect_receipt_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[60m]) / rate(bundler_sender_inspect_receipt_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[60m])",
+          "format": "time_series",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "60m avg",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "Inspect receipt timings",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "000000001"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 100,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 0,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "ETH"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Underpayments"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Overpayments"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 16,
+        "x": 8,
+        "y": 17
+      },
+      "id": 65,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "increase(bundler_sender_overpaid_amount_sum[$__rate_interval]) / 1000000000000000000",
+          "format": "heatmap",
+          "instant": false,
+          "legendFormat": "Overpayments",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "(increase(bundler_sender_underpaid_amount_sum[$__rate_interval]) / 1000000000000000000) * -1",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Underpayments",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Net profit / loss",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "000000001"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 0,
+        "y": 26
+      },
+      "id": 64,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "rate(bundler_sender_simulate_op_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[5m]) / rate(bundler_sender_simulate_op_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[5m])",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "Simulate op 5m",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "rate(bundler_sender_prepare_op_time_sum{chain_id=\"$chain_id\", id=\"$instance\"}[5m]) / rate(bundler_sender_prepare_op_time_count{chain_id=\"$chain_id\", id=\"$instance\"}[5m])",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Prepare op 5m",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Prepare op timings",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "000000001"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 16,
+        "x": 8,
+        "y": 26
+      },
+      "id": 61,
+      "options": {
+        "calculate": false,
+        "cellGap": 1,
+        "color": {
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "mode": "scheme",
+          "reverse": false,
+          "scale": "exponential",
+          "scheme": "RdGy",
+          "steps": 64
+        },
+        "exemplars": {
+          "color": "rgba(255,0,255,0.7)"
+        },
+        "filterValues": {
+          "le": 1e-9
+        },
+        "legend": {
+          "show": true
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "showColorScale": false,
+          "yHistogram": false
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false,
+          "unit": "s"
+        }
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "increase(bundler_sender_send_op_time_bucket{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
+          "format": "heatmap",
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Time sending op",
+      "type": "heatmap"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 35
       },
       "id": 45,
       "panels": [],
@@ -162,7 +1280,7 @@
         "h": 6,
         "w": 13,
         "x": 0,
-        "y": 1
+        "y": 36
       },
       "id": 23,
       "options": {
@@ -229,7 +1347,7 @@
         "h": 13,
         "w": 3,
         "x": 13,
-        "y": 1
+        "y": 36
       },
       "id": 2,
       "options": {
@@ -358,7 +1476,7 @@
         "h": 9,
         "w": 8,
         "x": 16,
-        "y": 1
+        "y": 36
       },
       "id": 19,
       "interval": "1m",
@@ -382,7 +1500,7 @@
           },
           "editorMode": "code",
           "expr": "increase(bundler_p2p_broadcast_sent_bytes_count{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval]) * -1",
-          "legendFormat": "Sent {{type}}",
+          "legendFormat": "Sent {{topic}} {{result}}",
           "range": true,
           "refId": "A"
         },
@@ -394,7 +1512,7 @@
           "editorMode": "code",
           "expr": "increase(bundler_p2p_pubsub_received_bytes_count{chain_id=\"$chain_id\", id=\"$instance\"}[$__rate_interval])",
           "hide": false,
-          "legendFormat": "Received {{type}}",
+          "legendFormat": "Received {{topic}} ({{result}})",
           "range": true,
           "refId": "B"
         }
@@ -466,7 +1584,7 @@
         "h": 7,
         "w": 13,
         "x": 0,
-        "y": 7
+        "y": 42
       },
       "id": 18,
       "options": {
@@ -489,7 +1607,7 @@
           },
           "editorMode": "code",
           "expr": "rate(bundler_p2p_broadcast_sent_bytes_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m]) * -1",
-          "legendFormat": "Sent {{type}}",
+          "legendFormat": "Sent {{topic}} {{result}}",
           "range": true,
           "refId": "A"
         },
@@ -501,7 +1619,7 @@
           "editorMode": "code",
           "expr": "rate(bundler_p2p_pubsub_received_bytes_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
           "hide": false,
-          "legendFormat": "Received {{type}}",
+          "legendFormat": "Received {{topic}} {{result}}",
           "range": true,
           "refId": "B"
         }
@@ -540,7 +1658,7 @@
         "h": 4,
         "w": 8,
         "x": 16,
-        "y": 10
+        "y": 45
       },
       "id": 21,
       "options": {
@@ -747,7 +1865,7 @@
         "h": 8,
         "w": 13,
         "x": 0,
-        "y": 14
+        "y": 49
       },
       "id": 46,
       "options": {
@@ -988,7 +2106,7 @@
         "h": 8,
         "w": 11,
         "x": 13,
-        "y": 14
+        "y": 49
       },
       "id": 47,
       "options": {
@@ -1066,7 +2184,7 @@
         "h": 6,
         "w": 5,
         "x": 0,
-        "y": 22
+        "y": 57
       },
       "id": 55,
       "options": {
@@ -1159,7 +2277,7 @@
         "h": 6,
         "w": 8,
         "x": 5,
-        "y": 22
+        "y": 57
       },
       "id": 56,
       "options": {
@@ -1278,10 +2396,10 @@
         ]
       },
       "gridPos": {
-        "h": 11,
+        "h": 6,
         "w": 11,
         "x": 13,
-        "y": 22
+        "y": 57
       },
       "id": 57,
       "options": {
@@ -1342,13 +2460,15 @@
       "type": "timeseries"
     },
     {
+      "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 33
+        "y": 63
       },
       "id": 48,
+      "panels": [],
       "title": "Mempool",
       "type": "row"
     },
@@ -1420,7 +2540,7 @@
         "h": 5,
         "w": 9,
         "x": 0,
-        "y": 34
+        "y": 64
       },
       "id": 25,
       "options": {
@@ -1647,7 +2767,7 @@
         "h": 10,
         "w": 15,
         "x": 9,
-        "y": 34
+        "y": 64
       },
       "id": 51,
       "interval": "1m",
@@ -1832,7 +2952,7 @@
         "h": 7,
         "w": 9,
         "x": 0,
-        "y": 39
+        "y": 69
       },
       "id": 29,
       "interval": "1m",
@@ -2017,7 +3137,7 @@
         "h": 10,
         "w": 15,
         "x": 9,
-        "y": 44
+        "y": 74
       },
       "id": 50,
       "interval": "1m",
@@ -2115,7 +3235,7 @@
         "h": 6,
         "w": 9,
         "x": 0,
-        "y": 46
+        "y": 76
       },
       "id": 49,
       "interval": "1m",
@@ -2226,7 +3346,7 @@
         "h": 7,
         "w": 9,
         "x": 0,
-        "y": 52
+        "y": 82
       },
       "id": 27,
       "options": {
@@ -2371,7 +3491,7 @@
         "h": 8,
         "w": 15,
         "x": 9,
-        "y": 54
+        "y": 84
       },
       "id": 34,
       "options": {
@@ -2491,7 +3611,7 @@
         "h": 8,
         "w": 9,
         "x": 0,
-        "y": 59
+        "y": 89
       },
       "id": 10,
       "options": {
@@ -2610,7 +3730,7 @@
         "h": 5,
         "w": 15,
         "x": 9,
-        "y": 62
+        "y": 92
       },
       "id": 35,
       "options": {
@@ -2693,7 +3813,7 @@
         "h": 9,
         "w": 9,
         "x": 0,
-        "y": 67
+        "y": 97
       },
       "id": 53,
       "options": {
@@ -2766,7 +3886,7 @@
         "h": 9,
         "w": 15,
         "x": 9,
-        "y": 67
+        "y": 97
       },
       "id": 52,
       "options": {
@@ -2839,7 +3959,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 76
+        "y": 106
       },
       "id": 44,
       "panels": [],
@@ -2935,7 +4055,7 @@
         "h": 12,
         "w": 7,
         "x": 0,
-        "y": 77
+        "y": 107
       },
       "id": 6,
       "options": {
@@ -3067,7 +4187,7 @@
         "h": 12,
         "w": 9,
         "x": 7,
-        "y": 77
+        "y": 107
       },
       "id": 8,
       "interval": "1m",
@@ -3126,17 +4246,31 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "bytes"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "IPFS Objects"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "cids"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
-        "h": 12,
+        "h": 9,
         "w": 8,
         "x": 16,
-        "y": 77
+        "y": 107
       },
-      "id": 54,
+      "id": 32,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -3161,8 +4295,8 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "bundler_sender_executed_ops{chain_id=\"$chain_id\", id=\"$instance\"}",
-          "legendFormat": "Executed Ops",
+          "expr": "bundler_ipfs_reported_bytes_sum{chain_id=\"$chain_id\", id=\"$instance\"}",
+          "legendFormat": "IPFS Upload",
           "range": true,
           "refId": "A"
         },
@@ -3172,15 +4306,139 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "bundler_sender_chilled_ops{chain_id=\"$chain_id\", id=\"$instance\"}",
+          "exemplar": false,
+          "expr": "bundler_ipfs_reported_bytes_count{chain_id=\"$chain_id\", id=\"$instance\"}",
           "hide": false,
-          "legendFormat": "Chilled Ops",
+          "instant": false,
+          "legendFormat": "IPFS Objects",
           "range": true,
           "refId": "B"
         }
       ],
-      "title": "Sender",
+      "title": "IPFS Totals",
       "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "000000001"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "IPFS Objects"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ops"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 116
+      },
+      "id": 31,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "expr": "rate(bundler_ipfs_reported_bytes_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
+          "legendFormat": "IPFS Upload",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "000000001"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "rate(bundler_ipfs_reported_bytes_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "IPFS Objects",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "IPFS Usage",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -3213,7 +4471,7 @@
         "h": 7,
         "w": 7,
         "x": 0,
-        "y": 89
+        "y": 119
       },
       "id": 42,
       "options": {
@@ -3379,7 +4637,7 @@
         "h": 13,
         "w": 9,
         "x": 7,
-        "y": 89
+        "y": 119
       },
       "id": 12,
       "options": {
@@ -3418,7 +4676,39 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
@@ -3434,47 +4724,42 @@
               }
             ]
           },
-          "unit": "bytes"
+          "unit": "decbytes"
         },
         "overrides": [
           {
             "matcher": {
               "id": "byName",
-              "options": "IPFS Objects"
+              "options": "CPU Usage"
             },
             "properties": [
               {
                 "id": "unit",
-                "value": "cids"
+                "value": "percentunit"
               }
             ]
           }
         ]
       },
       "gridPos": {
-        "h": 9,
+        "h": 8,
         "w": 8,
         "x": 16,
-        "y": 89
+        "y": 125
       },
-      "id": 32,
+      "id": 43,
       "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
         },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
       },
-      "pluginVersion": "10.4.0",
       "targets": [
         {
           "datasource": {
@@ -3482,8 +4767,9 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "expr": "bundler_ipfs_reported_bytes_sum{chain_id=\"$chain_id\", id=\"$instance\"}",
-          "legendFormat": "IPFS Upload",
+          "expr": "bundler_process_resident_memory_bytes{chain_id=\"$chain_id\", id=\"$instance\"}",
+          "instant": false,
+          "legendFormat": "Memory usage",
           "range": true,
           "refId": "A"
         },
@@ -3493,17 +4779,16 @@
             "uid": "000000001"
           },
           "editorMode": "code",
-          "exemplar": false,
-          "expr": "bundler_ipfs_reported_bytes_count{chain_id=\"$chain_id\", id=\"$instance\"}",
+          "expr": "rate(bundler_process_cpu_seconds_total{chain_id=\"$chain_id\", id=\"$instance\"}[60s])",
           "hide": false,
           "instant": false,
-          "legendFormat": "IPFS Objects",
+          "legendFormat": "CPU Usage",
           "range": true,
           "refId": "B"
         }
       ],
-      "title": "IPFS Totals",
-      "type": "stat"
+      "title": "Memory / CPU",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -3569,7 +4854,7 @@
         "h": 12,
         "w": 7,
         "x": 0,
-        "y": 96
+        "y": 126
       },
       "id": 14,
       "options": {
@@ -3667,128 +4952,6 @@
                 "value": 80
               }
             ]
-          },
-          "unit": "bytes"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "IPFS Objects"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "ops"
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 9,
-        "w": 8,
-        "x": 16,
-        "y": 98
-      },
-      "id": 31,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "000000001"
-          },
-          "editorMode": "code",
-          "expr": "rate(bundler_ipfs_reported_bytes_sum{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
-          "legendFormat": "IPFS Upload",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "000000001"
-          },
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "rate(bundler_ipfs_reported_bytes_count{chain_id=\"$chain_id\", id=\"$instance\"}[1m])",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "IPFS Objects",
-          "range": true,
-          "refId": "B"
-        }
-      ],
-      "title": "IPFS Usage",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "000000001"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
           }
         },
         "overrides": []
@@ -3797,7 +4960,7 @@
         "h": 9,
         "w": 9,
         "x": 7,
-        "y": 102
+        "y": 132
       },
       "id": 16,
       "options": {
@@ -3875,128 +5038,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "decbytes"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "CPU Usage"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percentunit"
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 107
-      },
-      "id": 43,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "000000001"
-          },
-          "editorMode": "code",
-          "expr": "bundler_process_resident_memory_bytes{chain_id=\"$chain_id\", id=\"$instance\"}",
-          "instant": false,
-          "legendFormat": "Memory usage",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "000000001"
-          },
-          "editorMode": "code",
-          "expr": "rate(bundler_process_cpu_seconds_total{chain_id=\"$chain_id\", id=\"$instance\"}[60s])",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "CPU Usage",
-          "range": true,
-          "refId": "B"
-        }
-      ],
-      "title": "Memory / CPU",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "000000001"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -4011,7 +5054,7 @@
         "h": 9,
         "w": 7,
         "x": 0,
-        "y": 108
+        "y": 138
       },
       "id": 4,
       "options": {
@@ -4113,7 +5156,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -4129,7 +5173,7 @@
         "h": 9,
         "w": 9,
         "x": 7,
-        "y": 111
+        "y": 141
       },
       "id": 38,
       "interval": "1m",
@@ -4236,7 +5280,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -4265,7 +5310,7 @@
         "h": 9,
         "w": 7,
         "x": 0,
-        "y": 117
+        "y": 147
       },
       "id": 37,
       "options": {
@@ -4367,7 +5412,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -4383,7 +5429,7 @@
         "h": 10,
         "w": 9,
         "x": 7,
-        "y": 120
+        "y": 150
       },
       "id": 41,
       "options": {
@@ -4521,7 +5567,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -4537,7 +5584,7 @@
         "h": 10,
         "w": 7,
         "x": 0,
-        "y": 126
+        "y": 156
       },
       "id": 40,
       "interval": "1m",
@@ -4740,13 +5787,13 @@
     ]
   },
   "time": {
-    "from": "now-15m",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "5189 Bundler",
   "uid": "PJoXPh1Iz",
-  "version": 54,
+  "version": 60,
   "weekStart": ""
 }
