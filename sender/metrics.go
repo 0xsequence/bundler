@@ -35,8 +35,10 @@ type metrics struct {
 	inspectReceiptTime prometheus.Histogram
 	simulateOpTime     prometheus.Histogram
 
-	overpaidAmount     prometheus.Histogram
-	underpaidAmount    prometheus.Histogram
+	overpaidAmount  prometheus.Histogram
+	underpaidAmount prometheus.Histogram
+
+	profitableOpDiff   prometheus.Histogram
 	unprofitableOpDiff prometheus.Histogram
 
 	skipRunNoOps prometheus.Counter
@@ -151,6 +153,12 @@ func createMetrics(reg prometheus.Registerer, sender string) *metrics {
 		Buckets: prometheus.ExponentialBuckets(1000000000, 2, 32),
 	})
 
+	profitableOpDiff := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "sender_profitable_op_diff",
+		Help:    "Difference between expected and required payment in native token",
+		Buckets: prometheus.ExponentialBuckets(1000000000, 2, 32),
+	})
+
 	skipRunNoOps := prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "sender_skip_run_no_ops",
 		Help: "Number of times the sender skipped running because there were no operations",
@@ -179,6 +187,7 @@ func createMetrics(reg prometheus.Registerer, sender string) *metrics {
 			overpaidAmount,
 			underpaidAmount,
 			unprofitableOpDiff,
+			profitableOpDiff,
 			skipRunNoOps,
 		)
 	}
@@ -218,6 +227,7 @@ func createMetrics(reg prometheus.Registerer, sender string) *metrics {
 
 		overpaidAmount:     overpaidAmount,
 		underpaidAmount:    underpaidAmount,
+		profitableOpDiff:   profitableOpDiff,
 		unprofitableOpDiff: unprofitableOpDiff,
 
 		skipRunNoOps: skipRunNoOps,

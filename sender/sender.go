@@ -232,7 +232,7 @@ func (s *Sender) onRun(ctx context.Context) bool {
 	ourLikelyFeePerGas := new(big.Int).Add(baseFee, s.priorityFee)
 
 	// The operation always pays fixedGas * effectiveFeePerGas
-	payment := new(big.Int).Mul(big.NewInt(int64(calldataGasLimit)), effectiveFeePerGas)
+	payment := new(big.Int).Mul(op.GasLimit, effectiveFeePerGas)
 	// We always need to pay the calldataGasLimit * likelyFeePerGas
 	ourPayment := new(big.Int).Mul(big.NewInt(int64(calldataGasLimit)), ourLikelyFeePerGas)
 
@@ -244,15 +244,18 @@ func (s *Sender) onRun(ctx context.Context) bool {
 	// chill it for a while. There are many ever-changing factors
 	// that may make the operation profitable in the future
 	if ourPayment.Cmp(payment) > 0 {
+		diffFloat, _ := new(big.Int).Sub(payment, ourPayment).Float64()
 		s.metrics.unprofitableOps.Inc()
 		s.metrics.chilledOps.Inc()
-		diffFloat, _ := new(big.Int).Sub(payment, ourPayment).Float64()
 		s.metrics.unprofitableOpDiff.Observe(diffFloat)
 		s.logger.Info("sender: operation not profitable", "op", opDigest, "payment", payment.String(), "ourPayment", ourPayment.String())
 		s.chilledOps[opDigest] = time.Now()
 		s.Mempool.ReleaseOps(ctx, []string{opDigest}, proto.ReadyAtChange_None)
 		return true
 	}
+
+	diffFloat, _ := new(big.Int).Sub(payment, ourPayment).Float64()
+	s.metrics.profitableOpDiff.Observe(diffFloat)
 
 	signedTx, err := s.Wallet.NewTransaction(
 		ctx,
