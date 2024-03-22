@@ -170,8 +170,8 @@ func (e *Endorser) callOverrideArgs(ctx context.Context, endorserAddr common.Add
 
 // IsOperationReady
 
-func (e *Endorser) buildIsOperationReadyCalldata(op *types.Operation) (common.Address, string, error) {
-	endorser := ethcontract.NewContractCaller(op.Endorser, *e.parsedEndorserABI, e.Provider)
+func (e *Endorser) BuildIsOperationReadyCalldata(op *types.Operation) (common.Address, string, error) {
+	endorser := ethcontract.NewContractCaller(op.Endorser, *e.parsedEndorserABI, nil)
 	calldata, err := endorser.Encode("isOperationReady", &op.IEndorserOperation)
 
 	if err != nil {
@@ -284,7 +284,7 @@ func (e *Endorser) isOperationReadyCall(ctx context.Context, op *types.Operation
 	start := time.Now()
 	e.metrics.isOperationReadyAttempts.Inc()
 
-	to, data, err := e.buildIsOperationReadyCalldata(op)
+	to, data, err := e.BuildIsOperationReadyCalldata(op)
 	if err != nil {
 		e.metrics.isOperationReadyError.Inc()
 		return nil, fmt.Errorf("unable to build calldata: %w", err)
@@ -347,7 +347,7 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 		return nil, fmt.Errorf("debugger is not available")
 	}
 
-	to, data, err := e.buildIsOperationReadyCalldata(op)
+	to, data, err := e.BuildIsOperationReadyCalldata(op)
 	if err != nil {
 		return nil, fmt.Errorf("unable to build calldata: %w", err)
 	}
