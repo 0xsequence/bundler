@@ -208,7 +208,7 @@ func (p *Partitioner) addDependencies(op *types.Operation, deps []string) {
 		if len(p.DependencyToOps[dh]) == int(p.OverlapLimit) {
 			p.metrics.fullDependencies.Inc()
 			p.metrics.partiallyFilledDeps.Dec()
-		} else {
+		} else if len(p.DependencyToOps[dh]) == 1 {
 			p.metrics.partiallyFilledDeps.Inc()
 		}
 
@@ -221,10 +221,10 @@ func (p *Partitioner) addDependencies(op *types.Operation, deps []string) {
 }
 
 func (p *Partitioner) removeDependencies(oph string) {
+	p.metrics.removedDependencies.Add(float64(len(p.OpToDependencies[oph])))
+
 	for _, dh := range p.OpToDependencies[oph] {
 		ops := p.DependencyToOps[dh]
-
-		p.metrics.removedDependencies.Add(float64(len(ops)))
 
 		for i, o := range ops {
 			if o.Hash() == oph {
@@ -235,10 +235,10 @@ func (p *Partitioner) removeDependencies(oph string) {
 
 		p.DependencyToOps[dh] = ops
 
-		if len(p.DependencyToOps[dh]) == int(p.OverlapLimit-1) {
+		if len(ops) == int(p.OverlapLimit-1) {
 			p.metrics.partiallyFilledDeps.Inc()
 			p.metrics.fullDependencies.Dec()
-		} else if len(p.DependencyToOps[dh]) == 0 {
+		} else if len(ops) == 0 {
 			p.metrics.partiallyFilledDeps.Dec()
 		}
 
