@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
@@ -28,6 +29,23 @@ func useEndorserAbi() *abi.ABI {
 	parsed := ethcontract.MustParseABI(abiendorser.EndorserABI)
 	parsedEndorserABI = &parsed
 	return parsedEndorserABI
+}
+
+type rpcError struct {
+	Err error
+}
+
+func (re *rpcError) Error() string {
+	return re.Err.Error()
+}
+
+type rejectedError struct {
+	Err    error
+	Reason string
+}
+
+func (re *rejectedError) Error() string {
+	return fmt.Sprintf("rejected: %s", re.Reason)
 }
 
 type Endorser struct {
@@ -309,13 +327,21 @@ func (e *Endorser) isOperationReadyCall(ctx context.Context, op *types.Operation
 	_, err = e.Provider.Do(ctx, rpcCall.Into(&res))
 	if err != nil {
 		e.metrics.isOperationReadyError.Inc()
-		return nil, err
+		if strings.Contains(err.Error(), "execution reverted") {
+			reason := err.Error()
+			reason = strings.TrimPrefix(reason, "jsonrpc error 3: ")
+			reason = strings.TrimPrefix(reason, "execution reverted: ")
+			reason = strings.TrimPrefix(reason, "reverted: ")
+			return nil, &rejectedError{Err: err, Reason: reason}
+		}
+
+		return nil, &rpcError{Err: err}
 	}
 
 	endorserResult, err := e.parseIsOperationReadyRes(res)
 	if err != nil {
 		e.metrics.isOperationReadyReverts.Inc()
-		return nil, fmt.Errorf("unable to parse isoperationready result: %w", err)
+		return nil, fmt.Errorf("unable to parse isOperationReady result: %w", err)
 	}
 
 	// NOTICE: Untrusted context operations should be handled
@@ -371,7 +397,7 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 	}
 	// Log the trace
 	for _, log := range trace.StructLogs {
-		// If Op startswith "LOG", then it's a debug trace log
+		// If Op starts with "LOG", then it's a debug trace log
 		if len(log.Op) > 3 && log.Op[:3] == "LOG" {
 			e.logger.Debug("debug trace log", "log", log)
 		}
@@ -379,7 +405,7 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 
 	er1, err := e.parseIsOperationReadyRes(trace.ReturnValue)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse isoperationready debugger result: %w", err)
+		return nil, fmt.Errorf("unable to parse isOperationReady debugger result: %w", err)
 	}
 
 	// Generate dependencies from untrusted context
@@ -451,13 +477,18 @@ func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*
 
 	// Use eth_call
 	res, err := e.isOperationReadyCall(ctx, op)
-	if err == nil {
-		return res, nil
-	}
-	e.logger.Warn("unable to use endorser, falling back to call simulation and ignoring dependencies", "error", err)
+	if err != nil {
+		_, ok := err.(*rpcError)
+		if ok {
+			// Fail over to pure calldata simulation
+			e.logger.Warn("unable to use endorser, falling back to call simulation and ignoring dependencies", "error", err)
+			return e.simulateCall(ctx, op)
+		}
 
-	// Fail over to pure calldata simulation
-	return e.simulateCall(ctx, op)
+		return nil, err
+	}
+
+	return res, nil
 }
 
 func (e *Endorser) DependencyState(ctx context.Context, result *EndorserResult) (*EndorserResultState, error) {
