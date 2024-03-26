@@ -7,7 +7,6 @@ import (
 	"math"
 	"math/big"
 	"math/rand"
-	"sort"
 	"sync"
 	"time"
 
@@ -133,25 +132,33 @@ func (s *Sender) onRun(ctx context.Context) bool {
 			return nil
 		}
 
-		// Sort them by highest value and pick the first one
-		sort.Slice(to, func(i, j int) bool {
-			return s.Collector.Cmp(&to[i].Operation, &to[j].Operation) > 0
-		})
-
-		// Pick the first operation that is not blocked or chilled
+		// Find the best operation not blocked or chilled
+		var best *mempool.TrackedOperation
 		for _, op := range to {
 			oph := op.Hash()
+
 			if _, ok := s.blockedOps[oph]; ok {
 				continue
 			}
+
 			if _, ok := s.chilledOps[oph]; ok {
 				continue
 			}
-			return []*mempool.TrackedOperation{op}
+
+			if best == nil {
+				best = op
+				continue
+			}
+
+			if s.Collector.Cmp(&op.Operation, &best.Operation) > 0 {
+				best = op
+			}
 		}
 
-		// All operations are blocked or chilled
-		// do not pick any of them
+		if best != nil {
+			return []*mempool.TrackedOperation{best}
+		}
+
 		return nil
 	})
 

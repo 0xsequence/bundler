@@ -219,22 +219,14 @@ func (s *Pruner) pruneStale(ctx context.Context) {
 	start := time.Now()
 
 	ops := s.Mempool.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
-		var ops []*mempool.TrackedOperation
-
-		// Pick the last `PrunerBatchSize` operations
-		if PrunerBatchSize < len(to) {
-			ops = to[len(to)-PrunerBatchSize:]
-		} else {
-			ops = to
-		}
-
-		oldops := make([]*mempool.TrackedOperation, 0, len(ops))
-		for _, op := range ops {
-			if time.Since(op.ReadyAt) > s.GracePeriod {
-				oldops = append(oldops, op)
+		// Pick one operation below the grace period
+		for _, op := range to {
+			if time.Since(op.ReadyAt) < s.GracePeriod {
+				return []*mempool.TrackedOperation{op}
 			}
 		}
-		return oldops
+
+		return nil
 	})
 
 	if len(ops) == 0 {
