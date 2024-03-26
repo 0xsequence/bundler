@@ -147,10 +147,17 @@ func (mp *Mempool) AddOperation(ctx context.Context, op *types.Operation, forceI
 }
 
 func (mp *Mempool) ReserveOps(ctx context.Context, selectFn func([]*TrackedOperation) []*TrackedOperation) []*TrackedOperation {
+	// Measure the time waiting for the lock
 	start := time.Now()
-
 	mp.lock.Lock()
+	mp.metrics.waitReserveTime.Observe(time.Since(start).Seconds())
 	defer mp.lock.Unlock()
+
+	// Measure the time it takes to reserve operations
+	start = time.Now()
+	defer func() {
+		mp.metrics.doReserveOpsTime.Observe(time.Since(start).Seconds())
+	}()
 
 	// Filter out the operations that are already reserved
 	// and the ones that are not ready
@@ -170,8 +177,6 @@ func (mp *Mempool) ReserveOps(ctx context.Context, selectFn func([]*TrackedOpera
 	}
 
 	mp.metrics.opsReserved.Add(float64(len(resOps)))
-	mp.metrics.doReserveOpsTime.Observe(time.Since(start).Seconds())
-
 	return resOps
 }
 

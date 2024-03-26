@@ -2,6 +2,7 @@ package bundler
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/0xsequence/bundler/config"
@@ -14,17 +15,21 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const PrunerBatchSize = 1
+const PrunerBatchSize = 10
+const PrunerWorkers = 3
 
 type prunerMetrics struct {
 	pruneBannedEmpty prometheus.Counter
 	pruneBannedTime  prometheus.Histogram
 	pruneBannedOps   prometheus.Counter
 
+	pruneStaleAge prometheus.Histogram
+
 	pruneStaleEmpty    prometheus.Counter
 	pruneStaleTime     prometheus.Histogram
 	pruneStaleReleased prometheus.Counter
 	pruneStaleDropped  prometheus.Counter
+	pruneStaleNoop     prometheus.Counter
 	pruneStaleFailed   *prometheus.CounterVec
 
 	failedPruneDependencyState prometheus.Labels
@@ -74,6 +79,17 @@ func createPrunerMetrics(reg prometheus.Registerer) *prunerMetrics {
 		Help: "Number of empty stale runs",
 	})
 
+	pruneStaleNoop := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "pruner_stale_noop_sum",
+		Help: "Number of runs of operations that don't need to be re-evaluated",
+	})
+
+	pruneStaleAge := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "pruner_stale_age",
+		Help:    "Age of stale operations that need to be re-evaluated",
+		Buckets: prometheus.DefBuckets,
+	})
+
 	failedPruneDependencyState := prometheus.Labels{
 		"reason": "dependency_state",
 	}
@@ -92,6 +108,8 @@ func createPrunerMetrics(reg prometheus.Registerer) *prunerMetrics {
 			pruneStaleFailed,
 			pruneBannedEmpty,
 			pruneStaleEmpty,
+			pruneStaleNoop,
+			pruneStaleAge,
 		)
 	}
 
@@ -99,11 +117,13 @@ func createPrunerMetrics(reg prometheus.Registerer) *prunerMetrics {
 		pruneBannedEmpty:           pruneBannedEmpty,
 		pruneBannedTime:            pruneBannedTime,
 		pruneBannedOps:             pruneBannedOps,
+		pruneStaleAge:              pruneStaleAge,
 		pruneStaleEmpty:            pruneStaleEmpty,
 		pruneStaleTime:             pruneStaleTime,
 		pruneStaleReleased:         pruneStaleReleased,
 		pruneStaleDropped:          pruneStaleDropped,
 		pruneStaleFailed:           pruneStaleFailed,
+		pruneStaleNoop:             pruneStaleNoop,
 		failedPruneDependencyState: failedPruneDependencyState,
 		failedPruneHasChanged:      failedPruneHasChanged,
 	}
@@ -161,153 +181,177 @@ func NewPruner(cfg config.PrunerConfig, logger *httplog.Logger, metrics promethe
 }
 
 func (s *Pruner) Run(ctx context.Context) {
-	for ctx.Err() == nil {
-		if !s.NoStalePruning {
-			s.pruneStale(ctx)
-		}
+	wg := sync.WaitGroup{}
 
-		if !s.NoBannedPruning {
-			s.pruneBanned(ctx)
-		}
-
-		time.Sleep(s.RunWait)
+	jobsChan := make(chan *mempool.TrackedOperation, PrunerWorkers)
+	for i := 0; i < PrunerWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			s.staleWorker(ctx, jobsChan)
+		}()
 	}
+
+	if !s.NoStalePruning {
+		wg.Add(1)
+		go func() {
+			s.staleFetcher(ctx, jobsChan)
+		}()
+	}
+
+	if !s.NoBannedPruning {
+		wg.Add(1)
+		go func() {
+			s.pruneBanned(ctx)
+		}()
+
+	}
+
+	wg.Wait()
+	close(jobsChan)
 }
 
 func (s *Pruner) pruneBanned(ctx context.Context) {
-	// We don't want to hang the mempool, so we first get all the banned endorsers
-	start := time.Now()
+	for ctx.Err() == nil {
+		// We don't want to hang the mempool, so we first get all the banned endorsers
+		start := time.Now()
 
-	allEndorsers := s.Registry.KnownEndorsers()
-	bannedEndorsers := make(map[common.Address]struct{}, len(allEndorsers))
-	for _, endorser := range allEndorsers {
-		if endorser.Status == registry.PermanentBanned || endorser.Status == registry.TemporaryBanned {
-			bannedEndorsers[endorser.Address] = struct{}{}
-		}
-	}
-
-	ops := s.Mempool.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
-		var ops []*mempool.TrackedOperation
-
-		for _, op := range to {
-			if _, banned := bannedEndorsers[op.Endorser]; banned {
-				ops = append(ops, op)
+		allEndorsers := s.Registry.KnownEndorsers()
+		bannedEndorsers := make(map[common.Address]struct{}, len(allEndorsers))
+		for _, endorser := range allEndorsers {
+			if endorser.Status == registry.PermanentBanned || endorser.Status == registry.TemporaryBanned {
+				bannedEndorsers[endorser.Address] = struct{}{}
 			}
 		}
 
-		return ops
-	})
+		ops := s.Mempool.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
+			var ops []*mempool.TrackedOperation
 
-	// Discard the operations
-	if len(ops) != 0 {
-		opHashes := make([]string, len(ops))
-		for i, op := range ops {
-			opHashes[i] = op.Hash()
+			for _, op := range to {
+				if _, banned := bannedEndorsers[op.Endorser]; banned {
+					ops = append(ops, op)
+				}
+			}
+
+			return ops
+		})
+
+		// Discard the operations
+		if len(ops) != 0 {
+			opHashes := make([]string, len(ops))
+			for i, op := range ops {
+				opHashes[i] = op.Hash()
+			}
+
+			s.metrics.pruneBannedOps.Add(float64(len(ops)))
+			s.logger.Info("pruner: discarding banned operations", "operations", len(ops))
+			s.Mempool.DiscardOps(ctx, opHashes)
+		} else {
+			s.metrics.pruneBannedEmpty.Inc()
 		}
 
-		s.metrics.pruneBannedOps.Add(float64(len(ops)))
-		s.logger.Info("pruner: discarding banned operations", "operations", len(ops))
-		s.Mempool.DiscardOps(ctx, opHashes)
-	} else {
-		s.metrics.pruneBannedEmpty.Inc()
-	}
+		s.metrics.pruneBannedTime.Observe(time.Since(start).Seconds())
 
-	s.metrics.pruneBannedTime.Observe(time.Since(start).Seconds())
+		// Wait for a bit, 10 seconds
+		// but listen for context cancellation
+		select {
+		case <-time.After(10 * time.Second):
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
-func (s *Pruner) pruneStale(ctx context.Context) {
-	start := time.Now()
-
-	ops := s.Mempool.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
-		// Pick one operation above the grace period
-		// start from the oldest part (the upper indexes)
-		for i := len(to) - 1; i >= 0; i-- {
-			if time.Since(to[i].ReadyAt) > s.GracePeriod {
-				return []*mempool.TrackedOperation{to[i]}
+func (s *Pruner) staleFetcher(ctx context.Context, jobsChan chan *mempool.TrackedOperation) {
+	for ctx.Err() == nil {
+		ops := s.Mempool.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
+			// Pick one operation above the grace period
+			// start from the oldest part (the upper indexes)
+			picked := make([]*mempool.TrackedOperation, 0, PrunerBatchSize)
+			for i := len(to) - 1; i >= 0; i-- {
+				if time.Since(to[i].ReadyAt) > s.GracePeriod {
+					picked = append(picked, to[i])
+					if len(picked) >= PrunerBatchSize {
+						break
+					}
+				}
 			}
+
+			return picked
+		})
+
+		if len(ops) == 0 {
+			s.metrics.pruneStaleEmpty.Inc()
+			continue
 		}
 
-		return nil
-	})
+		// Attempt to feed the jobs channel
+		for _, op := range ops {
+			jobsChan <- op
+		}
+	}
+}
 
-	if len(ops) == 0 {
-		s.metrics.pruneStaleEmpty.Inc()
+func (s *Pruner) staleWorker(ctx context.Context, jobsChan chan *mempool.TrackedOperation) {
+	for {
+		select {
+		case job := <-jobsChan:
+			s.doStaleJob(ctx, job)
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (s *Pruner) doStaleJob(ctx context.Context, op *mempool.TrackedOperation) {
+	start := time.Now()
+	defer func() {
+		s.metrics.pruneStaleTime.Observe(time.Since(start).Seconds())
+	}()
+
+	// Report how long has the operation been without being re-evaluated
+	s.metrics.pruneStaleAge.Observe(time.Since(op.ReadyAt).Seconds())
+
+	needsReevaluation := true
+	if !op.EndorserResult.WildcardOnly {
+		nextState, err := s.Endorser.DependencyState(ctx, op.EndorserResult)
+		if err != nil {
+			s.metrics.pruneStaleFailed.With(s.metrics.failedPruneDependencyState).Inc()
+			s.logger.Error("pruner: error getting state", "error", err)
+			// TODO: Handle error operations, ideally
+			// we only allow an operation to fail a few times
+			s.Mempool.DiscardOps(ctx, []string{op.Hash()})
+			return
+		}
+
+		needsReevaluation, err = op.EndorserResult.HasChanged(op.EndorserResultState, nextState)
+		if err != nil {
+			s.metrics.pruneStaleFailed.With(s.metrics.failedPruneHasChanged).Inc()
+			s.logger.Error("pruner: error comparing state", "error", err)
+			// TODO: Handle error operations, ideally
+			// we only allow an operation to fail a few times
+			s.Mempool.DiscardOps(ctx, []string{op.Hash()})
+			return
+		}
+	}
+
+	if !needsReevaluation {
+		// Release the operation
+		s.metrics.pruneStaleNoop.Inc()
+		s.Mempool.ReleaseOps(ctx, []string{op.Hash()}, proto.ReadyAtChange_Now)
 		return
 	}
 
-	failedOps := make([]string, 0, len(ops))
-	DiscardOps := make([]string, 0, len(ops))
-	releaseOps := make([]string, 0, len(ops))
-
-	// TODO: Batch this
-	for _, op := range ops {
-		var needsReevaluation bool
-
-		if op.EndorserResult.WildcardOnly {
-			// Wildcard operations always require validation, as we can't
-			// validate the dependencies of them
-			needsReevaluation = true
-		} else {
-			nextState, err := s.Endorser.DependencyState(ctx, op.EndorserResult)
-			if err != nil {
-				s.metrics.pruneStaleFailed.With(s.metrics.failedPruneDependencyState).Inc()
-				s.logger.Error("pruner: error getting state", "error", err)
-				failedOps = append(failedOps, op.Hash())
-				continue
-			}
-
-			needsReevaluation, err = op.EndorserResult.HasChanged(op.EndorserResultState, nextState)
-			if err != nil {
-				s.metrics.pruneStaleFailed.With(s.metrics.failedPruneHasChanged).Inc()
-				s.logger.Error("pruner: error comparing state", "error", err)
-				failedOps = append(failedOps, op.Hash())
-				continue
-			}
-		}
-
-		if needsReevaluation {
-			// We need to re-validate the operation
-			// NOTICE that the endorser may revert instead of returning false
-			res, err := s.Endorser.IsOperationReady(ctx, &op.Operation)
-			if err != nil {
-				DiscardOps = append(DiscardOps, op.Hash())
-				continue
-			}
-
-			if !res.Readiness {
-				DiscardOps = append(DiscardOps, op.Hash())
-			} else {
-				// TODO: handle the new set of dependencies
-				releaseOps = append(releaseOps, op.Hash())
-			}
-		} else {
-			// Release the operation
-			releaseOps = append(releaseOps, op.Hash())
-		}
+	// We need to re-validate the operation
+	res, err := s.Endorser.IsOperationReady(ctx, &op.Operation)
+	if err != nil || !res.Readiness {
+		s.metrics.pruneStaleDropped.Inc()
+		// NOTICE This may not be an error, some endorsers revert instead of returning false
+		s.Mempool.DiscardOps(ctx, []string{op.Hash()})
+		return
 	}
 
-	// Release the operations
+	s.metrics.pruneStaleReleased.Inc()
+	s.Mempool.ReleaseOps(ctx, []string{op.Hash()}, proto.ReadyAtChange_Now)
 
-	if len(releaseOps) != 0 {
-		s.metrics.pruneStaleReleased.Add(float64(len(releaseOps)))
-		s.logger.Debug("pruner: releasing operations", "operations", len(releaseOps))
-		s.Mempool.ReleaseOps(ctx, releaseOps, proto.ReadyAtChange_Now)
-	}
-
-	if len(DiscardOps) != 0 {
-		s.metrics.pruneStaleDropped.Add(float64(len(DiscardOps)))
-		s.logger.Info("pruner: discarding operations", "operations", len(DiscardOps))
-		s.Mempool.DiscardOps(ctx, DiscardOps)
-	}
-
-	// TODO: Handle error operations, ideally
-	// we only allow an operation to fail a few times
-
-	if len(failedOps) != 0 {
-		// Metric handled in the loop
-		s.logger.Warn("pruner: failed operations", "operations", len(failedOps))
-		s.Mempool.DiscardOps(ctx, failedOps)
-	}
-
-	s.metrics.pruneStaleTime.Observe(time.Since(start).Seconds())
 }

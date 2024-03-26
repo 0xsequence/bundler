@@ -33,6 +33,7 @@ type metrics struct {
 	opAddedTime      prometheus.Histogram
 	opLifetime       prometheus.Histogram
 	reservedTime     prometheus.Histogram
+	waitReserveTime  prometheus.Histogram
 	doReserveOpsTime prometheus.Histogram
 }
 
@@ -113,7 +114,13 @@ func createMetrics(reg prometheus.Registerer) *metrics {
 	doReserveOpsTime := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "mempool_do_reserve_ops_time",
 		Help:    "Time it takes to reserve operations",
-		Buckets: prometheus.ExponentialBuckets(1e-6, 2, 15),
+		Buckets: prometheus.ExponentialBuckets(1e-6, 2, 25),
+	})
+
+	waitReserveTime := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "mempool_wait_reserve_time",
+		Help:    "Time it takes to wait for operations to be reserved",
+		Buckets: prometheus.ExponentialBuckets(1e-6, 2, 25),
 	})
 
 	if reg != nil {
@@ -133,6 +140,7 @@ func createMetrics(reg prometheus.Registerer) *metrics {
 			opLifetime,
 			opsReservedTime,
 			doReserveOpsTime,
+			waitReserveTime,
 		)
 	}
 
@@ -168,5 +176,6 @@ func createMetrics(reg prometheus.Registerer) *metrics {
 		opLifetime:       opLifetime,
 		reservedTime:     opsReservedTime,
 		doReserveOpsTime: doReserveOpsTime,
+		waitReserveTime:  waitReserveTime,
 	}
 }
