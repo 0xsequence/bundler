@@ -2,6 +2,7 @@ package bundler
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -23,7 +24,8 @@ type prunerMetrics struct {
 	pruneBannedTime  prometheus.Histogram
 	pruneBannedOps   prometheus.Counter
 
-	pruneStaleAge prometheus.Histogram
+	pruneStaleAgeInf prometheus.Counter
+	pruneStaleAge    prometheus.Histogram
 
 	pruneStaleEmpty    prometheus.Counter
 	pruneStaleTime     prometheus.Histogram
@@ -84,10 +86,15 @@ func createPrunerMetrics(reg prometheus.Registerer) *prunerMetrics {
 		Help: "Number of runs of operations that don't need to be re-evaluated",
 	})
 
+	pruneStaleAgeInf := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "pruner_stale_age_inf",
+		Help: "Stale operations that have readyAt set to zero",
+	})
+
 	pruneStaleAge := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "pruner_stale_age",
 		Help:    "Age of stale operations that need to be re-evaluated",
-		Buckets: prometheus.DefBuckets,
+		Buckets: prometheus.ExponentialBuckets(1, 2, 16),
 	})
 
 	failedPruneDependencyState := prometheus.Labels{
@@ -110,6 +117,7 @@ func createPrunerMetrics(reg prometheus.Registerer) *prunerMetrics {
 			pruneStaleEmpty,
 			pruneStaleNoop,
 			pruneStaleAge,
+			pruneStaleAgeInf,
 		)
 	}
 
@@ -117,6 +125,7 @@ func createPrunerMetrics(reg prometheus.Registerer) *prunerMetrics {
 		pruneBannedEmpty:           pruneBannedEmpty,
 		pruneBannedTime:            pruneBannedTime,
 		pruneBannedOps:             pruneBannedOps,
+		pruneStaleAgeInf:           pruneStaleAgeInf,
 		pruneStaleAge:              pruneStaleAge,
 		pruneStaleEmpty:            pruneStaleEmpty,
 		pruneStaleTime:             pruneStaleTime,
@@ -311,7 +320,12 @@ func (s *Pruner) doStaleJob(ctx context.Context, op *mempool.TrackedOperation) {
 	}()
 
 	// Report how long has the operation been without being re-evaluated
-	s.metrics.pruneStaleAge.Observe(time.Since(op.ReadyAt).Seconds())
+	if op.ReadyAt.IsZero() {
+		s.metrics.pruneStaleAgeInf.Inc()
+	} else {
+		fmt.Println("Pruning from", op.ReadyAt, "to", time.Now(), "diff", time.Since(op.ReadyAt).Seconds())
+		s.metrics.pruneStaleAge.Observe(time.Since(op.ReadyAt).Seconds())
+	}
 
 	needsReevaluation := true
 	if !op.EndorserResult.WildcardOnly {
