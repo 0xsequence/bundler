@@ -219,10 +219,11 @@ func (s *Pruner) pruneStale(ctx context.Context) {
 	start := time.Now()
 
 	ops := s.Mempool.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
-		// Pick one operation below the grace period
-		for _, op := range to {
-			if time.Since(op.ReadyAt) < s.GracePeriod {
-				return []*mempool.TrackedOperation{op}
+		// Pick one operation above the grace period
+		// start from the oldest part (the upper indexes)
+		for i := len(to) - 1; i >= 0; i-- {
+			if time.Since(to[i].ReadyAt) > s.GracePeriod {
+				return []*mempool.TrackedOperation{to[i]}
 			}
 		}
 
