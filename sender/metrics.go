@@ -34,6 +34,7 @@ type metrics struct {
 	waitReceiptTime    prometheus.Histogram
 	inspectReceiptTime prometheus.Histogram
 	simulateOpTime     prometheus.Histogram
+	selectOpsTime      prometheus.Histogram
 
 	overpaidAmount  prometheus.Histogram
 	underpaidAmount prometheus.Histogram
@@ -135,6 +136,12 @@ func createMetrics(reg prometheus.Registerer, sender string) *metrics {
 		Buckets: prometheus.DefBuckets,
 	})
 
+	selectOpsTime := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "sender_select_ops_time",
+		Help:    "Time it takes to select operations",
+		Buckets: prometheus.ExponentialBuckets(1e6, 2, 32),
+	})
+
 	overpaidAmount := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "sender_overpaid_amount",
 		Help:    "Amount overpaid in native token",
@@ -189,6 +196,7 @@ func createMetrics(reg prometheus.Registerer, sender string) *metrics {
 			unprofitableOpDiff,
 			profitableOpDiff,
 			skipRunNoOps,
+			selectOpsTime,
 		)
 	}
 
@@ -224,6 +232,7 @@ func createMetrics(reg prometheus.Registerer, sender string) *metrics {
 		waitReceiptTime:    waitReceiptTime,
 		inspectReceiptTime: inspectReceiptTime,
 		simulateOpTime:     simulateOpTime,
+		selectOpsTime:      selectOpsTime,
 
 		overpaidAmount:     overpaidAmount,
 		underpaidAmount:    underpaidAmount,

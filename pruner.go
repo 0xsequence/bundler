@@ -282,6 +282,7 @@ func (s *Pruner) staleFetcher(ctx context.Context, jobsChan chan *mempool.Tracke
 
 		if len(ops) == 0 {
 			s.metrics.pruneStaleEmpty.Inc()
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 

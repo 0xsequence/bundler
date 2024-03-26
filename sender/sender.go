@@ -128,6 +128,11 @@ func (s *Sender) onRun(ctx context.Context) bool {
 	s.metrics.chilledOps.Set(float64(len(s.chilledOps)))
 
 	ops := s.Mempool.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
+		start := time.Now()
+		defer func() {
+			s.metrics.selectOpsTime.Observe(time.Since(start).Seconds())
+		}()
+
 		if len(to) == 0 {
 			return nil
 		}
@@ -164,6 +169,7 @@ func (s *Sender) onRun(ctx context.Context) bool {
 
 	if len(ops) == 0 {
 		s.metrics.skipRunNoOps.Inc()
+		time.Sleep(10 * time.Millisecond)
 		return false
 	}
 
