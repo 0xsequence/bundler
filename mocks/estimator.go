@@ -4,7 +4,7 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/0xsequence/bundler/sender"
+	"github.com/0xsequence/bundler/interfaces"
 	ethereum "github.com/0xsequence/ethkit/go-ethereum"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/0xsequence/ethkit/go-ethereum/core/types"
@@ -40,4 +40,4 @@ func (m *MockProvider) BlockByHash(ctx context.Context, hash common.Hash) (*type
 	return args.Get(0).(*types.Block), args.Error(1)
 }
 
-var _ sender.Provider = &MockProvider{}
+var _ interfaces.Provider = &MockProvider{}

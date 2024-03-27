@@ -56,7 +56,7 @@ func TestAddOperation(t *testing.T) {
 	// The op should be known now
 	assert.True(t, mempool.IsKnownOp(op))
 	assert.Equal(t, len(mempool.Operations), 1)
-	assert.Equal(t, mempool.Operations[0].ToProto(), op.ToProto())
+	assert.Equal(t, mempool.Operations[op.Hash()].ToProto(), op.ToProto())
 
 	mockEndorser.AssertExpectations(t)
 	mockCollector.AssertExpectations(t)
@@ -277,22 +277,26 @@ func TestReserveOps(t *testing.T) {
 	})
 
 	assert.Equal(t, len(reserved), 2)
-	assert.Equal(t, reserved[0].Operation.Hash(), op1.Hash())
+	assert.Equal(t, reserved[0].Operation.Hash(), op3.Hash())
 	assert.Equal(t, reserved[1].Operation.Hash(), op2.Hash())
 
 	// Calling reserve again should only give one option
+	// Touch op1 so it ends in the middle
 	reserved2 := mem.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
 		assert.Equal(t, len(to), 1)
-		return []*mempool.TrackedOperation{}
+		assert.Equal(t, to[0].Operation.Hash(), op1.Hash())
+		return []*mempool.TrackedOperation{to[0]}
 	})
 
-	assert.Equal(t, len(reserved2), 0)
+	assert.Equal(t, len(reserved2), 1)
+	time.Sleep(1 * time.Millisecond)
+	mem.ReleaseOps(ctx, []string{op1.Hash()}, proto.ReadyAtChange_Now)
 
 	// Release the reserved ops
 	// sleep a bit so op2 readyAt is newer than op3, op1 goes to zero
 	time.Sleep(10 * time.Millisecond)
-	mem.ReleaseOps(ctx, []string{reserved[0].Hash()}, proto.ReadyAtChange_Zero)
-	mem.ReleaseOps(ctx, []string{reserved[1].Hash()}, proto.ReadyAtChange_Now)
+	mem.ReleaseOps(ctx, []string{op3.Hash()}, proto.ReadyAtChange_Zero)
+	mem.ReleaseOps(ctx, []string{op2.Hash()}, proto.ReadyAtChange_Now)
 
 	// Should sort the operations from the most recent ready at first
 	reserved = mem.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
@@ -301,14 +305,14 @@ func TestReserveOps(t *testing.T) {
 
 	assert.Equal(t, len(reserved), 3)
 
-	// The new order should be: op2, op3, op1
+	// The new order should be: op2, op1, op3
 	assert.Equal(t, reserved[0].Operation.Hash(), op2.Hash())
-	assert.Equal(t, reserved[1].Operation.Hash(), op3.Hash())
-	assert.Equal(t, reserved[2].Operation.Hash(), op1.Hash())
+	assert.Equal(t, reserved[1].Operation.Hash(), op1.Hash())
+	assert.Equal(t, reserved[2].Operation.Hash(), op3.Hash())
 
 	// Discard only two operations
-	mem.DiscardOps(ctx, []string{reserved[0].Hash(), reserved[1].Hash()})
-	mem.ReleaseOps(ctx, []string{reserved[2].Hash()}, proto.ReadyAtChange_Zero)
+	mem.DiscardOps(ctx, []string{op2.Hash(), op3.Hash()})
+	mem.ReleaseOps(ctx, []string{op1.Hash()}, proto.ReadyAtChange_Zero)
 
 	// Reserving now should only give the last operation
 	mem.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
@@ -501,7 +505,7 @@ func TestReplaceOverlappingDependency(t *testing.T) {
 	assert.NoError(t, res)
 
 	assert.Equal(t, len(mempool.Operations), 1)
-	assert.Equal(t, mempool.Operations[0].ToProto(), op2.ToProto())
+	assert.Equal(t, mempool.Operations[op2.Hash()].ToProto(), op2.ToProto())
 }
 
 func TestRejectBadEndorser(t *testing.T) {

@@ -2,7 +2,7 @@ package mocks
 
 import (
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
-	"github.com/0xsequence/bundler/sender"
+	"github.com/0xsequence/bundler/interfaces"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi/bind"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/stretchr/testify/mock"
@@ -29,4 +29,4 @@ func (m *MockValidator) SimulateOperation(
 	return args.Get(0).(abivalidator.OperationValidatorSimulationResult), nil
 }
 
-var _ sender.ValidatorInterface = &MockValidator{}
+var _ interfaces.Validator = &MockValidator{}

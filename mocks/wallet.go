@@ -3,7 +3,7 @@ package mocks
 import (
 	"context"
 
-	"github.com/0xsequence/bundler/sender"
+	"github.com/0xsequence/bundler/interfaces"
 	"github.com/0xsequence/ethkit/ethtxn"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/0xsequence/ethkit/go-ethereum/core/types"
@@ -34,4 +34,4 @@ func (m *MockWallet) SendTransaction(ctx context.Context, t *types.Transaction) 
 	return args.Get(0).(*types.Transaction), args.Get(1).(ethtxn.WaitReceipt), args.Error(2)
 }
 
-var _ sender.WalletInterface = &MockWallet{}
+var _ interfaces.Wallet = &MockWallet{}
