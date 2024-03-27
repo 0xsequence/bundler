@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -20,6 +21,7 @@ import (
 	"github.com/0xsequence/bundler/registry"
 	"github.com/0xsequence/bundler/rpc"
 	"github.com/0xsequence/bundler/store"
+	"github.com/0xsequence/bundler/utils"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/ethwallet"
 	"github.com/go-chi/httplog/v2"
@@ -105,6 +107,10 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	if err != nil {
 		return nil, err
 	}
+	client := utils.NewHttpRpcMetricsClient()
+	provider.SetHTTPClient(&http.Client{
+		Transport: client,
+	})
 
 	// ChainID
 	chainID, err := provider.ChainID(context.Background())
@@ -124,6 +130,8 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 	)
+
+	client.UseRegistry(promPrefix, cfg.NetworkConfig.RpcUrl)
 
 	// Debugger
 	debugger, err := debugger.NewDebugger(cfg.DebuggerConfig, context.Background(), logger, promPrefix, cfg.NetworkConfig.RpcUrl)
