@@ -191,7 +191,7 @@ func NewPruner(cfg config.PrunerConfig, logger *httplog.Logger, metrics promethe
 func (s *Pruner) Run(ctx context.Context) {
 	wg := sync.WaitGroup{}
 
-	jobsChan := make(chan *mempool.TrackedOperation, PrunerWorkers)
+	jobsChan := make(chan *mempool.TrackedOperation)
 	for i := 0; i < PrunerWorkers; i++ {
 		wg.Add(1)
 		go func() {
