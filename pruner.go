@@ -2,7 +2,6 @@ package bundler
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -323,7 +322,6 @@ func (s *Pruner) doStaleJob(ctx context.Context, op *mempool.TrackedOperation) {
 	if op.ReadyAt.IsZero() {
 		s.metrics.pruneStaleAgeInf.Inc()
 	} else {
-		fmt.Println("Pruning from", op.ReadyAt, "to", time.Now(), "diff", time.Since(op.ReadyAt).Seconds())
 		s.metrics.pruneStaleAge.Observe(time.Since(op.ReadyAt).Seconds())
 	}
 

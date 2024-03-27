@@ -51,7 +51,17 @@ type Host struct {
 
 var _ Interface = &Host{}
 
-func NewHost(cfg *config.P2PHostConfig, logger *slog.Logger, metrics prometheus.Registerer, wallet *ethwallet.Wallet, chainID *big.Int) (*Host, error) {
+type Identity struct {
+	ID peer.ID
+
+	privKey crypto.PrivKey
+}
+
+func NewIdentity(mnmonic string) (*Identity, error) {
+	wallet, err := ethwallet.NewWalletFromMnemonic(mnmonic)
+	if err != nil {
+		return nil, err
+	}
 
 	// Use private key at HD node account index 0 as the peer private key.
 	peerPrivKeyBytes, err := hexutil.Decode(wallet.PrivateKeyHex())
@@ -71,7 +81,15 @@ func NewHost(cfg *config.P2PHostConfig, logger *slog.Logger, metrics prometheus.
 	if err != nil {
 		return nil, err
 	}
-	logger = logger.With("hostId", id.String())
+
+	return &Identity{
+		ID:      id,
+		privKey: peerPrivKey,
+	}, nil
+}
+
+func NewHost(cfg *config.P2PHostConfig, logger *slog.Logger, metrics prometheus.Registerer, identity *Identity, chainID *big.Int) (*Host, error) {
+	logger = logger.With("hostId", identity.ID.String())
 
 	connmgr, err := connmgr.NewConnManager(
 		300, // Lowwater
@@ -89,7 +107,7 @@ func NewHost(cfg *config.P2PHostConfig, logger *slog.Logger, metrics prometheus.
 
 	h, err := libp2p.New(
 		// Use the keypair we generated
-		libp2p.Identity(peerPrivKey),
+		libp2p.Identity(identity.privKey),
 
 		// if we want network to be separated, etc.
 		// libp2p.PrivateNetwork(),
@@ -151,7 +169,7 @@ func NewHost(cfg *config.P2PHostConfig, logger *slog.Logger, metrics prometheus.
 		logger:      logger,
 		metrics:     createMetrics(metrics),
 		host:        h,
-		peerPrivKey: peerPrivKey,
+		peerPrivKey: identity.privKey,
 		chainID:     chainID,
 
 		topics: make(map[string]*pubsub.Topic),

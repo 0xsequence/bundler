@@ -77,18 +77,6 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 	logger := httplog.NewLogger("bundler", loggerOptions)
 
-	// Provider
-	provider, err := ethrpc.NewProvider(cfg.NetworkConfig.RpcUrl)
-	if err != nil {
-		return nil, err
-	}
-
-	// ChainID
-	chainID, err := provider.ChainID(context.Background())
-	if err != nil {
-		return nil, err
-	}
-
 	// Wallet
 	mnmonic := cfg.Mnemonic
 	if mnmonic == "" {
@@ -106,16 +94,30 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		logger.Info("=> no mnemonic provided, using temporal wallet")
 	}
 
-	wallet, err := rpc.SetupWallet(mnmonic, 0, provider)
+	// Identity
+	identity, err := p2p.NewIdentity(mnmonic)
 	if err != nil {
 		return nil, err
 	}
-	logger.Info("=> setup node wallet", "address", wallet.Address().String())
+
+	// Provider
+	provider, err := ethrpc.NewProvider(cfg.NetworkConfig.RpcUrl)
+	if err != nil {
+		return nil, err
+	}
+
+	// ChainID
+	chainID, err := provider.ChainID(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("=> setup node identity", "id", identity.ID.String())
 
 	// Metrics
 	prom := prometheus.NewRegistry()
 	promPrefix := prometheus.WrapRegistererWithPrefix("bundler_", prom)
-	promPrefix = prometheus.WrapRegistererWith(prometheus.Labels{"id": wallet.Address().String()}, promPrefix)
+	promPrefix = prometheus.WrapRegistererWith(prometheus.Labels{"id": identity.ID.String()}, promPrefix)
 	promPrefix = prometheus.WrapRegistererWith(prometheus.Labels{"chain_id": chainID.String()}, promPrefix)
 
 	promPrefix.MustRegister(
@@ -134,7 +136,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 
 	// Store
 	// TODO: Add custom store path
-	store, err := store.CreateInstanceStore(wallet.Address().String() + "-" + chainID.String())
+	store, err := store.CreateInstanceStore(identity.ID.String() + "-" + chainID.String())
 	if err != nil {
 		logger.Warn("=> unable to create instance store", "error", err)
 	} else {
@@ -142,7 +144,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 
 	// p2p host
-	host, err := p2p.NewHost(&cfg.P2PHostConfig, logger.Logger, promPrefix, wallet, chainID)
+	host, err := p2p.NewHost(&cfg.P2PHostConfig, logger.Logger, promPrefix, identity, chainID)
 	if err != nil {
 		return nil, err
 	}

@@ -63,7 +63,7 @@ type RPC struct {
 	mempool   mempool.Interface
 	archive   *bundler.Archive
 	collector *collector.Collector
-	senders   []sender.Interface
+	sender    sender.Interface
 	executor  *abivalidator.OperationValidator
 	ipfs      ipfs.Interface
 	admin     *admin.Admin
@@ -107,35 +107,16 @@ func NewRPC(
 		return nil, fmt.Errorf("unable to connect to validator contract")
 	}
 
-	senders := make([]sender.Interface, 0, cfg.SendersConfig.NumSenders)
-	for i := 0; i < int(cfg.SendersConfig.NumSenders); i++ {
-		wallet, err := SetupWallet(cfg.Mnemonic, uint32(1+i), provider)
-		if err != nil {
-			return nil, fmt.Errorf("unable to create wallet for sender %v from hd node: %w", i, err)
-		}
-		logger.Info(fmt.Sprintf("sender %v: %v", i, wallet.Address()))
-		slogger := logger.With("sender", i)
-		senders = append(senders, sender.NewSender(
-			&cfg.SendersConfig,
-			slogger,
-			metrics,
-			uint32(i),
-			wallet,
-			provider,
-			mempool,
-			endorser,
-			executor,
-			collector,
-			registry,
-		))
-	}
+	factory := sender.NewMnemonicWalletFactory(provider, cfg.Mnemonic)
+	sender := sender.NewSender(&cfg.SendersConfig, logger, factory, provider, mempool, endorser, executor, collector, registry)
+	sender.SetRegisterer(metrics)
 
 	admin := admin.NewAdmin(logger, ipfs, mempool, registry)
 
 	s := &RPC{
 		archive:   archive,
 		mempool:   mempool,
-		senders:   senders,
+		sender:    sender,
 		collector: collector,
 		executor:  executor,
 		ipfs:      ipfs,
@@ -174,9 +155,7 @@ func (s *RPC) Run(ctx context.Context) error {
 	}()
 
 	// Run the senders
-	for _, sender := range s.senders {
-		go sender.Run(ctx)
-	}
+	go s.sender.Run(ctx)
 
 	// Start the http server and serve!
 	err := s.HTTP.ListenAndServe()
