@@ -16,6 +16,7 @@ import (
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/bundler/registry"
 	"github.com/0xsequence/bundler/types"
+	"github.com/0xsequence/bundler/utils"
 	"github.com/go-chi/httplog/v2"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -33,7 +34,7 @@ type Mempool struct {
 	MaxSize int
 
 	lock       sync.Mutex
-	Operations []*TrackedOperation
+	Operations map[string]*TrackedOperation
 
 	partitioner *partitioner.Partitioner
 	known       *KnownOperations
@@ -79,7 +80,7 @@ func NewMempool(
 
 		MaxSize: int(cfg.Size),
 
-		Operations: []*TrackedOperation{},
+		Operations: make(map[string]*TrackedOperation, cfg.Size),
 
 		partitioner: partitioner.NewPartitioner(metrics, overLapLimit, wildcardLimit),
 
@@ -154,10 +155,7 @@ func (mp *Mempool) ReserveOps(ctx context.Context, selectFn func([]*TrackedOpera
 	defer mp.lock.Unlock()
 
 	// Measure the time it takes to reserve operations
-	start = time.Now()
-	defer func() {
-		mp.metrics.doReserveOpsTime.Observe(time.Since(start).Seconds())
-	}()
+	defer utils.RecordFunctionDuration(time.Now(), mp.metrics.doReserveOpsTime)
 
 	// Filter out the operations that are already reserved
 	// and the ones that are not ready
@@ -168,6 +166,11 @@ func (mp *Mempool) ReserveOps(ctx context.Context, selectFn func([]*TrackedOpera
 		}
 		availOps = append(availOps, op)
 	}
+
+	// Sort the operations by readyAt
+	sort.Slice(availOps, func(i, j int) bool {
+		return availOps[i].ReadyAt.After(availOps[j].ReadyAt)
+	})
 
 	// Select the operations to reserve
 	resOps := selectFn(availOps)
@@ -184,36 +187,29 @@ func (mp *Mempool) ReleaseOps(ctx context.Context, ops []string, updateReadyAt p
 	mp.lock.Lock()
 	defer mp.lock.Unlock()
 
-	for _, op := range mp.Operations {
-		for _, rop := range ops {
-			if op.Hash() == rop {
-				if op.ReservedSince != nil {
-					mp.metrics.reservedTime.Observe(time.Since(*op.ReservedSince).Seconds())
-				} else {
-					mp.logger.Warn("operation released but not reserved", "op", op.Hash())
-				}
-
-				op.ReservedSince = nil
-
-				switch updateReadyAt {
-				case proto.ReadyAtChange_Now:
-					op.ReadyAt = time.Now()
-				case proto.ReadyAtChange_Zero:
-					op.ReadyAt = time.Time{}
-				}
+	released := 0
+	for _, op := range ops {
+		if top, ok := mp.Operations[op]; ok {
+			if top.ReservedSince != nil {
+				mp.metrics.reservedTime.Observe(time.Since(*top.ReservedSince).Seconds())
+			} else {
+				mp.logger.Warn("operation released but not reserved", "op", top.Hash())
 			}
+
+			top.ReservedSince = nil
+
+			switch updateReadyAt {
+			case proto.ReadyAtChange_Now:
+				top.ReadyAt = time.Now()
+			case proto.ReadyAtChange_Zero:
+				top.ReadyAt = time.Time{}
+			}
+
+			released++
 		}
 	}
 
-	mp.metrics.opsReleased.WithLabelValues(updateReadyAt.String()).Add(float64(len(ops)))
-
-	mp.SortOperations()
-}
-
-func (mp *Mempool) SortOperations() {
-	sort.Slice(mp.Operations, func(i, j int) bool {
-		return mp.Operations[i].ReadyAt.After(mp.Operations[j].ReadyAt)
-	})
+	mp.metrics.opsReleased.WithLabelValues(updateReadyAt.String()).Add(float64(released))
 }
 
 func (mp *Mempool) DiscardOps(ctx context.Context, ops []string) {
@@ -223,40 +219,31 @@ func (mp *Mempool) DiscardOps(ctx context.Context, ops []string) {
 }
 
 func (mp *Mempool) discardOpsUnlocked(_ context.Context, ops []string) {
-	var kops []*TrackedOperation
-	for _, op := range mp.Operations {
-		discard := false
+	discarded := 0
 
-		for _, dop := range ops {
-			if op.Hash() == dop {
-				// If reserved, measure the time it was reserved
-				if op.ReservedSince != nil {
-					mp.metrics.reservedTime.Observe(time.Since(*op.ReservedSince).Seconds())
-					mp.metrics.opsReleased.WithLabelValues("discard").Inc()
-				}
-
-				// Measure the lifetime of the operation
-				mp.metrics.opLifetime.Observe(time.Since(op.CreatedAt).Seconds())
-
-				discard = true
-				break
+	for _, oph := range ops {
+		if top, ok := mp.Operations[oph]; ok {
+			// If reserved, measure the time it was reserved
+			if top.ReservedSince != nil {
+				mp.metrics.reservedTime.Observe(time.Since(*top.ReservedSince).Seconds())
+				mp.metrics.opsReleased.WithLabelValues("discard").Inc()
 			}
-		}
 
-		if discard {
+			// Measure the lifetime of the operation
+			mp.metrics.opLifetime.Observe(time.Since(top.CreatedAt).Seconds())
+
 			// Mark the operation for deletion by setting
 			// the time to the current time
-			mp.markForForget(&op.Operation)
-			continue
-		}
+			mp.markForForget(&top.Operation)
 
-		kops = append(kops, op)
+			delete(mp.Operations, oph)
+			discarded++
+		}
 	}
 
-	mp.metrics.ops.Sub(float64(len(ops)))
-	mp.metrics.opsDiscarded.Add(float64(len(ops)))
+	mp.metrics.ops.Sub(float64(discarded))
+	mp.metrics.opsDiscarded.Add(float64(discarded))
 
-	mp.Operations = kops
 	mp.partitioner.Remove(ops)
 }
 
@@ -275,9 +262,9 @@ func (mp *Mempool) evictLesser(ctx context.Context, candidate *types.Operation, 
 		// Having a standalone method for evicting lesser operations
 		// on the whole mempool *could* be faster, but we keep it simple for now
 		groups = make([][]*types.Operation, 1)
-		groups[0] = make([]*types.Operation, len(mp.Operations))
-		for i, op := range mp.Operations {
-			groups[0][i] = &op.Operation
+		groups[0] = make([]*types.Operation, 0, len(mp.Operations))
+		for _, op := range mp.Operations {
+			groups[0] = append(groups[0], &op.Operation)
 		}
 	} else {
 		groups = *subsets
@@ -404,7 +391,7 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 	mp.metrics.ops.Inc()
 	mp.metrics.opAddedTime.Observe(time.Since(start).Seconds())
 
-	mp.Operations = append(mp.Operations, &TrackedOperation{
+	mp.Operations[op.Hash()] = &TrackedOperation{
 		Operation: *op,
 
 		CreatedAt: time.Now(),
@@ -412,7 +399,7 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 
 		EndorserResult:      res,
 		EndorserResultState: state,
-	})
+	}
 
 	return nil
 }
