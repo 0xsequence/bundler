@@ -9,6 +9,7 @@ import (
 
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/bundler/debugger"
+	"github.com/0xsequence/bundler/provider"
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethcontract"
 	"github.com/0xsequence/ethkit/ethrpc"
@@ -17,6 +18,7 @@ import (
 	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
 	"github.com/go-chi/httplog/v2"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sync/errgroup"
 )
 
 var parsedEndorserABI *abi.ABI
@@ -54,12 +56,12 @@ type Endorser struct {
 	metrics           *metrics
 
 	Debugger debugger.Interface
-	Provider *ethrpc.Provider
+	Provider *provider.Batched
 }
 
 var _ Interface = (*Endorser)(nil)
 
-func NewEndorser(logger *httplog.Logger, metrics prometheus.Registerer, provider *ethrpc.Provider, debugger debugger.Interface) *Endorser {
+func NewEndorser(logger *httplog.Logger, metrics prometheus.Registerer, provider *provider.Batched, debugger debugger.Interface) *Endorser {
 	return &Endorser{
 		parsedEndorserABI: useEndorserAbi(),
 
@@ -491,64 +493,130 @@ func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*
 	return res, nil
 }
 
-func (e *Endorser) DependencyState(ctx context.Context, result *EndorserResult) (*EndorserResultState, error) {
-	start := time.Now()
-	state := EndorserResultState{}
+func (e *Endorser) SingleDependencyState(ctx context.Context, dep abiendorser.IEndorserDependency) (*AddrDependencyState, error) {
+	balance := make(chan *big.Int, 1)
+	code := make(chan int, 1)
+	nonce := make(chan uint64, 1)
+	slots := make(chan [][32]byte, 1)
 
-	state.AddrDependencies = make(map[common.Address]*AddrDependencyState, len(result.Dependencies))
+	defer func() {
+		close(balance)
+		close(nonce)
+		close(code)
+		close(slots)
+	}()
 
-	for _, dependency := range result.Dependencies {
-		state_ := AddrDependencyState{}
+	eg, ctx := errgroup.WithContext(ctx)
 
-		if dependency.Balance {
-			var err error
-			state_.Balance, err = e.Provider.BalanceAt(ctx, dependency.Addr, nil)
+	if dep.Balance {
+		eg.Go(func() error {
+			b, err := e.Provider.BalanceAt(ctx, dep.Addr, nil)
 			if err != nil {
-				e.metrics.dependencyStateError.With(e.metrics.dependencyStateErrorBalance).Inc()
-				return nil, fmt.Errorf("unable to read balance for %v: %w", dependency.Addr, err)
-			}
-		}
-
-		if dependency.Code {
-			code, err := e.Provider.CodeAt(ctx, dependency.Addr, nil)
-			if err != nil {
-				e.metrics.dependencyStateError.With(e.metrics.dependencyStateErrorCode).Inc()
-				return nil, fmt.Errorf("unable to read code for %v: %w", dependency.Addr, err)
-			}
-			if code == nil {
-				code = []byte{}
-			}
-			state_.Code = code
-		}
-
-		if dependency.Nonce {
-			nonce, err := e.Provider.NonceAt(ctx, dependency.Addr, nil)
-			if err != nil {
-				e.metrics.dependencyStateError.With(e.metrics.dependencyStateErrorNonce).Inc()
-				return nil, fmt.Errorf("unable to read nonce for %v: %w", dependency.Addr, err)
-			}
-			state_.Nonce = &nonce
-		}
-
-		state_.Slots = make([][32]byte, 0, len(dependency.Slots))
-		for _, slot := range dependency.Slots {
-			start2 := time.Now()
-			value, err := e.Provider.StorageAt(ctx, dependency.Addr, slot, nil)
-			e.metrics.dependencySlotDuration.Observe(time.Since(start2).Seconds())
-
-			if err != nil {
-				e.metrics.dependencyStateError.With(e.metrics.dependencyStateErrorSlots).Inc()
-				return nil, fmt.Errorf("unable to read storage for %v at %v: %w", dependency.Addr, hexutil.Encode(slot[:]), err)
+				return fmt.Errorf("unable to read balance for %v: %w", dep.Addr, err)
 			}
 
-			state_.Slots = append(state_.Slots, [32]byte(value))
-		}
-
-		state.AddrDependencies[dependency.Addr] = &state_
+			balance <- b
+			return nil
+		})
 	}
 
-	e.metrics.dependencyStateDuration.Observe(time.Since(start).Seconds())
-	return &state, nil
+	if dep.Code {
+		eg.Go(func() error {
+			c, err := e.Provider.CodeAt(ctx, dep.Addr, nil)
+			if err != nil {
+				return fmt.Errorf("unable to read code for %v: %w", dep.Addr, err)
+			}
+
+			code <- len(c)
+			return nil
+		})
+	}
+
+	if dep.Nonce {
+		eg.Go(func() error {
+			n, err := e.Provider.NonceAt(ctx, dep.Addr, nil)
+			if err != nil {
+				return fmt.Errorf("unable to read nonce for %v: %w", dep.Addr, err)
+			}
+
+			nonce <- n
+			return nil
+		})
+	}
+
+	if len(dep.Slots) > 0 {
+		eg.Go(func() error {
+			s, err := e.Provider.StorageAtBatch(ctx, dep.Addr, dep.Slots)
+			if err != nil {
+				return fmt.Errorf("unable to read storage for %v: %w", dep.Addr, err)
+			}
+
+			slots <- s
+			return nil
+		})
+	}
+
+	err := eg.Wait()
+	if err != nil {
+		return nil, err
+	}
+
+	state := &AddrDependencyState{}
+
+	for {
+		select {
+		case b := <-balance:
+			state.Balance = b
+		case n := <-nonce:
+			state.Nonce = &n
+		case c := <-code:
+			state.Code = &c
+		case s := <-slots:
+			state.Slots = s
+		default:
+			return state, nil
+		}
+	}
+}
+
+func (e *Endorser) DependencyState(ctx context.Context, result *EndorserResult) (*EndorserResultState, error) {
+	type SingleDependencyStateResult struct {
+		Addr common.Address
+		Res  *AddrDependencyState
+	}
+
+	deps := make(chan *SingleDependencyStateResult, len(result.Dependencies))
+	defer close(deps)
+
+	eg, ctx := errgroup.WithContext(ctx)
+
+	for _, dep := range result.Dependencies {
+		capturedDep := dep
+		eg.Go(func() error {
+			res, err := e.SingleDependencyState(ctx, capturedDep)
+			if err != nil {
+				return err
+			}
+
+			deps <- &SingleDependencyStateResult{Addr: capturedDep.Addr, Res: res}
+			return nil
+		})
+	}
+
+	err := eg.Wait()
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[common.Address]*AddrDependencyState, len(result.Dependencies))
+	for {
+		select {
+		case dep := <-deps:
+			res[dep.Addr] = dep.Res
+		default:
+			return &EndorserResultState{AddrDependencies: res}, nil
+		}
+	}
 }
 
 func (e *Endorser) ConstraintsMet(ctx context.Context, result *EndorserResult) (bool, error) {
@@ -557,7 +625,7 @@ func (e *Endorser) ConstraintsMet(ctx context.Context, result *EndorserResult) (
 	for _, dependency := range result.Dependencies {
 		for _, constraint := range dependency.Constraints {
 			start2 := time.Now()
-			ok, err := CheckConstraint(ctx, e.Provider, dependency.Addr, constraint.Slot, constraint.MinValue, constraint.MaxValue)
+			ok, err := e.CheckConstraint(ctx, dependency.Addr, constraint.Slot, constraint.MinValue, constraint.MaxValue)
 			e.metrics.constraintMetDuration.Observe(time.Since(start2).Seconds())
 
 			if err != nil {
@@ -577,8 +645,8 @@ func (e *Endorser) ConstraintsMet(ctx context.Context, result *EndorserResult) (
 	return true, nil
 }
 
-func CheckConstraint(ctx context.Context, provider *ethrpc.Provider, addr common.Address, slot [32]byte, minValue, maxValue [32]byte) (bool, error) {
-	value, err := provider.StorageAt(ctx, addr, slot, nil)
+func (e *Endorser) CheckConstraint(ctx context.Context, addr common.Address, slot [32]byte, minValue, maxValue [32]byte) (bool, error) {
+	value, err := e.Provider.StorageAt(ctx, addr, slot, nil)
 	if err != nil {
 		return false, fmt.Errorf("unable to read storage for %v at %v: %w", addr, hexutil.Encode(slot[:]), err)
 	}
