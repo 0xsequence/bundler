@@ -164,8 +164,9 @@ func FetchSlotsDecode(res []byte) ([][32]byte, error) {
 	}
 
 	// Decode the response
-	results := make([][32]byte, len(res)/32)
-	for i := 0; i < len(res); i++ {
+	size := len(res) / 32
+	results := make([][32]byte, size)
+	for i := 0; i < size; i++ {
 		copy(results[i][:], res[i*32:(i+1)*32])
 	}
 

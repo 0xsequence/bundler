@@ -170,7 +170,9 @@ func (w *Worker) prepareWorker(ctx context.Context, input <-chan *mempool.Tracke
 			return
 		case op := <-input:
 			// Prepare operation
-			w.doPrepare(ctx, op)
+			if op != nil {
+				w.doPrepare(ctx, op)
+			}
 		}
 	}
 }

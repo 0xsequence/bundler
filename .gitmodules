@@ -7,3 +7,6 @@
 [submodule "contracts/lib/erc5189-libs"]
 	path = contracts/lib/erc5189-libs
 	url = https://github.com/0xsequence/erc5189-libs
+[submodule "contracts/lib/foundry-huff"]
+	path = contracts/lib/foundry-huff
+	url = https://github.com/huff-language/foundry-huff

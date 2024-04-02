@@ -36,6 +36,9 @@
   dup2                  // [r, size, r, size, addr, w]
   0x00                  // [0x00, r, size, r, size, addr, w]
   calldatacopy          // [r, size, addr, w]
+
+  dup2                  // [size, r, size, addr, w]
+  add                   // [(size + r), size, addr, w]
   
   swap2                 // [addr, size, r, w]
   0x00                  // [0x00, addr, size, r, w]

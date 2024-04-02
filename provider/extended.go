@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 
 	"github.com/0xsequence/ethkit/ethrpc"
-	"github.com/0xsequence/ethkit/go-ethereum"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 )
 
@@ -58,6 +57,11 @@ func (p *Extended) SupportsOverride() bool {
 	return p.supportsOverride.Load() == 1
 }
 
+type Call struct {
+	To   common.Address `json:"to"`
+	Data string         `json:"data"`
+}
+
 type Override struct {
 	Code      *string                     `json:"code"`
 	StateDiff map[common.Hash]common.Hash `json:"stateDiff"`
@@ -65,7 +69,7 @@ type Override struct {
 
 type OverrideArgs map[common.Address]*Override
 
-func (p *Extended) CallWithOverride(ctx context.Context, call *ethereum.CallMsg, overrides OverrideArgs) ([]byte, error) {
+func (p *Extended) CallWithOverride(ctx context.Context, call *Call, overrides OverrideArgs) ([]byte, error) {
 	if p.supportsOverride.Load() == 2 {
 		return nil, fmt.Errorf("provider does not support overrides")
 	}

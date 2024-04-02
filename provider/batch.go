@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/0xsequence/ethkit/go-ethereum"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 )
 
@@ -48,7 +47,7 @@ func (b *Batched) StorageAtBatch(ctx context.Context, address common.Address, sl
 }
 
 // Source: contracts/src/tools/BatchCaller.huff
-const BatchCallerProgram = "0x60003560205b80361461003f57803590602001803590602001818160003791600091600060006000935af1503d8252906020013d6000823e3d0190610005565b60003580920382f3"
+const BatchCallerProgram = "0x60003560205b803614610041578035906020018035906020018181600037810191600091600060006000935af1503d8252906020013d6000823e3d0190610005565b60003580920382f3"
 const BatchCallerPlaceholder = "0xf67dB61Ea957e88f9702D169D50C2e579766e089"
 
 func BatchCall(ctx context.Context, provider *Extended, calls []*SimpleCall, overrides OverrideArgs) ([][]byte, error) {
@@ -94,9 +93,9 @@ func BatchCall(ctx context.Context, provider *Extended, calls []*SimpleCall, ove
 		Code: &bc,
 	}
 
-	res, err := provider.CallWithOverride(ctx, &ethereum.CallMsg{
-		To:   &bcp,
-		Data: calldata,
+	res, err := provider.CallWithOverride(ctx, &Call{
+		To:   bcp,
+		Data: "0x" + common.Bytes2Hex(calldata),
 	}, overrides)
 	if err != nil {
 		return nil, fmt.Errorf("fetcher: call failed: %w", err)
@@ -109,7 +108,7 @@ func BatchCall(ctx context.Context, provider *Extended, calls []*SimpleCall, ove
 	rindex := 0
 	for i := 0; i < len(calls); i++ {
 		if len(res) < rindex+32 {
-			return nil, fmt.Errorf("fetcher: unexpected response length")
+			return nil, fmt.Errorf("fetcher: unexpected response length (size)")
 		}
 
 		size := binary.BigEndian.Uint64(res[rindex+24 : rindex+32])
@@ -117,7 +116,7 @@ func BatchCall(ctx context.Context, provider *Extended, calls []*SimpleCall, ove
 		results[i] = make([]byte, size)
 
 		if len(res) < rindex+int(size) {
-			return nil, fmt.Errorf("fetcher: unexpected response length")
+			return nil, fmt.Errorf("fetcher: unexpected response length (data)")
 		}
 
 		copy(results[i], res[rindex:rindex+int(size)])
