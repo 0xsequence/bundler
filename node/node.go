@@ -18,6 +18,7 @@ import (
 	"github.com/0xsequence/bundler/ipfs"
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/p2p"
+	"github.com/0xsequence/bundler/provider"
 	"github.com/0xsequence/bundler/registry"
 	"github.com/0xsequence/bundler/rpc"
 	"github.com/0xsequence/bundler/store"
@@ -42,6 +43,7 @@ type Node struct {
 	Collector *collector.Collector
 	Registry  registry.Interface
 	Pruner    *bundler.Pruner
+	Provider  *provider.Batched
 
 	ctx       context.Context
 	ctxStopFn context.CancelFunc
@@ -103,17 +105,21 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 
 	// Provider
-	provider, err := ethrpc.NewProvider(cfg.NetworkConfig.RpcUrl)
+	base, err := ethrpc.NewProvider(cfg.NetworkConfig.RpcUrl)
 	if err != nil {
 		return nil, err
 	}
 	client := utils.NewHttpRpcMetricsClient()
-	provider.SetHTTPClient(&http.Client{
+	base.SetHTTPClient(&http.Client{
 		Transport: client,
 	})
 
+	// Extended provider
+	extended := provider.NewExtended(base, true, true)
+	batched := provider.NewBatched(extended, 10*time.Millisecond)
+
 	// ChainID
-	chainID, err := provider.ChainID(context.Background())
+	chainID, err := batched.ChainID(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +146,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 
 	// Endorser
-	endorser := endorser.NewEndorser(logger, promPrefix, provider, debugger)
+	endorser := endorser.NewEndorser(logger, promPrefix, batched, debugger)
 
 	// Store
 	// TODO: Add custom store path
@@ -161,7 +167,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	ipfs := ipfs.NewClient(promPrefix, cfg.NetworkConfig.IpfsUrl)
 
 	// Collector
-	collector, err := collector.NewCollector(&cfg.CollectorConfig, logger, promPrefix, provider)
+	collector, err := collector.NewCollector(&cfg.CollectorConfig, logger, promPrefix, batched)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +186,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 
 	// Endorser registry
-	registry, err := registry.NewRegistry(&cfg.RegistryConfig, logger, promPrefix, provider)
+	registry, err := registry.NewRegistry(&cfg.RegistryConfig, logger, promPrefix, batched)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +207,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	pruner := bundler.NewPruner(cfg.PrunerConfig, logger, promPrefix, mempool, endorser, registry)
 
 	// RPC
-	rpc, err := rpc.NewRPC(cfg, logger, promPrefix, prom, host, mempool, archive, provider, collector, endorser, ipfs, registry)
+	rpc, err := rpc.NewRPC(cfg, logger, promPrefix, prom, host, mempool, archive, batched.Provider, collector, endorser, ipfs, registry)
 	if err != nil {
 		return nil, err
 	}
@@ -220,6 +226,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		Collector: collector,
 		Registry:  registry,
 		Pruner:    pruner,
+		Provider:  batched,
 	}
 
 	return server, nil
@@ -246,6 +253,12 @@ func (s *Node) Run() error {
 	g.Go(func() error {
 		oplog.Info("-> rpc: run")
 		return s.RPC.Run(ctx)
+	})
+
+	// Provider
+	g.Go(func() error {
+		oplog.Info("-> provider: run")
+		return s.Provider.Run(ctx)
 	})
 
 	// Node

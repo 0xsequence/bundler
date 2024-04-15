@@ -35,7 +35,7 @@ type GlobalDependencyState struct {
 
 type AddrDependencyState struct {
 	Balance *big.Int
-	Code    []byte
+	Code    *int
 	Nonce   *uint64
 	Slots   [][32]byte
 }

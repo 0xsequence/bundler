@@ -1,0 +1,87 @@
+/// @title Batch caller
+/// @notice SPDX-License-Identifier: Apache 2.0
+/// @author Agustin Aguilar <@Agusx1211> - Horizon Blockchain Games Inc.
+
+// Takes max_size:(address(32):size(32):calldata)[] and returns (size:returndata)[]
+// calls are performed using CALL not STATICCALL
+// notice that if calldatasize is not exactly the sum of all sizes
+// the contract will hang
+#define macro MAIN() = takes (0) returns (0) {
+  0x00                  // [0x00]
+  calldataload          // [w]
+  0x20                  // [r, w]
+
+  do_another:           // [r, w]
+  dup1                  // [r, r, w]
+  calldatasize          // [size, r, r, w]
+  eq                    // [(r == size), r, w]
+  end                   // [end, (r == len), r, w]
+  jumpi                 // [r, w]
+
+  dup1                  // [r, r, w]
+  calldataload          // [addr, r, w]
+  swap1                 // [r, addr, w]
+  0x20                  // [0x20, r, addr, w]
+  add                   // [(0x20 + r), addr, w]
+
+  dup1                  // [r, r, addr, w]
+  calldataload          // [data[r], r, addr, w]
+  swap1                 // [r, data[r], addr, w]
+  0x20                  // [0x20, r, size, addr, w]
+  add                   // [(0x20 + r), size, addr, w]
+
+  // Do the call
+  // use the first max_size bytes for scratch space
+  dup2                  // [size, r, size, addr, w]
+  dup2                  // [r, size, r, size, addr, w]
+  0x00                  // [0x00, r, size, r, size, addr, w]
+  calldatacopy          // [r, size, addr, w]
+
+  dup2                  // [size, r, size, addr, w]
+  add                   // [(size + r), size, addr, w]
+  
+  swap2                 // [addr, size, r, w]
+  0x00                  // [0x00, addr, size, r, w]
+  swap2                 // [size, addr, 0x00, r, w]
+  0x00                  // [0x00, size, addr, 0x00, r, w]
+  0x00                  // [0x00, 0x00, size, addr, 0x00, r, w]
+  0x00                  // [0x00, 0x00, 0x00, size, addr, 0x00, r, w]
+  swap4                 // [addr, 0x00, 0x00, size, 0x00, 0x00, r, w]
+  gas                   // [gas, addr, 0x00, 0x00, size, 0x00, 0x00, r, w]
+  
+  call                  // [success, r, w]
+  pop                   // [r, w]
+  
+  // Save the return data
+  returndatasize        // [returnDataSize, r, w]
+  dup3                  // [w, returnDataSize, r, w]
+  mstore                // [r, w]
+  
+  swap1                 // [w, r]
+  0x20                  // [0x20, w, r]
+  add                   // [(0x20 + w), r]
+  
+  returndatasize        // [returnDataSize, (0x20 + w), r]
+  0x00                  // [0x00, returnDataSize, (0x20 + w), r]
+  dup3                  // [(0x20 + w), 0x00, returnDataSize, (0x20 + w), r]
+  returndatacopy        // [(0x20 + w), r]
+  
+  returndatasize        // [returnDataSize, (0x20 + w), r]
+  add                   // [(returnDataSize + (0x20 + w)), r]
+  swap1                 // [r, (returnDataSize + (0x20 + w))]
+
+  do_another            // [do_another, r, (returnDataSize + (0x20 + w))]
+  jump                  // [r, (returnDataSize + (0x20 + w))]
+
+  end:                  // [r, w]
+  
+  // Return everything but the max_size
+  0x00                  // [0x00, r, w]
+  calldataload          // [data[0x00], r, w]
+  dup1                  // [data[0x00], data[0x00], r, w]
+  swap3                 // [w, data[0x00], r, data[0x00]]
+  sub                   // [(w - data[0x00]), r, data[0x00]]
+  
+  dup3                  // [data[0x00], (w - data[0x00]), r, data[0x00]]
+  return                // [r, data[0x00]]
+}

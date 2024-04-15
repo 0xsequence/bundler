@@ -1,7 +1,6 @@
 package endorser
 
 import (
-	"bytes"
 	"fmt"
 
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
@@ -170,7 +169,7 @@ func HasChanged(d *Dependency, x, y *AddrDependencyState) (bool, error) {
 	}
 
 	if d.Code {
-		if !bytes.Equal(x.Code, y.Code) {
+		if x.Code != y.Code {
 			return true, nil
 		}
 	}
