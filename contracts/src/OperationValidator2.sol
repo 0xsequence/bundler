@@ -19,7 +19,7 @@ contract OperationValidator2 {
     }
   }
 
-  function simulateOperation2(Endorser.Operation calldata _op) external returns (SimulationResult2 memory result) {
+  function simulateOperation(Endorser.Operation calldata _op) external returns (SimulationResult2 memory result) {
     
     uint256 preBal = fetchPaymentBal(_op.feeToken);
     uint256 preGas = gasleft();

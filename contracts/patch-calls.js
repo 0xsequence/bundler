@@ -21,6 +21,7 @@ function patchABI(abiDir, funcName) {
 function main() {
   patchABI('out/Endorser.sol/Endorser.json', 'isOperationReady')
   patchABI('out/OperationValidator.sol/OperationValidator.json', 'simulateOperation')
+  patchABI('out/OperationValidator2.sol/OperationValidator2.json', 'simulateOperation')
 }
 
 main()

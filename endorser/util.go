@@ -5,6 +5,7 @@ import (
 
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
+	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator2"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi"
 )
 
@@ -254,8 +255,8 @@ func (r *EndorserResult) Validate(state *EndorserResultState) error {
 	return nil
 }
 
-func ToExecutorInput(r *abiendorser.IEndorserOperation) *abivalidator.IEndorserOperation {
-	return &abivalidator.IEndorserOperation{
+func ToSimulatorInput(r *abiendorser.IEndorserOperation) *abivalidator2.IEndorserOperation {
+	return &abivalidator2.IEndorserOperation{
 		Entrypoint:             r.Entrypoint,
 		Data:                   r.Data,
 		EndorserCallData:       r.EndorserCallData,

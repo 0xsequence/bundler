@@ -52,7 +52,7 @@ type OperationValidator2SimulationResult2 struct {
 
 // OperationValidator2MetaData contains all meta data concerning the OperationValidator2 contract.
 var OperationValidator2MetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"function\",\"name\":\"simulateOperation2\",\"inputs\":[{\"name\":\"_op\",\"type\":\"tuple\",\"internalType\":\"structIEndorser.Operation\",\"components\":[{\"name\":\"entrypoint\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"endorserCallData\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"fixedGas\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"gasLimit\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"maxFeePerGas\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"maxPriorityFeePerGas\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"feeToken\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"feeScalingFactor\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"feeNormalizationFactor\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"hasUntrustedContext\",\"type\":\"bool\",\"internalType\":\"bool\"}]}],\"outputs\":[{\"name\":\"result\",\"type\":\"tuple\",\"internalType\":\"structOperationValidator2.SimulationResult2\",\"components\":[{\"name\":\"payment\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"gasUsed\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]}],\"stateMutability\":\"nonpayable\"}]",
+	ABI: "[{\"type\":\"function\",\"name\":\"simulateOperation\",\"inputs\":[{\"name\":\"_op\",\"type\":\"tuple\",\"internalType\":\"structIEndorser.Operation\",\"components\":[{\"name\":\"entrypoint\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"endorserCallData\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"fixedGas\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"gasLimit\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"maxFeePerGas\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"maxPriorityFeePerGas\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"feeToken\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"feeScalingFactor\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"feeNormalizationFactor\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"hasUntrustedContext\",\"type\":\"bool\",\"internalType\":\"bool\"}]}],\"outputs\":[{\"name\":\"result\",\"type\":\"tuple\",\"internalType\":\"structOperationValidator2.SimulationResult2\",\"components\":[{\"name\":\"payment\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"gasUsed\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]}],\"stateMutability\":\"view\"}]",
 }
 
 // OperationValidator2ABI is the input ABI used to generate the binding from.
@@ -201,23 +201,33 @@ func (_OperationValidator2 *OperationValidator2TransactorRaw) Transact(opts *bin
 	return _OperationValidator2.Contract.contract.Transact(opts, method, params...)
 }
 
-// SimulateOperation2 is a paid mutator transaction binding the contract method 0xaa16e8bf.
+// SimulateOperation is a free data retrieval call binding the contract method 0xf0bf1609.
 //
-// Solidity: function simulateOperation2((address,bytes,bytes,uint256,uint256,uint256,uint256,address,uint256,uint256,bool) _op) returns((uint256,uint256) result)
-func (_OperationValidator2 *OperationValidator2Transactor) SimulateOperation2(opts *bind.TransactOpts, _op IEndorserOperation) (*types.Transaction, error) {
-	return _OperationValidator2.contract.Transact(opts, "simulateOperation2", _op)
+// Solidity: function simulateOperation((address,bytes,bytes,uint256,uint256,uint256,uint256,address,uint256,uint256,bool) _op) view returns((uint256,uint256) result)
+func (_OperationValidator2 *OperationValidator2Caller) SimulateOperation(opts *bind.CallOpts, _op IEndorserOperation) (OperationValidator2SimulationResult2, error) {
+	var out []interface{}
+	err := _OperationValidator2.contract.Call(opts, &out, "simulateOperation", _op)
+
+	if err != nil {
+		return *new(OperationValidator2SimulationResult2), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(OperationValidator2SimulationResult2)).(*OperationValidator2SimulationResult2)
+
+	return out0, err
+
 }
 
-// SimulateOperation2 is a paid mutator transaction binding the contract method 0xaa16e8bf.
+// SimulateOperation is a free data retrieval call binding the contract method 0xf0bf1609.
 //
-// Solidity: function simulateOperation2((address,bytes,bytes,uint256,uint256,uint256,uint256,address,uint256,uint256,bool) _op) returns((uint256,uint256) result)
-func (_OperationValidator2 *OperationValidator2Session) SimulateOperation2(_op IEndorserOperation) (*types.Transaction, error) {
-	return _OperationValidator2.Contract.SimulateOperation2(&_OperationValidator2.TransactOpts, _op)
+// Solidity: function simulateOperation((address,bytes,bytes,uint256,uint256,uint256,uint256,address,uint256,uint256,bool) _op) view returns((uint256,uint256) result)
+func (_OperationValidator2 *OperationValidator2Session) SimulateOperation(_op IEndorserOperation) (OperationValidator2SimulationResult2, error) {
+	return _OperationValidator2.Contract.SimulateOperation(&_OperationValidator2.CallOpts, _op)
 }
 
-// SimulateOperation2 is a paid mutator transaction binding the contract method 0xaa16e8bf.
+// SimulateOperation is a free data retrieval call binding the contract method 0xf0bf1609.
 //
-// Solidity: function simulateOperation2((address,bytes,bytes,uint256,uint256,uint256,uint256,address,uint256,uint256,bool) _op) returns((uint256,uint256) result)
-func (_OperationValidator2 *OperationValidator2TransactorSession) SimulateOperation2(_op IEndorserOperation) (*types.Transaction, error) {
-	return _OperationValidator2.Contract.SimulateOperation2(&_OperationValidator2.TransactOpts, _op)
+// Solidity: function simulateOperation((address,bytes,bytes,uint256,uint256,uint256,uint256,address,uint256,uint256,bool) _op) view returns((uint256,uint256) result)
+func (_OperationValidator2 *OperationValidator2CallerSession) SimulateOperation(_op IEndorserOperation) (OperationValidator2SimulationResult2, error) {
+	return _OperationValidator2.Contract.SimulateOperation(&_OperationValidator2.CallOpts, _op)
 }

@@ -13,7 +13,7 @@ all:
 	mkdir -p gen/solabis/abiregistry
 	node patch-calls.js
 	jq .abi < out/OperationValidator.sol/OperationValidator.json | abigen -abi - --pkg abivalidator --type OperationValidator --out gen/solabis/abivalidator/abivalidator.go
-	jq .abi < out/OperationValidator2.sol/OperationValidator2.json | abigen -abi - --pkg abivalidator2 --type OperationValidator2 --out gen/solabis/abivalidator/abivalidator2.go
+	jq .abi < out/OperationValidator2.sol/OperationValidator2.json | abigen -abi - --pkg abivalidator2 --type OperationValidator2 --out gen/solabis/abivalidator2/abivalidator2.go
 	jq .abi < out/Endorser.sol/Endorser.json | abigen -abi - --pkg abiendorser --type Endorser --out gen/solabis/abiendorser/abiendorser.go
 	jq .abi < out/MockEndorser.sol/MockEndorser.json | abigen -abi - --pkg abimockendorser --type MockEndorser --out gen/solabis/abimockendorser/abimockendorser.go
 	jq .abi < out/MockWallet.sol/MockWallet.json | abigen -abi - --pkg abimockwallet --type MockWallet --out gen/solabis/abimockwallet/abimockwallet.go
