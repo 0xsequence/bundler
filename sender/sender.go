@@ -61,6 +61,19 @@ func NewSender(
 		logger.Warn("sender: sleep wait not set, using default", "sleepWait", sleepWait)
 	}
 
+	// Get the minimum balance
+	minBalance := big.NewInt(0)
+	minBalance, ok := minBalance.SetString(cfg.MinBalance, 10)
+	if !ok {
+		logger.Warn("sender: invalid min balance", "minBalance", cfg.MinBalance)
+	}
+
+	// If minBalance is zero, set it to 0.01 ETH
+	if minBalance == nil {
+		minBalance = big.NewInt(10000000000000000)
+		logger.Warn("sender: min balance not set, using default", "minBalance", minBalance)
+	}
+
 	// Create workers
 	workers := make([]*worker.Worker, 0, cfg.NumSenders)
 	for i := 0; i < int(cfg.NumSenders); i++ {
@@ -70,7 +83,7 @@ func NewSender(
 			continue
 		}
 
-		worker := worker.NewWorker(provider, collector, endorser, validator, wallet, big.NewInt(int64(cfg.PriorityFee)))
+		worker := worker.NewWorker(provider, collector, endorser, validator, wallet, big.NewInt(int64(cfg.PriorityFee)), minBalance)
 		worker.SetLogger(logger.With("worker", i, "addr", wallet.Address().String()))
 		workers = append(workers, worker)
 	}

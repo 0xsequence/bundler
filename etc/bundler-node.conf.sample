@@ -39,6 +39,7 @@ rpc_port = 3000
   num_senders = 0
   random_wait = 1000
   sleep_wait  = 1000
+  min_balance = 10000000000000000 # 0.01 Ether
 
 [network]
   ipfs_url = "http://localhost:5001"

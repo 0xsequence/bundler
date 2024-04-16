@@ -56,6 +56,7 @@ type Worker struct {
 	randomWait  int
 	priorityFee *big.Int
 	wallet      interfaces.Wallet
+	minBalance  *big.Int
 
 	ready   chan *OperationReady
 	chill   chan string
@@ -63,6 +64,7 @@ type Worker struct {
 	discard chan string
 	release chan *ReleaseOp
 	ban     chan *BanEndorser
+	pause   chan bool
 
 	Provider  interfaces.Provider
 	Collector collector.Interface
@@ -77,6 +79,7 @@ func NewWorker(
 	Validator interfaces.Validator,
 	Wallet interfaces.Wallet,
 	PriorityFee *big.Int,
+	MinBalance *big.Int,
 ) *Worker {
 	return &Worker{
 		running: atomic.Uint32{},
@@ -86,6 +89,7 @@ func NewWorker(
 
 		priorityFee: PriorityFee,
 		wallet:      Wallet,
+		minBalance:  MinBalance,
 
 		ready: make(chan *OperationReady),
 		chill: make(chan string),
@@ -94,6 +98,7 @@ func NewWorker(
 		discard: make(chan string),
 		release: make(chan *ReleaseOp),
 		ban:     make(chan *BanEndorser),
+		pause:   make(chan bool),
 
 		Provider:  Provider,
 		Collector: Collector,
@@ -122,6 +127,14 @@ func (w *Worker) Ban() <-chan *BanEndorser {
 	return w.ban
 }
 
+func (w *Worker) Pause() {
+	w.pause <- true
+}
+
+func (w *Worker) Resume() {
+	w.pause <- false
+}
+
 func (w *Worker) SetRandomWait(wait int) {
 	w.randomWait = wait
 }
@@ -144,6 +157,13 @@ func (w *Worker) Run(ctx context.Context, input <-chan *mempool.TrackedOperation
 	wg := &sync.WaitGroup{}
 	defer wg.Wait()
 
+	// Start the monitor
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		w.monitorWorker(ctx)
+	}()
+
 	// Start the preparer
 	wg.Add(1)
 	go func() {
@@ -163,13 +183,49 @@ func (w *Worker) Run(ctx context.Context, input <-chan *mempool.TrackedOperation
 	return nil
 }
 
+func (w *Worker) monitorWorker(ctx context.Context) {
+	// Get the current balance of the wallet
+	// if the balance is below the minimum, we pause
+	// the worker until the balance is restored
+	latch := false
+	for ctx.Err() == nil {
+		balance, err := w.Provider.BalanceAt(ctx, w.wallet.Address(), nil)
+		if err != nil {
+			w.logger.Warn("worker: error fetching balance", "error", err)
+			continue
+		}
+
+		if balance.Cmp(w.minBalance) < 0 {
+			if latch {
+				w.logger.Warn("worker: balance below minimum, pausing worker", "balance", balance.String(), "minBalance", w.minBalance.String())
+				w.Pause()
+				latch = false
+			}
+		} else {
+			if !latch {
+				w.logger.Info("worker: balance restored, resuming worker", "balance", balance.String(), "minBalance", w.minBalance.String())
+				w.Resume()
+				latch = true
+			}
+		}
+
+		time.Sleep(10 * time.Second)
+	}
+}
+
 func (w *Worker) prepareWorker(ctx context.Context, input <-chan *mempool.TrackedOperation) {
+	var currentInput <-chan *mempool.TrackedOperation
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case op := <-input:
-			// Prepare operation
+		case p := <-w.pause:
+			if p {
+				currentInput = nil
+			} else {
+				currentInput = input
+			}
+		case op := <-currentInput:
 			if op != nil {
 				w.doPrepare(ctx, op)
 			}
