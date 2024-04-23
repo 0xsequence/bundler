@@ -65,6 +65,7 @@ type Worker struct {
 	release chan *ReleaseOp
 	ban     chan *BanEndorser
 	pause   chan bool
+	sus     chan *mempool.TrackedOperation
 
 	Provider  interfaces.Provider
 	Collector collector.Interface
@@ -76,10 +77,10 @@ func NewWorker(
 	Provider interfaces.Provider,
 	Collector collector.Interface,
 	Endorser endorser.Interface,
+	Simulator interfaces.Validator2,
 	Wallet interfaces.Wallet,
 	PriorityFee *big.Int,
 	MinBalance *big.Int,
-	Simulator interfaces.Validator2,
 ) *Worker {
 	return &Worker{
 		running: atomic.Uint32{},
@@ -99,6 +100,8 @@ func NewWorker(
 		release: make(chan *ReleaseOp),
 		ban:     make(chan *BanEndorser),
 		pause:   make(chan bool),
+
+		sus: make(chan *mempool.TrackedOperation, 128),
 
 		Provider:  Provider,
 		Collector: Collector,
@@ -181,6 +184,10 @@ func (w *Worker) Run(ctx context.Context, input <-chan *mempool.TrackedOperation
 	w.logger.Info("worker: running", "wallet", w.wallet.Address().String())
 
 	return nil
+}
+
+func (w *Worker) validateSusOperation(ctx context.Context) {
+
 }
 
 func (w *Worker) monitorWorker(ctx context.Context) {
@@ -288,6 +295,13 @@ func (w *Worker) doPrepare(ctx context.Context, op *mempool.TrackedOperation) {
 		*endorser.ToSimulatorInput(&op.IEndorserOperation),
 	)
 
+	if err != nil {
+		w.metrics.failedSendOps.With(w.metrics.failedSimulateOperation).Inc()
+		w.logger.Warn("sender: error simulating operation", "op", opDigest, "error", err)
+		w.release <- &ReleaseOp{Oph: opDigest, Change: proto.ReadyAtChange_None}
+		return
+	}
+
 	// This is what it will cost to use to execute this operation
 	// the cost is computed as (staticGas + result.gasUsed) * gasPrice
 	// the gasPrice is the current baseFee + our priorityFee of choice
@@ -300,12 +314,12 @@ func (w *Worker) doPrepare(ctx context.Context, op *mempool.TrackedOperation) {
 	_, priceSnap := w.Collector.NativeFeesPerGas(&op.Operation)
 	paymentNative := priceSnap.ToNative(result.Payment)
 
-	// If the cost is below the payment, there is a chance that the endorser lied to us
-	// but it could also be that our priorityFee is too high for the operation
-	if cost.Cmp(paymentNative) < 0 {
+	// If the payment is below the cost, there is a chance the endorser lied
+	// but it could also be that our priority fee (Or token price) is just different
+	if cost.Cmp(paymentNative) > 0 {
 		// TODO: Schedule for inspection
 		// as a lying endorser should be banned
-		w.logger.Warn("sender: operation cost below payment", "op", opDigest, "cost", cost.String(), "payment", paymentNative.String())
+		w.logger.Warn("sender: operation payment below cost", "op", opDigest, "cost", cost.String(), "payment", paymentNative.String())
 
 		// TODO: Register on METRICS too
 		return
@@ -470,7 +484,7 @@ func (w *Worker) inspectReceipt(
 
 		w.metrics.underpaidAmount.Observe(balanceDiffFloat)
 		w.logger.Warn(
-			"inspector: operation not paid enough",
+			"inspector: operation did not paid enough",
 			"op", op.Hash(),
 			"tx", receipt.TxHash.String(),
 			"amount", balanceDiff.String(),
@@ -498,7 +512,7 @@ func (w *Worker) inspectReceipt(
 
 		w.metrics.underpaidAmount.Observe(nativeDiffFloat)
 		w.logger.Warn(
-			"inspector: operation not paid enough",
+			"inspector: operation did not paid enough",
 			"op", op.Hash(),
 			"tx", receipt.TxHash.String(),
 			"token", op.FeeToken,
