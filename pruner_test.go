@@ -61,6 +61,10 @@ func TestPullAndDiscardStateErr(t *testing.T) {
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return(
 		[]*mempool.TrackedOperation{op1},
+	).Once()
+
+	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return(
+		[]*mempool.TrackedOperation{},
 	).Maybe()
 
 	mockMempool.On("DiscardOps", mock.Anything, mock.Anything).Run(func(mock.Arguments) {
@@ -105,6 +109,10 @@ func TestPullAndDiscardHasChangedErr(t *testing.T) {
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return(
 		[]*mempool.TrackedOperation{op1},
+	).Once()
+
+	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return(
+		[]*mempool.TrackedOperation{},
 	).Maybe()
 
 	mockMempool.On("DiscardOps", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
@@ -152,6 +160,10 @@ func TestPullAndReleaseNotChanged(t *testing.T) {
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return(
 		[]*mempool.TrackedOperation{op1},
+	).Once()
+
+	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return(
+		[]*mempool.TrackedOperation{},
 	).Maybe()
 
 	mockMempool.On(
@@ -225,6 +237,10 @@ func TestDiscardNotReady(t *testing.T) {
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return(
 		[]*mempool.TrackedOperation{op1},
+	).Once()
+
+	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return(
+		[]*mempool.TrackedOperation{},
 	).Maybe()
 
 	mockEndorser.On("DependencyState", mock.Anything, op1.EndorserResult).Return(
@@ -300,6 +316,10 @@ func TestKeepReady(t *testing.T) {
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return(
 		[]*mempool.TrackedOperation{op1},
+	).Once()
+
+	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return(
+		[]*mempool.TrackedOperation{},
 	).Maybe()
 
 	mockEndorser.On("DependencyState", mock.Anything, op1.EndorserResult).Return(
@@ -387,6 +407,10 @@ func TestRevalidateIfWildcardOnly(t *testing.T) {
 
 	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return(
 		[]*mempool.TrackedOperation{op1},
+	).Once()
+
+	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return(
+		[]*mempool.TrackedOperation{},
 	).Maybe()
 
 	mockMempool.On(
