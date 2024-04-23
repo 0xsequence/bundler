@@ -29,40 +29,6 @@ var (
 	_ = abi.ConvertType
 )
 
-// IEndorserConstraint is an auto generated low-level Go binding around an user-defined struct.
-type IEndorserConstraint struct {
-	Slot     [32]byte
-	MinValue [32]byte
-	MaxValue [32]byte
-}
-
-// IEndorserDependency is an auto generated low-level Go binding around an user-defined struct.
-type IEndorserDependency struct {
-	Addr        common.Address
-	Balance     bool
-	Code        bool
-	Nonce       bool
-	AllSlots    bool
-	Slots       [][32]byte
-	Constraints []IEndorserConstraint
-}
-
-// IEndorserGlobalDependency is an auto generated low-level Go binding around an user-defined struct.
-type IEndorserGlobalDependency struct {
-	BaseFee           bool
-	BlobBaseFee       bool
-	ChainId           bool
-	CoinBase          bool
-	Difficulty        bool
-	GasLimit          bool
-	Number            bool
-	Timestamp         bool
-	TxOrigin          bool
-	TxGasPrice        bool
-	MaxBlockNumber    *big.Int
-	MaxBlockTimestamp *big.Int
-}
-
 // IEndorserOperation is an auto generated low-level Go binding around an user-defined struct.
 type IEndorserOperation struct {
 	Entrypoint             common.Address
@@ -80,16 +46,13 @@ type IEndorserOperation struct {
 
 // OperationValidatorSimulationResult is an auto generated low-level Go binding around an user-defined struct.
 type OperationValidatorSimulationResult struct {
-	Paid             bool
-	Readiness        bool
-	GlobalDependency IEndorserGlobalDependency
-	Dependencies     []IEndorserDependency
-	Err              []byte
+	Payment *big.Int
+	GasUsed *big.Int
 }
 
 // OperationValidatorMetaData contains all meta data concerning the OperationValidator contract.
 var OperationValidatorMetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"function\",\"name\":\"_executeAndMeasureNoSideEffects\",\"inputs\":[{\"name\":\"_op\",\"type\":\"tuple\",\"internalType\":\"structIEndorser.Operation\",\"components\":[{\"name\":\"entrypoint\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"endorserCallData\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"fixedGas\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"gasLimit\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"maxFeePerGas\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"maxPriorityFeePerGas\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"feeToken\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"feeScalingFactor\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"feeNormalizationFactor\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"hasUntrustedContext\",\"type\":\"bool\",\"internalType\":\"bool\"}]}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"simulateOperation\",\"inputs\":[{\"name\":\"_endorser\",\"type\":\"address\",\"internalType\":\"contractEndorser\"},{\"name\":\"_op\",\"type\":\"tuple\",\"internalType\":\"structIEndorser.Operation\",\"components\":[{\"name\":\"entrypoint\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"endorserCallData\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"fixedGas\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"gasLimit\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"maxFeePerGas\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"maxPriorityFeePerGas\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"feeToken\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"feeScalingFactor\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"feeNormalizationFactor\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"hasUntrustedContext\",\"type\":\"bool\",\"internalType\":\"bool\"}]}],\"outputs\":[{\"name\":\"result\",\"type\":\"tuple\",\"internalType\":\"structOperationValidator.SimulationResult\",\"components\":[{\"name\":\"paid\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"readiness\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"globalDependency\",\"type\":\"tuple\",\"internalType\":\"structIEndorser.GlobalDependency\",\"components\":[{\"name\":\"baseFee\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"blobBaseFee\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"chainId\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"coinBase\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"difficulty\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"gasLimit\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"number\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"timestamp\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"txOrigin\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"txGasPrice\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"maxBlockNumber\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"maxBlockTimestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"name\":\"dependencies\",\"type\":\"tuple[]\",\"internalType\":\"structIEndorser.Dependency[]\",\"components\":[{\"name\":\"addr\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"balance\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"code\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"nonce\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"allSlots\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"slots\",\"type\":\"bytes32[]\",\"internalType\":\"bytes32[]\"},{\"name\":\"constraints\",\"type\":\"tuple[]\",\"internalType\":\"structIEndorser.Constraint[]\",\"components\":[{\"name\":\"slot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"minValue\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"maxValue\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]}]},{\"name\":\"err\",\"type\":\"bytes\",\"internalType\":\"bytes\"}]}],\"stateMutability\":\"view\"},{\"type\":\"error\",\"name\":\"BundlerExecutionFailed\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"BundlerUnderpaid\",\"inputs\":[{\"name\":\"_succeed\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"_paid\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_expected\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]}]",
+	ABI: "[{\"type\":\"function\",\"name\":\"simulateOperation\",\"inputs\":[{\"name\":\"_op\",\"type\":\"tuple\",\"internalType\":\"structIEndorser.Operation\",\"components\":[{\"name\":\"entrypoint\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"endorserCallData\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"fixedGas\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"gasLimit\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"maxFeePerGas\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"maxPriorityFeePerGas\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"feeToken\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"feeScalingFactor\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"feeNormalizationFactor\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"hasUntrustedContext\",\"type\":\"bool\",\"internalType\":\"bool\"}]}],\"outputs\":[{\"name\":\"result\",\"type\":\"tuple\",\"internalType\":\"structOperationValidator.SimulationResult\",\"components\":[{\"name\":\"payment\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"gasUsed\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]}],\"stateMutability\":\"view\"}]",
 }
 
 // OperationValidatorABI is the input ABI used to generate the binding from.
@@ -238,12 +201,12 @@ func (_OperationValidator *OperationValidatorTransactorRaw) Transact(opts *bind.
 	return _OperationValidator.Contract.contract.Transact(opts, method, params...)
 }
 
-// SimulateOperation is a free data retrieval call binding the contract method 0x7b9fe62f.
+// SimulateOperation is a free data retrieval call binding the contract method 0xf0bf1609.
 //
-// Solidity: function simulateOperation(address _endorser, (address,bytes,bytes,uint256,uint256,uint256,uint256,address,uint256,uint256,bool) _op) view returns((bool,bool,(bool,bool,bool,bool,bool,bool,bool,bool,bool,bool,uint256,uint256),(address,bool,bool,bool,bool,bytes32[],(bytes32,bytes32,bytes32)[])[],bytes) result)
-func (_OperationValidator *OperationValidatorCaller) SimulateOperation(opts *bind.CallOpts, _endorser common.Address, _op IEndorserOperation) (OperationValidatorSimulationResult, error) {
+// Solidity: function simulateOperation((address,bytes,bytes,uint256,uint256,uint256,uint256,address,uint256,uint256,bool) _op) view returns((uint256,uint256) result)
+func (_OperationValidator *OperationValidatorCaller) SimulateOperation(opts *bind.CallOpts, _op IEndorserOperation) (OperationValidatorSimulationResult, error) {
 	var out []interface{}
-	err := _OperationValidator.contract.Call(opts, &out, "simulateOperation", _endorser, _op)
+	err := _OperationValidator.contract.Call(opts, &out, "simulateOperation", _op)
 
 	if err != nil {
 		return *new(OperationValidatorSimulationResult), err
@@ -255,37 +218,16 @@ func (_OperationValidator *OperationValidatorCaller) SimulateOperation(opts *bin
 
 }
 
-// SimulateOperation is a free data retrieval call binding the contract method 0x7b9fe62f.
+// SimulateOperation is a free data retrieval call binding the contract method 0xf0bf1609.
 //
-// Solidity: function simulateOperation(address _endorser, (address,bytes,bytes,uint256,uint256,uint256,uint256,address,uint256,uint256,bool) _op) view returns((bool,bool,(bool,bool,bool,bool,bool,bool,bool,bool,bool,bool,uint256,uint256),(address,bool,bool,bool,bool,bytes32[],(bytes32,bytes32,bytes32)[])[],bytes) result)
-func (_OperationValidator *OperationValidatorSession) SimulateOperation(_endorser common.Address, _op IEndorserOperation) (OperationValidatorSimulationResult, error) {
-	return _OperationValidator.Contract.SimulateOperation(&_OperationValidator.CallOpts, _endorser, _op)
+// Solidity: function simulateOperation((address,bytes,bytes,uint256,uint256,uint256,uint256,address,uint256,uint256,bool) _op) view returns((uint256,uint256) result)
+func (_OperationValidator *OperationValidatorSession) SimulateOperation(_op IEndorserOperation) (OperationValidatorSimulationResult, error) {
+	return _OperationValidator.Contract.SimulateOperation(&_OperationValidator.CallOpts, _op)
 }
 
-// SimulateOperation is a free data retrieval call binding the contract method 0x7b9fe62f.
+// SimulateOperation is a free data retrieval call binding the contract method 0xf0bf1609.
 //
-// Solidity: function simulateOperation(address _endorser, (address,bytes,bytes,uint256,uint256,uint256,uint256,address,uint256,uint256,bool) _op) view returns((bool,bool,(bool,bool,bool,bool,bool,bool,bool,bool,bool,bool,uint256,uint256),(address,bool,bool,bool,bool,bytes32[],(bytes32,bytes32,bytes32)[])[],bytes) result)
-func (_OperationValidator *OperationValidatorCallerSession) SimulateOperation(_endorser common.Address, _op IEndorserOperation) (OperationValidatorSimulationResult, error) {
-	return _OperationValidator.Contract.SimulateOperation(&_OperationValidator.CallOpts, _endorser, _op)
-}
-
-// ExecuteAndMeasureNoSideEffects is a paid mutator transaction binding the contract method 0x57de03ee.
-//
-// Solidity: function _executeAndMeasureNoSideEffects((address,bytes,bytes,uint256,uint256,uint256,uint256,address,uint256,uint256,bool) _op) returns(bool)
-func (_OperationValidator *OperationValidatorTransactor) ExecuteAndMeasureNoSideEffects(opts *bind.TransactOpts, _op IEndorserOperation) (*types.Transaction, error) {
-	return _OperationValidator.contract.Transact(opts, "_executeAndMeasureNoSideEffects", _op)
-}
-
-// ExecuteAndMeasureNoSideEffects is a paid mutator transaction binding the contract method 0x57de03ee.
-//
-// Solidity: function _executeAndMeasureNoSideEffects((address,bytes,bytes,uint256,uint256,uint256,uint256,address,uint256,uint256,bool) _op) returns(bool)
-func (_OperationValidator *OperationValidatorSession) ExecuteAndMeasureNoSideEffects(_op IEndorserOperation) (*types.Transaction, error) {
-	return _OperationValidator.Contract.ExecuteAndMeasureNoSideEffects(&_OperationValidator.TransactOpts, _op)
-}
-
-// ExecuteAndMeasureNoSideEffects is a paid mutator transaction binding the contract method 0x57de03ee.
-//
-// Solidity: function _executeAndMeasureNoSideEffects((address,bytes,bytes,uint256,uint256,uint256,uint256,address,uint256,uint256,bool) _op) returns(bool)
-func (_OperationValidator *OperationValidatorTransactorSession) ExecuteAndMeasureNoSideEffects(_op IEndorserOperation) (*types.Transaction, error) {
-	return _OperationValidator.Contract.ExecuteAndMeasureNoSideEffects(&_OperationValidator.TransactOpts, _op)
+// Solidity: function simulateOperation((address,bytes,bytes,uint256,uint256,uint256,uint256,address,uint256,uint256,bool) _op) view returns((uint256,uint256) result)
+func (_OperationValidator *OperationValidatorCallerSession) SimulateOperation(_op IEndorserOperation) (OperationValidatorSimulationResult, error) {
+	return _OperationValidator.Contract.SimulateOperation(&_OperationValidator.CallOpts, _op)
 }

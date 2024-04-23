@@ -12,7 +12,7 @@ import (
 	"github.com/0xsequence/bundler/admin"
 	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
-	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator2"
+	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/ipfs"
 	"github.com/0xsequence/bundler/mempool"
@@ -101,7 +101,7 @@ func NewRPC(
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	simulator, err := abivalidator2.NewOperationValidator2(validatorContract, provider)
+	simulator, err := abivalidator.NewOperationValidator(validatorContract, provider)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to simulator contract")
 	}

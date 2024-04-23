@@ -4,7 +4,6 @@ import (
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
 	"github.com/0xsequence/bundler/interfaces"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi/bind"
-	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -14,13 +13,11 @@ type MockValidator struct {
 
 func (m *MockValidator) SimulateOperation(
 	opts *bind.CallOpts,
-	_endorser common.Address,
-	_operation abivalidator.IEndorserOperation,
+	_op abivalidator.IEndorserOperation,
 ) (abivalidator.OperationValidatorSimulationResult, error) {
 	args := m.Called(
 		opts,
-		_endorser,
-		_operation,
+		_op,
 	)
 	err := args.Error(1)
 	if err != nil {

@@ -41,7 +41,7 @@ func NewSender(
 	provider interfaces.Provider,
 	mempool mempool.Interface,
 	endorser endorser.Interface,
-	simulator interfaces.Validator2,
+	simulator interfaces.Validator,
 	collector collector.Interface,
 	registry registry.Interface,
 ) *Sender {

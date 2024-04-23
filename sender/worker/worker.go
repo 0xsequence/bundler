@@ -13,7 +13,6 @@ import (
 
 	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abierc20"
-	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/interfaces"
 	"github.com/0xsequence/bundler/mempool"
@@ -70,14 +69,14 @@ type Worker struct {
 	Provider  interfaces.Provider
 	Collector collector.Interface
 	Endorser  endorser.Interface
-	Simulator interfaces.Validator2
+	Simulator interfaces.Validator
 }
 
 func NewWorker(
 	Provider interfaces.Provider,
 	Collector collector.Interface,
 	Endorser endorser.Interface,
-	Simulator interfaces.Validator2,
+	Simulator interfaces.Validator,
 	Wallet interfaces.Wallet,
 	PriorityFee *big.Int,
 	MinBalance *big.Int,
@@ -174,6 +173,13 @@ func (w *Worker) Run(ctx context.Context, input <-chan *mempool.TrackedOperation
 		w.prepareWorker(ctx, input)
 	}()
 
+	// Start the sus inspector
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		w.validateSusOperation(ctx)
+	}()
+
 	// Start the sender
 	wg.Add(1)
 	go func() {
@@ -187,7 +193,19 @@ func (w *Worker) Run(ctx context.Context, input <-chan *mempool.TrackedOperation
 }
 
 func (w *Worker) validateSusOperation(ctx context.Context) {
-
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case op := <-w.sus:
+			if op != nil {
+				// TODO: Do a proper inspection of the operations
+				// it may be possible that the endorser lied to us
+				// and the operation never intended to pay us.
+				w.discard <- op.Hash()
+			}
+		}
+	}
 }
 
 func (w *Worker) monitorWorker(ctx context.Context) {
@@ -216,8 +234,15 @@ func (w *Worker) monitorWorker(ctx context.Context) {
 			}
 		}
 
-		time.Sleep(10 * time.Second)
+		// Wait 10 seconds
+		// or until the context is done
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(10 * time.Second):
+		}
 	}
+
 }
 
 func (w *Worker) prepareWorker(ctx context.Context, input <-chan *mempool.TrackedOperation) {
@@ -317,11 +342,19 @@ func (w *Worker) doPrepare(ctx context.Context, op *mempool.TrackedOperation) {
 	// If the payment is below the cost, there is a chance the endorser lied
 	// but it could also be that our priority fee (Or token price) is just different
 	if cost.Cmp(paymentNative) > 0 {
-		// TODO: Schedule for inspection
-		// as a lying endorser should be banned
+		// Schedule for inspection
 		w.logger.Warn("sender: operation payment below cost", "op", opDigest, "cost", cost.String(), "payment", paymentNative.String())
 
-		// TODO: Register on METRICS too
+		// Attempt to put the operation into the `sus` channel
+		// if full, then release the operation
+		// we never want to block the prepare channel
+		select {
+		case w.sus <- op:
+		default:
+			w.release <- &ReleaseOp{Oph: opDigest, Change: proto.ReadyAtChange_None}
+		}
+
+		// TODO: Register on METRICS
 		return
 	}
 
@@ -587,32 +620,4 @@ func (w *Worker) isOperationReady(
 	}
 
 	return ok, nil
-}
-
-type SimulateResult struct {
-	Paid bool
-	Lied bool
-	Meta *SimulateResultMeta
-}
-
-type SimulateResultMeta struct {
-	InnerOk       bool
-	InnerPaid     big.Int
-	InnerExpected big.Int
-}
-
-func parseMeta(res *abivalidator.OperationValidatorSimulationResult) (*SimulateResultMeta, error) {
-	if len(res.Err) != 32*3+4 {
-		return nil, fmt.Errorf("invalid error length, expected 32*3, got %v", len(res.Err))
-	}
-
-	ok := new(big.Int).SetBytes(res.Err[4:32+4]).Cmp(big.NewInt(1)) == 0
-	paid := new(big.Int).SetBytes(res.Err[32+4 : 64+4])
-	expected := new(big.Int).SetBytes(res.Err[64+4 : 96+4])
-
-	return &SimulateResultMeta{
-		InnerOk:       ok,
-		InnerPaid:     *paid,
-		InnerExpected: *expected,
-	}, nil
 }
