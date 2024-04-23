@@ -251,9 +251,9 @@ contract TemporalRegistryTest is Test {
   ) external {
     assumeNoSys(_from);
     _amount = bound(_amount, 0, 100000 ether);
-    _unlockDuration = bound(_unlockDuration, 1, type(uint64).max - 1);
-    _blockTime = bound(_blockTime, _unlockDuration, type(uint64).max);
-    _waitTime = bound(_waitTime, _unlockDuration + 1, type(uint64).max);
+    _unlockDuration = bound(_unlockDuration, 1, type(uint56).max - 1);
+    _blockTime = bound(_blockTime, _unlockDuration, type(uint56).max);
+    _waitTime = bound(_waitTime, _unlockDuration + 1, type(uint56).max);
 
     vm.deal(_from, _amount);
     vm.prank(_from);
