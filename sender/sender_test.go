@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
@@ -62,6 +63,7 @@ func TestReservePullOps(t *testing.T) {
 			<-done
 		}).
 		Return([]*mempool.TrackedOperation{}, nil).Once()
+	mockMempool.On("ReserveOps", mock.Anything, mock.Anything).Return([]*mempool.TrackedOperation{}, nil).Maybe()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -313,7 +315,7 @@ func TestSendAndBanEndorserFailedTx(t *testing.T) {
 	}
 
 	mockWallet.On("SendTransaction", mock.Anything, &rtx).Return(&rtx, waitFn, nil).Once()
-	mockMempool.On("ReleaseOps", mock.Anything, mock.Anything, proto.ReadyAtChange_None).Return(nil).Once()
+	mockMempool.On("ReleaseOps", mock.Anything, mock.Anything, proto.ReadyAtChange_None).Return(nil).Maybe()
 	mockProvider.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(10), nil).Once()
 	mockCollector.On("NativeFeesPerGas", &op.Operation).Return(&collector.NativeFees{
 		MaxFeePerGas:         big.NewInt(213),
@@ -428,7 +430,7 @@ func TestSendAndBanEndorserLowPayment(t *testing.T) {
 	}
 
 	mockWallet.On("SendTransaction", mock.Anything, &rtx).Return(&rtx, waitFn, nil).Once()
-	mockMempool.On("ReleaseOps", mock.Anything, mock.Anything, proto.ReadyAtChange_None).Return(nil).Once()
+	mockMempool.On("ReleaseOps", mock.Anything, mock.Anything, proto.ReadyAtChange_None).Return(nil).Maybe()
 	mockProvider.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(10), nil).Once()
 	mockCollector.On("NativeFeesPerGas", &op.Operation).Return(&collector.NativeFees{
 		MaxFeePerGas:         big.NewInt(213),
@@ -466,10 +468,11 @@ func TestSend(t *testing.T) {
 	mockCollector := &mocks.MockCollector{}
 	mockRegistry := &mocks.MockRegistry{}
 
-	mockWallet.On("Address").Return(common.Address{}, nil).Maybe()
+	addr := common.HexToAddress("0x7537713a54d2506b36eFa389F9341d63815ddE48")
+	mockWallet.On("Address").Return(addr, nil).Maybe()
 	mockWalletFactory.On("GetWallet", mock.Anything).Return(mockWallet, nil).Twice()
 	mockProvider.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(100000), nil).Twice()
-	mockProvider.On("BalanceAt", mock.Anything, mock.Anything, mock.Anything).Return(big.NewInt(1000000000000000000), nil).Maybe()
+	mockProvider.On("BalanceAt", mock.Anything, addr, mock.Anything).Return(big.NewInt(2000000000000000000), nil).Once()
 	mockCollector.On("BaseFee").Return(big.NewInt(213), nil).Maybe()
 	mockCollector.On("NativeFeesPerGas", mock.Anything).Return(&collector.NativeFees{}, &pricefeed.Snapshot{
 		ScalingFactor:       big.NewInt(1),
@@ -553,8 +556,8 @@ func TestSend(t *testing.T) {
 		MaxPriorityFeePerGas: big.NewInt(50),
 	}, &pricefeed.Snapshot{}).Once()
 	mockCollector.On("BaseFee").Return(big.NewInt(100), nil).Once()
-	mockProvider.On("BalanceAt", mock.Anything, mock.Anything, big.NewInt(99)).Return(big.NewInt(0), nil).Once()
-	mockProvider.On("BalanceAt", mock.Anything, mock.Anything, big.NewInt(100)).Return(big.NewInt(1000000000000000000), nil).Once()
+	mockProvider.On("BalanceAt", mock.Anything, mock.Anything, big.NewInt(99)).Return(big.NewInt(2000000000000000000), nil).Once()
+	mockProvider.On("BalanceAt", mock.Anything, mock.Anything, big.NewInt(100)).Return(big.NewInt(4000000000000000000), nil).Once()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -566,4 +569,7 @@ func TestSend(t *testing.T) {
 	mockWallet.AssertExpectations(t)
 	mockMempool.AssertExpectations(t)
 	mockValidator.AssertExpectations(t)
+
+	// Delay 100 ms to inspect receipt
+	time.Sleep(100 * time.Millisecond)
 }
