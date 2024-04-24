@@ -254,7 +254,7 @@ func (r *EndorserResult) Validate(state *EndorserResultState) error {
 	return nil
 }
 
-func ToExecutorInput(r *abiendorser.IEndorserOperation) *abivalidator.IEndorserOperation {
+func ToSimulatorInput(r *abiendorser.IEndorserOperation) *abivalidator.IEndorserOperation {
 	return &abivalidator.IEndorserOperation{
 		Entrypoint:             r.Entrypoint,
 		Data:                   r.Data,
@@ -270,47 +270,47 @@ func ToExecutorInput(r *abiendorser.IEndorserOperation) *abivalidator.IEndorserO
 	}
 }
 
-func FromExecutorResult(r *abivalidator.OperationValidatorSimulationResult) *EndorserResult {
-	globalDependency := abiendorser.IEndorserGlobalDependency{
-		BaseFee:           r.GlobalDependency.BaseFee,
-		BlobBaseFee:       r.GlobalDependency.BlobBaseFee,
-		ChainId:           r.GlobalDependency.ChainId,
-		CoinBase:          r.GlobalDependency.CoinBase,
-		Difficulty:        r.GlobalDependency.Difficulty,
-		GasLimit:          r.GlobalDependency.GasLimit,
-		Number:            r.GlobalDependency.Number,
-		Timestamp:         r.GlobalDependency.Timestamp,
-		TxOrigin:          r.GlobalDependency.TxOrigin,
-		TxGasPrice:        r.GlobalDependency.TxGasPrice,
-		MaxBlockNumber:    r.GlobalDependency.MaxBlockNumber,
-		MaxBlockTimestamp: r.GlobalDependency.MaxBlockTimestamp,
-	}
+// func FromExecutorResult(r *abivalidator.OperationValidatorSimulationResult) *EndorserResult {
+// 	globalDependency := abiendorser.IEndorserGlobalDependency{
+// 		BaseFee:           r.GlobalDependency.BaseFee,
+// 		BlobBaseFee:       r.GlobalDependency.BlobBaseFee,
+// 		ChainId:           r.GlobalDependency.ChainId,
+// 		CoinBase:          r.GlobalDependency.CoinBase,
+// 		Difficulty:        r.GlobalDependency.Difficulty,
+// 		GasLimit:          r.GlobalDependency.GasLimit,
+// 		Number:            r.GlobalDependency.Number,
+// 		Timestamp:         r.GlobalDependency.Timestamp,
+// 		TxOrigin:          r.GlobalDependency.TxOrigin,
+// 		TxGasPrice:        r.GlobalDependency.TxGasPrice,
+// 		MaxBlockNumber:    r.GlobalDependency.MaxBlockNumber,
+// 		MaxBlockTimestamp: r.GlobalDependency.MaxBlockTimestamp,
+// 	}
 
-	dependencies := make([]abiendorser.IEndorserDependency, len(r.Dependencies))
-	for i, d := range r.Dependencies {
-		constraints := make([]abiendorser.IEndorserConstraint, len(d.Constraints))
-		for j, c := range d.Constraints {
-			constraints[j] = abiendorser.IEndorserConstraint{
-				Slot:     c.Slot,
-				MinValue: c.MinValue,
-				MaxValue: c.MaxValue,
-			}
-		}
+// 	dependencies := make([]abiendorser.IEndorserDependency, len(r.Dependencies))
+// 	for i, d := range r.Dependencies {
+// 		constraints := make([]abiendorser.IEndorserConstraint, len(d.Constraints))
+// 		for j, c := range d.Constraints {
+// 			constraints[j] = abiendorser.IEndorserConstraint{
+// 				Slot:     c.Slot,
+// 				MinValue: c.MinValue,
+// 				MaxValue: c.MaxValue,
+// 			}
+// 		}
 
-		dependencies[i] = abiendorser.IEndorserDependency{
-			Addr:        d.Addr,
-			Balance:     d.Balance,
-			Code:        d.Code,
-			Nonce:       d.Nonce,
-			AllSlots:    d.AllSlots,
-			Slots:       d.Slots,
-			Constraints: constraints,
-		}
-	}
+// 		dependencies[i] = abiendorser.IEndorserDependency{
+// 			Addr:        d.Addr,
+// 			Balance:     d.Balance,
+// 			Code:        d.Code,
+// 			Nonce:       d.Nonce,
+// 			AllSlots:    d.AllSlots,
+// 			Slots:       d.Slots,
+// 			Constraints: constraints,
+// 		}
+// 	}
 
-	return &EndorserResult{
-		Readiness:        r.Readiness,
-		GlobalDependency: globalDependency,
-		Dependencies:     dependencies,
-	}
-}
+// 	return &EndorserResult{
+// 		Readiness:        r.Readiness,
+// 		GlobalDependency: globalDependency,
+// 		Dependencies:     dependencies,
+// 	}
+// }

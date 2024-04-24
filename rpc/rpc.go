@@ -64,7 +64,6 @@ type RPC struct {
 	archive   *bundler.Archive
 	collector *collector.Collector
 	sender    sender.Interface
-	executor  *abivalidator.OperationValidator
 	ipfs      ipfs.Interface
 	admin     *admin.Admin
 	registry  registry.Interface
@@ -102,13 +101,13 @@ func NewRPC(
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	executor, err := abivalidator.NewOperationValidator(validatorContract, provider)
+	simulator, err := abivalidator.NewOperationValidator(validatorContract, provider)
 	if err != nil {
-		return nil, fmt.Errorf("unable to connect to validator contract")
+		return nil, fmt.Errorf("unable to connect to simulator contract")
 	}
 
 	factory := sender.NewMnemonicWalletFactory(provider, cfg.Mnemonic)
-	sender := sender.NewSender(&cfg.SendersConfig, logger, factory, provider, mempool, endorser, executor, collector, registry)
+	sender := sender.NewSender(&cfg.SendersConfig, logger, factory, provider, mempool, endorser, simulator, collector, registry)
 	sender.SetRegisterer(metrics)
 
 	admin := admin.NewAdmin(logger, ipfs, mempool, registry)
@@ -118,7 +117,6 @@ func NewRPC(
 		mempool:   mempool,
 		sender:    sender,
 		collector: collector,
-		executor:  executor,
 		ipfs:      ipfs,
 		admin:     admin,
 		registry:  registry,

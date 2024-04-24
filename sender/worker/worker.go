@@ -13,7 +13,6 @@ import (
 
 	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abierc20"
-	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/interfaces"
 	"github.com/0xsequence/bundler/mempool"
@@ -65,18 +64,19 @@ type Worker struct {
 	release chan *ReleaseOp
 	ban     chan *BanEndorser
 	pause   chan bool
+	sus     chan *mempool.TrackedOperation
 
 	Provider  interfaces.Provider
 	Collector collector.Interface
 	Endorser  endorser.Interface
-	Validator interfaces.Validator
+	Simulator interfaces.Validator
 }
 
 func NewWorker(
 	Provider interfaces.Provider,
 	Collector collector.Interface,
 	Endorser endorser.Interface,
-	Validator interfaces.Validator,
+	Simulator interfaces.Validator,
 	Wallet interfaces.Wallet,
 	PriorityFee *big.Int,
 	MinBalance *big.Int,
@@ -100,10 +100,12 @@ func NewWorker(
 		ban:     make(chan *BanEndorser),
 		pause:   make(chan bool),
 
+		sus: make(chan *mempool.TrackedOperation, 128),
+
 		Provider:  Provider,
 		Collector: Collector,
 		Endorser:  Endorser,
-		Validator: Validator,
+		Simulator: Simulator,
 	}
 }
 
@@ -171,6 +173,13 @@ func (w *Worker) Run(ctx context.Context, input <-chan *mempool.TrackedOperation
 		w.prepareWorker(ctx, input)
 	}()
 
+	// Start the sus inspector
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		w.validateSusOperation(ctx)
+	}()
+
 	// Start the sender
 	wg.Add(1)
 	go func() {
@@ -181,6 +190,22 @@ func (w *Worker) Run(ctx context.Context, input <-chan *mempool.TrackedOperation
 	w.logger.Info("worker: running", "wallet", w.wallet.Address().String())
 
 	return nil
+}
+
+func (w *Worker) validateSusOperation(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case op := <-w.sus:
+			if op != nil {
+				// TODO: Do a proper inspection of the operations
+				// it may be possible that the endorser lied to us
+				// and the operation never intended to pay us.
+				w.discard <- op.Hash()
+			}
+		}
+	}
 }
 
 func (w *Worker) monitorWorker(ctx context.Context) {
@@ -209,8 +234,15 @@ func (w *Worker) monitorWorker(ctx context.Context) {
 			}
 		}
 
-		time.Sleep(10 * time.Second)
+		// Wait 10 seconds
+		// or until the context is done
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(10 * time.Second):
+		}
 	}
+
 }
 
 func (w *Worker) prepareWorker(ctx context.Context, input <-chan *mempool.TrackedOperation) {
@@ -245,42 +277,7 @@ func (w *Worker) sendWorker(ctx context.Context) {
 	}
 }
 
-func (w *Worker) doPrepare(ctx context.Context, op *mempool.TrackedOperation) {
-	// Random delay reduces the chances to collide with other senders
-	if w.randomWait > 0 {
-		time.Sleep(time.Duration(rand.Intn(w.randomWait)) * time.Millisecond)
-	}
-
-	// Measure time after delay, delay is random
-	defer utils.RecordFunctionDuration(time.Now(), w.metrics.prepareOpTime)
-
-	opDigest := op.Hash()
-	res, err := w.simulateOp(ctx, &op.Operation)
-	// If we got an error, we should discard the operation
-	if err != nil {
-		w.metrics.failedSendOps.With(w.metrics.failedSimulateOperation).Inc()
-		w.logger.Warn("sender: error simulating operation", "op", opDigest, "error", err)
-
-		w.discard <- opDigest
-		return
-	}
-
-	// If the endorser lied to us, we should discard the operation
-	if !res.Paid {
-		if res.Lied {
-			w.metrics.failedSendOps.With(w.metrics.failedEndorserLied).Inc()
-			w.logger.Warn("sender: endorser lied", "op", opDigest, "endorser", op.Endorser, "innerOk", res.Meta.InnerOk, "innerPaid", res.Meta.InnerPaid.String(), "innerExpected", res.Meta.InnerExpected.String())
-
-			w.ban <- &BanEndorser{Endorser: op.Endorser, Type: registry.PermanentBan}
-		} else {
-			w.metrics.failedSendOps.With(w.metrics.failedStaleOperation).Inc()
-			w.logger.Info("sender: stale operation", "op", opDigest)
-		}
-
-		w.discard <- opDigest
-		return
-	}
-
+func (w *Worker) staticGasLimit(ctx context.Context, op *mempool.TrackedOperation) (*big.Int, error) {
 	// Estimate the fixed calldata cost of the operation
 	// this can be done by doing an estimate gas call to any other
 	// address that is not a contract
@@ -290,60 +287,87 @@ func (w *Worker) doPrepare(ctx context.Context, op *mempool.TrackedOperation) {
 		Data: op.Data,
 	})
 	if err != nil {
-		w.metrics.failedSendOps.With(w.metrics.failedEstimateGas).Inc()
-		w.logger.Warn("sender: error estimating gas", "op", opDigest, "error", err)
+		return nil, fmt.Errorf("unable to estimate gas: %w", err)
+	}
 
-		w.discard <- opDigest
+	return big.NewInt(int64(calldataGasLimit)), nil
+}
+
+func (w *Worker) doPrepare(ctx context.Context, op *mempool.TrackedOperation) {
+	// Random delay reduces the chances to collide with other senders
+	if w.randomWait > 0 {
+		time.Sleep(time.Duration(rand.Intn(w.randomWait)) * time.Millisecond)
+	}
+
+	// Measure time after delay, delay is random
+	defer utils.RecordFunctionDuration(time.Now(), w.metrics.prepareOpTime)
+
+	staticGas, err := w.staticGasLimit(ctx, op)
+	if err != nil {
+		w.metrics.failedSendOps.With(w.metrics.failedEstimateGas).Inc()
+		w.logger.Warn("sender: error estimating static gas usage", "op", op.Hash(), "error", err)
+
+		w.release <- &ReleaseOp{Oph: op.Hash(), Change: proto.ReadyAtChange_None}
 		return
 	}
 
-	// See if it is profitable to execute the operation, for this we need to compute
-	// the maximum gas price that we may pay for the operation
-	// and compare it with the payment we are going to receive
-	baseFee := w.Collector.BaseFee()
-	native, priceSnap := w.Collector.NativeFeesPerGas(&op.Operation)
-	effectiveFeePerGas := new(big.Int).Add(baseFee, native.MaxPriorityFeePerGas)
-	if effectiveFeePerGas.Cmp(native.MaxFeePerGas) > 0 {
-		effectiveFeePerGas.Set(native.MaxFeePerGas)
-	}
+	opDigest := op.Hash()
+	result, err := w.Simulator.SimulateOperation(
+		&bind.CallOpts{
+			Context: ctx,
+			From:    w.wallet.Address(),
+		},
+		*endorser.ToSimulatorInput(&op.IEndorserOperation),
+	)
 
-	// This defines what is the maximum fee per gas that we are going to pay
-	ourMaxBaseFee := new(big.Int).Mul(baseFee, big.NewInt(2))
-	ourMaxFeePerGas := new(big.Int).Add(ourMaxBaseFee, w.priorityFee)
-	ourLikelyFeePerGas := new(big.Int).Add(baseFee, w.priorityFee)
-
-	// The operation always pays fixedGas * effectiveFeePerGas
-	payment := new(big.Int).Mul(op.GasLimit, effectiveFeePerGas)
-	// We always need to pay the calldataGasLimit * likelyFeePerGas
-	ourPayment := new(big.Int).Mul(big.NewInt(int64(calldataGasLimit)), ourLikelyFeePerGas)
-
-	// The operation MAY X gasLimit, this is the same X that we need to pay, assume the total
-	payment = payment.Add(payment, new(big.Int).Mul(op.GasLimit, effectiveFeePerGas))
-	ourPayment = ourPayment.Add(ourPayment, new(big.Int).Mul(op.GasLimit, ourLikelyFeePerGas))
-
-	// If we can't make profit from the operation, we should
-	// chill it for a while. There are many ever-changing factors
-	// that may make the operation profitable in the future
-	if ourPayment.Cmp(payment) > 0 {
-		diffFloat, _ := new(big.Int).Sub(payment, ourPayment).Float64()
-		w.metrics.unprofitableOpDiff.Observe(diffFloat)
-		w.logger.Info("sender: operation not profitable", "op", opDigest, "payment", payment.String(), "ourPayment", ourPayment.String())
-
-		w.chill <- opDigest
+	if err != nil {
+		w.metrics.failedSendOps.With(w.metrics.failedSimulateOperation).Inc()
+		w.logger.Warn("sender: error simulating operation", "op", opDigest, "error", err)
 		w.release <- &ReleaseOp{Oph: opDigest, Change: proto.ReadyAtChange_None}
 		return
 	}
 
-	diffFloat, _ := new(big.Int).Sub(payment, ourPayment).Float64()
+	// This is what it will cost to use to execute this operation
+	// the cost is computed as (staticGas + result.gasUsed) * gasPrice
+	// the gasPrice is the current baseFee + our priorityFee of choice
+	baseFee := w.Collector.BaseFee()
+	gasPrice := new(big.Int).Add(baseFee, w.priorityFee)
+	cost := new(big.Int).Mul(new(big.Int).Add(staticGas, result.GasUsed), gasPrice)
+
+	// Our cost is in native tokens, but the payment is in the operation's fee token
+	// we need to convert the cost to the operation's fee token
+	_, priceSnap := w.Collector.NativeFeesPerGas(&op.Operation)
+	paymentNative := priceSnap.ToNative(result.Payment)
+
+	// If the payment is below the cost, there is a chance the endorser lied
+	// but it could also be that our priority fee (Or token price) is just different
+	if cost.Cmp(paymentNative) > 0 {
+		// Schedule for inspection
+		w.logger.Warn("sender: operation payment below cost", "op", opDigest, "cost", cost.String(), "payment", paymentNative.String())
+
+		// Attempt to put the operation into the `sus` channel
+		// if full, then release the operation
+		// we never want to block the prepare channel
+		select {
+		case w.sus <- op:
+		default:
+			w.release <- &ReleaseOp{Oph: opDigest, Change: proto.ReadyAtChange_None}
+		}
+
+		// TODO: Register on METRICS
+		return
+	}
+
+	diffFloat, _ := new(big.Int).Sub(result.Payment, paymentNative).Float64()
 	w.metrics.profitableOpDiff.Observe(diffFloat)
 
 	opr := &OperationReady{
 		Op:    op,
 		Price: priceSnap,
 		Tx: &ethtxn.TransactionRequest{
-			GasPrice: ourMaxFeePerGas,
+			GasPrice: gasPrice,
 			GasTip:   w.priorityFee,
-			GasLimit: calldataGasLimit + op.GasLimit.Uint64(),
+			GasLimit: staticGas.Add(staticGas, op.GasLimit).Uint64(),
 			To:       &op.Entrypoint,
 			ETHValue: big.NewInt(0),
 			Data:     op.Data,
@@ -404,69 +428,6 @@ func (w *Worker) doSend(ctx context.Context, opr *OperationReady) {
 	w.logger.Info("sender: operation executed", "op", oph, "tx", receipt.TxHash.String())
 
 	w.done <- oph
-}
-
-func (w *Worker) simulateOp(ctx context.Context, op *types.Operation) (*SimulateResult, error) {
-	defer utils.RecordFunctionDuration(time.Now(), w.metrics.simulateOpTime)
-
-	result, err := w.Validator.SimulateOperation(
-		&bind.CallOpts{
-			Context: ctx,
-			From:    w.wallet.Address(),
-		},
-		op.Endorser,
-		*endorser.ToExecutorInput(&op.IEndorserOperation),
-	)
-
-	if err != nil {
-		return nil, fmt.Errorf("unable to call simulateOperation: %w", err)
-	}
-
-	// The operation is healthy, ready to be executed
-	if result.Paid {
-		return &SimulateResult{
-			Paid: true,
-		}, nil
-	}
-
-	// The endorser is telling us that the operation was not ready
-	// to be executed, so it didn't lie to us
-	if !result.Readiness {
-		return &SimulateResult{
-			Paid: false,
-			Lied: false,
-		}, nil
-	}
-
-	// The only chance for the endorser left is that
-	// he is returning a non-met constraint
-
-	constraintsOk, err := w.Endorser.ConstraintsMet(ctx, endorser.FromExecutorResult(&result))
-	if err != nil {
-		return nil, fmt.Errorf("unable to check dependency constraints: %w", err)
-	}
-
-	// So constraints are not met, so it didn't lie to us
-	if !constraintsOk {
-		return &SimulateResult{
-			Paid: false,
-			Lied: false,
-		}, nil
-	}
-
-	// The endorser is telling us that the operation was ready
-	// to be executed, constraints are met, but we didn't get paid
-	// this means the endorser lied to us.
-	meta, err := parseMeta(&result)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse simulation meta: %w", err)
-	}
-
-	return &SimulateResult{
-		Paid: false,
-		Lied: true,
-		Meta: meta,
-	}, nil
 }
 
 func (w *Worker) inspectReceipt(
@@ -556,7 +517,7 @@ func (w *Worker) inspectReceipt(
 
 		w.metrics.underpaidAmount.Observe(balanceDiffFloat)
 		w.logger.Warn(
-			"inspector: operation not paid enough",
+			"inspector: operation did not paid enough",
 			"op", op.Hash(),
 			"tx", receipt.TxHash.String(),
 			"amount", balanceDiff.String(),
@@ -584,7 +545,7 @@ func (w *Worker) inspectReceipt(
 
 		w.metrics.underpaidAmount.Observe(nativeDiffFloat)
 		w.logger.Warn(
-			"inspector: operation not paid enough",
+			"inspector: operation did not paid enough",
 			"op", op.Hash(),
 			"tx", receipt.TxHash.String(),
 			"token", op.FeeToken,
@@ -659,32 +620,4 @@ func (w *Worker) isOperationReady(
 	}
 
 	return ok, nil
-}
-
-type SimulateResult struct {
-	Paid bool
-	Lied bool
-	Meta *SimulateResultMeta
-}
-
-type SimulateResultMeta struct {
-	InnerOk       bool
-	InnerPaid     big.Int
-	InnerExpected big.Int
-}
-
-func parseMeta(res *abivalidator.OperationValidatorSimulationResult) (*SimulateResultMeta, error) {
-	if len(res.Err) != 32*3+4 {
-		return nil, fmt.Errorf("invalid error length, expected 32*3, got %v", len(res.Err))
-	}
-
-	ok := new(big.Int).SetBytes(res.Err[4:32+4]).Cmp(big.NewInt(1)) == 0
-	paid := new(big.Int).SetBytes(res.Err[32+4 : 64+4])
-	expected := new(big.Int).SetBytes(res.Err[64+4 : 96+4])
-
-	return &SimulateResultMeta{
-		InnerOk:       ok,
-		InnerPaid:     *paid,
-		InnerExpected: *expected,
-	}, nil
 }

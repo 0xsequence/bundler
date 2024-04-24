@@ -41,7 +41,7 @@ func NewSender(
 	provider interfaces.Provider,
 	mempool mempool.Interface,
 	endorser endorser.Interface,
-	validator interfaces.Validator,
+	simulator interfaces.Validator,
 	collector collector.Interface,
 	registry registry.Interface,
 ) *Sender {
@@ -83,7 +83,7 @@ func NewSender(
 			continue
 		}
 
-		worker := worker.NewWorker(provider, collector, endorser, validator, wallet, big.NewInt(int64(cfg.PriorityFee)), minBalance)
+		worker := worker.NewWorker(provider, collector, endorser, simulator, wallet, big.NewInt(int64(cfg.PriorityFee)), minBalance)
 		worker.SetLogger(logger.With("worker", i, "addr", wallet.Address().String()))
 		workers = append(workers, worker)
 	}

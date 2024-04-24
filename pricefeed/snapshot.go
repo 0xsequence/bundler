@@ -12,5 +12,9 @@ func (s *Snapshot) FromNative(native *big.Int) *big.Int {
 }
 
 func (s *Snapshot) ToNative(value *big.Int) *big.Int {
+	if s == nil {
+		return value
+	}
+
 	return new(big.Int).Div(new(big.Int).Mul(value, s.NormalizationFactor), s.ScalingFactor)
 }
