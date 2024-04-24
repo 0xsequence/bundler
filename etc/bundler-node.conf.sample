@@ -34,6 +34,9 @@ rpc_port = 3000
 [mempool]
   max_size = 1000
 
+[endorser_registry]
+  min_reputation = 0
+
 [logging]
   service       = "bundler"
   level         = "INFO"
