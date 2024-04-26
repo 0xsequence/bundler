@@ -2,12 +2,19 @@ package p2p
 
 import "math/big"
 
-const (
-	DiscoveryNamespace = "erc5189-mempool"
+type DiscoveryNamespace string
 
-	PubsubTopicPrefix = "erc5189-mempool"
-)
+const Namespace = DiscoveryNamespace("ERC5189:pool")
 
-func PubsubTopic(chainID *big.Int) string {
-	return PubsubTopicPrefix + "-" + chainID.String()
+type PubsubTopic string
+
+const OperationTopic = PubsubTopic("ERC5189:pool:op")
+const ArchiveTopic = PubsubTopic("ERC5189:pool:archive")
+
+func (p PubsubTopic) For(chainID *big.Int) string {
+	return string(p) + ":" + chainID.String()
+}
+
+func (d DiscoveryNamespace) For(chainID *big.Int) string {
+	return string(d) + ":" + chainID.String()
 }

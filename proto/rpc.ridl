@@ -89,11 +89,6 @@ struct Operation
   - hash?: string
     + go.tag.json = hash,omitempty
 
-enum MessageType: int
-  - DEBUG
-  - NEW_OPERATION
-  - ARCHIVE
-
 enum OperationStrategy: int
   - Fresh
   - Greedy
@@ -102,10 +97,6 @@ enum ReadyAtChange: int
   - None
   - Now
   - Zero
-
-struct Message
-  - type: MessageType
-  - message: any
 
 struct MempoolView
   - size: int
@@ -145,9 +136,6 @@ service Bundler
   - SendOperation(operation: Operation) => (operation: string)
   - Operations() => (operations: Operations)
   - FeeAsks() => (feeAsks: FeeAsks)
-
-service Debug
-  - Broadcast(message: any) => (status: bool)
 
 service Admin
   - SendOperation(operation: Operation, ignorePayment?: bool) => (operation: string)

@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/bundler/debugger"
+	"github.com/0xsequence/bundler/provider"
 	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethcontract"
 	"github.com/0xsequence/ethkit/ethrpc"
@@ -16,6 +18,7 @@ import (
 	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
 	"github.com/go-chi/httplog/v2"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sync/errgroup"
 )
 
 var parsedEndorserABI *abi.ABI
@@ -30,18 +33,35 @@ func useEndorserAbi() *abi.ABI {
 	return parsedEndorserABI
 }
 
+type rpcError struct {
+	Err error
+}
+
+func (re *rpcError) Error() string {
+	return re.Err.Error()
+}
+
+type rejectedError struct {
+	Err    error
+	Reason string
+}
+
+func (re *rejectedError) Error() string {
+	return fmt.Sprintf("rejected: %s", re.Reason)
+}
+
 type Endorser struct {
 	parsedEndorserABI *abi.ABI
 	logger            *httplog.Logger
 	metrics           *metrics
 
 	Debugger debugger.Interface
-	Provider *ethrpc.Provider
+	Provider *provider.Batched
 }
 
 var _ Interface = (*Endorser)(nil)
 
-func NewEndorser(logger *httplog.Logger, metrics prometheus.Registerer, provider *ethrpc.Provider, debugger debugger.Interface) *Endorser {
+func NewEndorser(logger *httplog.Logger, metrics prometheus.Registerer, provider *provider.Batched, debugger debugger.Interface) *Endorser {
 	return &Endorser{
 		parsedEndorserABI: useEndorserAbi(),
 
@@ -52,8 +72,126 @@ func NewEndorser(logger *httplog.Logger, metrics prometheus.Registerer, provider
 	}
 }
 
-func (e *Endorser) buildIsOperationReadyCalldata(op *types.Operation) (common.Address, string, error) {
-	endorser := ethcontract.NewContractCaller(op.Endorser, *e.parsedEndorserABI, e.Provider)
+// SimulationSettings
+
+func (e *Endorser) parseSimulationSettingsRes(res string) ([]*SimulationSetting, error) {
+	resBytes := common.FromHex(res)
+
+	settingsResult := []*SimulationSetting{}
+
+	values, err := e.parsedEndorserABI.Methods["simulationSettings"].Outputs.Unpack(resBytes)
+	if err != nil {
+		return nil, fmt.Errorf("unable to unpack result: %w", err)
+	}
+
+	// Must be an array of structs
+	vals, ok := values[0].([]struct {
+		OldAddr common.Address "json:\"oldAddr\""
+		NewAddr common.Address "json:\"newAddr\""
+		Slots   []struct {
+			Slot  [32]byte "json:\"slot\""
+			Value [32]byte "json:\"value\""
+		} "json:\"slots\""
+	})
+	if !ok {
+		return nil, fmt.Errorf("invalid settings")
+	}
+
+	for _, val := range vals {
+		setting := &SimulationSetting{
+			OldAddr: val.OldAddr,
+			NewAddr: val.NewAddr,
+			Slots:   make([]SlotReplacement, 0, len(val.Slots)),
+		}
+		for _, slot := range val.Slots {
+			setting.Slots = append(setting.Slots, SlotReplacement{
+				Slot:  slot.Slot,
+				Value: slot.Value,
+			})
+		}
+		settingsResult = append(settingsResult, setting)
+	}
+
+	return settingsResult, nil
+}
+
+func (e *Endorser) simulationSettingsCall(ctx context.Context, endorserAddr common.Address) ([]*SimulationSetting, error) {
+	endorser := ethcontract.NewContractCaller(endorserAddr, *e.parsedEndorserABI, e.Provider)
+	calldata, err := endorser.Encode("simulationSettings")
+
+	if err != nil {
+		return nil, err
+	}
+
+	endorserCall := &struct {
+		To   common.Address `json:"to"`
+		Data string         `json:"data"`
+	}{
+		To:   endorserAddr,
+		Data: "0x" + common.Bytes2Hex(calldata),
+	}
+
+	var res string
+	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall)
+	_, err = e.Provider.Do(ctx, rpcCall.Into(&res))
+	if err != nil {
+		return nil, err
+	}
+
+	e.logger.Debug("simulation settings call", "res", res)
+
+	settingsResult, err := e.parseSimulationSettingsRes(res)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse simulation settings result: %w", err)
+	}
+
+	return settingsResult, nil
+}
+
+func (e *Endorser) SimulationSettings(ctx context.Context, endorserAddr common.Address) ([]*SimulationSetting, error) {
+	return e.simulationSettingsCall(ctx, endorserAddr)
+}
+
+func (e *Endorser) callOverrideArgs(ctx context.Context, endorserAddr common.Address) (common.Address, *debugger.DebugOverrideArgs, error) {
+	settings, err := e.simulationSettingsCall(ctx, endorserAddr)
+	if err != nil {
+		return common.Address{}, nil, fmt.Errorf("unable to get simulation settings: %w", err)
+	}
+	overrideArgs := debugger.DebugOverrideArgs{}
+	to := endorserAddr
+	for _, setting := range settings {
+		if setting.OldAddr == endorserAddr {
+			// Update the endorser location
+			to = setting.NewAddr
+		}
+
+		overrideArg := debugger.DebugOverride{}
+		if setting.OldAddr != setting.NewAddr {
+			// Code replacement
+			replacementCode, err := e.Provider.CodeAt(ctx, setting.OldAddr, nil)
+			if err != nil {
+				return common.Address{}, nil, fmt.Errorf("unable to read code for %v: %w", setting.OldAddr, err)
+			}
+			codeStr := "0x" + common.Bytes2Hex(replacementCode)
+			overrideArg.Code = &codeStr
+		}
+		// Slots
+		if len(setting.Slots) > 0 {
+			overrideArg.StateDiff = make(map[common.Hash]common.Hash)
+		}
+		for _, slot := range setting.Slots {
+			overrideArg.StateDiff[common.BytesToHash(slot.Slot[:])] = common.BytesToHash(slot.Value[:])
+		}
+
+		overrideArgs[setting.NewAddr] = &overrideArg
+	}
+	return to, &overrideArgs, nil
+}
+
+// IsOperationReady
+
+func (e *Endorser) BuildIsOperationReadyCalldata(op *types.Operation) (common.Address, string, error) {
+	endorser := ethcontract.NewContractCaller(op.Endorser, *e.parsedEndorserABI, nil)
 	calldata, err := endorser.Encode("isOperationReady", &op.IEndorserOperation)
 
 	if err != nil {
@@ -166,10 +304,15 @@ func (e *Endorser) isOperationReadyCall(ctx context.Context, op *types.Operation
 	start := time.Now()
 	e.metrics.isOperationReadyAttempts.Inc()
 
-	to, data, err := e.buildIsOperationReadyCalldata(op)
+	to, data, err := e.BuildIsOperationReadyCalldata(op)
 	if err != nil {
 		e.metrics.isOperationReadyError.Inc()
 		return nil, fmt.Errorf("unable to build calldata: %w", err)
+	}
+
+	to, debugOverrideArgs, err := e.callOverrideArgs(ctx, to)
+	if err != nil {
+		return nil, fmt.Errorf("unable to build debug override args: %w", err)
 	}
 
 	endorserCall := &struct {
@@ -181,16 +324,26 @@ func (e *Endorser) isOperationReadyCall(ctx context.Context, op *types.Operation
 	}
 
 	var res string
-	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall, nil, nil)
+	// Some RPC providers may not support the debugOverrideArgs
+	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, endorserCall, "latest", debugOverrideArgs)
 	_, err = e.Provider.Do(ctx, rpcCall.Into(&res))
 	if err != nil {
-		return nil, err
+		e.metrics.isOperationReadyError.Inc()
+		if strings.Contains(err.Error(), "execution reverted") {
+			reason := err.Error()
+			reason = strings.TrimPrefix(reason, "jsonrpc error 3: ")
+			reason = strings.TrimPrefix(reason, "execution reverted: ")
+			reason = strings.TrimPrefix(reason, "reverted: ")
+			return nil, &rejectedError{Err: err, Reason: reason}
+		}
+
+		return nil, &rpcError{Err: err}
 	}
 
 	endorserResult, err := e.parseIsOperationReadyRes(res)
 	if err != nil {
 		e.metrics.isOperationReadyReverts.Inc()
-		return nil, fmt.Errorf("unable to parse result: %w", err)
+		return nil, fmt.Errorf("unable to parse isOperationReady result: %w", err)
 	}
 
 	// NOTICE: Untrusted context operations should be handled
@@ -222,9 +375,14 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 		return nil, fmt.Errorf("debugger is not available")
 	}
 
-	to, data, err := e.buildIsOperationReadyCalldata(op)
+	to, data, err := e.BuildIsOperationReadyCalldata(op)
 	if err != nil {
 		return nil, fmt.Errorf("unable to build calldata: %w", err)
+	}
+
+	to, debugOverrideArgs, err := e.callOverrideArgs(ctx, to)
+	if err != nil {
+		return nil, fmt.Errorf("unable to build debug override args: %w", err)
 	}
 
 	// Use random caller
@@ -235,14 +393,21 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 		Data: common.FromHex(data),
 	}
 
-	trace, err := e.Debugger.DebugTraceCall(ctx, debugCallArgs)
+	trace, err := e.Debugger.DebugTraceCall(ctx, debugCallArgs, debugOverrideArgs)
 	if err != nil {
 		return nil, fmt.Errorf("unable to trace call: %w", err)
+	}
+	// Log the trace
+	for _, log := range trace.StructLogs {
+		// If Op starts with "LOG", then it's a debug trace log
+		if len(log.Op) > 3 && log.Op[:3] == "LOG" {
+			e.logger.Debug("debug trace log", "log", log)
+		}
 	}
 
 	er1, err := e.parseIsOperationReadyRes(trace.ReturnValue)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse result: %w", err)
+		return nil, fmt.Errorf("unable to parse isOperationReady debugger result: %w", err)
 	}
 
 	// Generate dependencies from untrusted context
@@ -260,6 +425,44 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 	return merged, nil
 }
 
+func (e *Endorser) simulateCall(ctx context.Context, op *types.Operation) (*EndorserResult, error) {
+	start := time.Now()
+	e.metrics.failoverSimulationAttempts.Inc()
+
+	txData := &struct {
+		To   common.Address `json:"to"`
+		Data string         `json:"data"`
+	}{
+		To:   op.Entrypoint,
+		Data: "0x" + common.Bytes2Hex(op.Data),
+	}
+
+	e.logger.Debug("simulation call", "to", txData.To, "data", txData.Data)
+
+	var res string
+	rpcCall := ethrpc.NewCallBuilder[string]("eth_call", nil, txData)
+	_, err := e.Provider.Do(ctx, rpcCall.Into(&res))
+	if err != nil {
+		e.metrics.failoverSimulationError.Inc()
+		return nil, fmt.Errorf("unable to simulate call: %w", err)
+	}
+	e.metrics.failoverSimulationSuccess.Inc()
+
+	e.logger.Debug("simulation call success", "res", res)
+
+	e.metrics.failoverSimulationDuration.Observe(time.Since(start).Seconds())
+	gasLimit := big.NewInt(0).Add(op.FixedGas, op.GasLimit)
+	limitFloat, _ := gasLimit.Float64()
+	e.metrics.durationPerGas.Observe(time.Since(start).Seconds() / limitFloat)
+
+	// We can't get the dependencies from the simulation, so we just mark it as wildcard only
+	e.metrics.isOperationReadyWildcards.Inc()
+	return &EndorserResult{
+		Readiness:    true,
+		WildcardOnly: true,
+	}, nil
+}
+
 func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*EndorserResult, error) {
 	if e.Debugger != nil && op.HasUntrustedContext {
 		// TODO: Sometimes the endorser reverts instead of failing,
@@ -271,70 +474,149 @@ func (e *Endorser) IsOperationReady(ctx context.Context, op *types.Operation) (*
 		}
 
 		e.metrics.isOperationReadyDebuggerFailed.Inc()
-		e.logger.Warn("unable to use debugger, falling back to eth_call", "error", err)
+		e.logger.Warn("unable to use debugger, falling back to eth_call and ignoring untrusted context", "error", err)
 	}
 
-	return e.isOperationReadyCall(ctx, op)
+	// Use eth_call
+	res, err := e.isOperationReadyCall(ctx, op)
+	if err != nil {
+		_, ok := err.(*rpcError)
+		if ok {
+			// Fail over to pure calldata simulation
+			e.logger.Warn("unable to use endorser, falling back to call simulation and ignoring dependencies", "error", err)
+			return e.simulateCall(ctx, op)
+		}
+
+		return nil, err
+	}
+
+	return res, nil
+}
+
+func (e *Endorser) SingleDependencyState(ctx context.Context, dep abiendorser.IEndorserDependency) (*AddrDependencyState, error) {
+	balance := make(chan *big.Int, 1)
+	code := make(chan int, 1)
+	nonce := make(chan uint64, 1)
+	slots := make(chan [][32]byte, 1)
+
+	defer func() {
+		close(balance)
+		close(nonce)
+		close(code)
+		close(slots)
+	}()
+
+	eg, ctx := errgroup.WithContext(ctx)
+
+	if dep.Balance {
+		eg.Go(func() error {
+			b, err := e.Provider.BalanceAt(ctx, dep.Addr, nil)
+			if err != nil {
+				return fmt.Errorf("unable to read balance for %v: %w", dep.Addr, err)
+			}
+
+			balance <- b
+			return nil
+		})
+	}
+
+	if dep.Code {
+		eg.Go(func() error {
+			c, err := e.Provider.CodeAt(ctx, dep.Addr, nil)
+			if err != nil {
+				return fmt.Errorf("unable to read code for %v: %w", dep.Addr, err)
+			}
+
+			code <- len(c)
+			return nil
+		})
+	}
+
+	if dep.Nonce {
+		eg.Go(func() error {
+			n, err := e.Provider.NonceAt(ctx, dep.Addr, nil)
+			if err != nil {
+				return fmt.Errorf("unable to read nonce for %v: %w", dep.Addr, err)
+			}
+
+			nonce <- n
+			return nil
+		})
+	}
+
+	if len(dep.Slots) > 0 {
+		eg.Go(func() error {
+			s, err := e.Provider.StorageAtBatch(ctx, dep.Addr, dep.Slots)
+			if err != nil {
+				return fmt.Errorf("unable to read storage for %v: %w", dep.Addr, err)
+			}
+
+			slots <- s
+			return nil
+		})
+	}
+
+	err := eg.Wait()
+	if err != nil {
+		return nil, err
+	}
+
+	state := &AddrDependencyState{}
+
+	for {
+		select {
+		case b := <-balance:
+			state.Balance = b
+		case n := <-nonce:
+			state.Nonce = &n
+		case c := <-code:
+			state.Code = &c
+		case s := <-slots:
+			state.Slots = s
+		default:
+			return state, nil
+		}
+	}
 }
 
 func (e *Endorser) DependencyState(ctx context.Context, result *EndorserResult) (*EndorserResultState, error) {
-	start := time.Now()
-	state := EndorserResultState{}
-
-	state.AddrDependencies = make(map[common.Address]*AddrDependencyState, len(result.Dependencies))
-
-	for _, dependency := range result.Dependencies {
-		state_ := AddrDependencyState{}
-
-		if dependency.Balance {
-			var err error
-			state_.Balance, err = e.Provider.BalanceAt(ctx, dependency.Addr, nil)
-			if err != nil {
-				e.metrics.dependencyStateError.With(e.metrics.dependencyStateErrorBalance).Inc()
-				return nil, fmt.Errorf("unable to read balance for %v: %w", dependency.Addr, err)
-			}
-		}
-
-		if dependency.Code {
-			code, err := e.Provider.CodeAt(ctx, dependency.Addr, nil)
-			if err != nil {
-				e.metrics.dependencyStateError.With(e.metrics.dependencyStateErrorCode).Inc()
-				return nil, fmt.Errorf("unable to read code for %v: %w", dependency.Addr, err)
-			}
-			if code == nil {
-				code = []byte{}
-			}
-			state_.Code = code
-		}
-
-		if dependency.Nonce {
-			nonce, err := e.Provider.NonceAt(ctx, dependency.Addr, nil)
-			if err != nil {
-				e.metrics.dependencyStateError.With(e.metrics.dependencyStateErrorNonce).Inc()
-				return nil, fmt.Errorf("unable to read nonce for %v: %w", dependency.Addr, err)
-			}
-			state_.Nonce = &nonce
-		}
-
-		state_.Slots = make([][32]byte, 0, len(dependency.Slots))
-		for _, slot := range dependency.Slots {
-			start2 := time.Now()
-			value, err := e.Provider.StorageAt(ctx, dependency.Addr, slot, nil)
-			e.metrics.dependencySlotDuration.Observe(time.Since(start2).Seconds())
-
-			if err != nil {
-				e.metrics.dependencyStateError.With(e.metrics.dependencyStateErrorSlots).Inc()
-				return nil, fmt.Errorf("unable to read storage for %v at %v: %w", dependency.Addr, hexutil.Encode(slot[:]), err)
-			}
-
-			state_.Slots = append(state_.Slots, [32]byte(value))
-		}
-
-		state.AddrDependencies[dependency.Addr] = &state_
+	type SingleDependencyStateResult struct {
+		Addr common.Address
+		Res  *AddrDependencyState
 	}
 
-	e.metrics.dependencyStateDuration.Observe(time.Since(start).Seconds())
-	return &state, nil
+	deps := make(chan *SingleDependencyStateResult, len(result.Dependencies))
+	defer close(deps)
+
+	eg, ctx := errgroup.WithContext(ctx)
+
+	for _, dep := range result.Dependencies {
+		capturedDep := dep
+		eg.Go(func() error {
+			res, err := e.SingleDependencyState(ctx, capturedDep)
+			if err != nil {
+				return err
+			}
+
+			deps <- &SingleDependencyStateResult{Addr: capturedDep.Addr, Res: res}
+			return nil
+		})
+	}
+
+	err := eg.Wait()
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[common.Address]*AddrDependencyState, len(result.Dependencies))
+	for {
+		select {
+		case dep := <-deps:
+			res[dep.Addr] = dep.Res
+		default:
+			return &EndorserResultState{AddrDependencies: res}, nil
+		}
+	}
 }
 
 func (e *Endorser) ConstraintsMet(ctx context.Context, result *EndorserResult) (bool, error) {
@@ -343,7 +625,7 @@ func (e *Endorser) ConstraintsMet(ctx context.Context, result *EndorserResult) (
 	for _, dependency := range result.Dependencies {
 		for _, constraint := range dependency.Constraints {
 			start2 := time.Now()
-			ok, err := CheckConstraint(ctx, e.Provider, dependency.Addr, constraint.Slot, constraint.MinValue, constraint.MaxValue)
+			ok, err := e.CheckConstraint(ctx, dependency.Addr, constraint.Slot, constraint.MinValue, constraint.MaxValue)
 			e.metrics.constraintMetDuration.Observe(time.Since(start2).Seconds())
 
 			if err != nil {
@@ -363,8 +645,8 @@ func (e *Endorser) ConstraintsMet(ctx context.Context, result *EndorserResult) (
 	return true, nil
 }
 
-func CheckConstraint(ctx context.Context, provider *ethrpc.Provider, addr common.Address, slot [32]byte, minValue, maxValue [32]byte) (bool, error) {
-	value, err := provider.StorageAt(ctx, addr, slot, nil)
+func (e *Endorser) CheckConstraint(ctx context.Context, addr common.Address, slot [32]byte, minValue, maxValue [32]byte) (bool, error) {
+	value, err := e.Provider.StorageAt(ctx, addr, slot, nil)
 	if err != nil {
 		return false, fmt.Errorf("unable to read storage for %v at %v: %w", addr, hexutil.Encode(slot[:]), err)
 	}

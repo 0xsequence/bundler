@@ -154,9 +154,25 @@ func ParseUntrustedDebug(tt *debugger.TransactionTrace) (*EndorserResult, error)
 				}
 			}
 
-		case "CREATE", "CREATE2":
+		case "CREATE":
 			if untrustedDepth > 0 {
-				return nil, fmt.Errorf("CREATE and CREATE2 are not supported on unstrusted code")
+				return nil, fmt.Errorf("CREATE is not supported on untrusted code")
+			}
+
+		case "CREATE2":
+			if untrustedDepth > 0 {
+				// Loop through ops to find the address of the created contract set on depth return
+				addr := common.Address{}
+				createDepth := log.Depth
+				for j := i + 1; j < len(tt.StructLogs); j++ {
+					if tt.StructLogs[j].Depth == createDepth {
+						l := len(tt.StructLogs[j].Stack)
+						addr = common.HexToAddress(tt.StructLogs[j].Stack[l-1])
+						result.SetCode(addr, true)
+						break
+					}
+				}
+				selfstack = append(selfstack, addr)
 			}
 
 		default:

@@ -9,6 +9,17 @@ import (
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 )
 
+type SlotReplacement struct {
+	Slot  [32]byte
+	Value [32]byte
+}
+
+type SimulationSetting struct {
+	OldAddr common.Address
+	NewAddr common.Address
+	Slots   []SlotReplacement
+}
+
 type GlobalDependencyState struct {
 	Basefee     *big.Int
 	Blobbasefee *big.Int
@@ -24,7 +35,7 @@ type GlobalDependencyState struct {
 
 type AddrDependencyState struct {
 	Balance *big.Int
-	Code    []byte
+	Code    *int
 	Nonce   *uint64
 	Slots   [][32]byte
 }
@@ -47,6 +58,7 @@ type EndorserResultState struct {
 }
 
 type Interface interface {
+	SimulationSettings(ctx context.Context, endorserAddr common.Address) ([]*SimulationSetting, error)
 	IsOperationReady(ctx context.Context, op *types.Operation) (*EndorserResult, error)
 	DependencyState(ctx context.Context, result *EndorserResult) (*EndorserResultState, error)
 	ConstraintsMet(ctx context.Context, result *EndorserResult) (bool, error)

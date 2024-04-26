@@ -63,8 +63,7 @@ type RPC struct {
 	mempool   mempool.Interface
 	archive   *bundler.Archive
 	collector *collector.Collector
-	senders   []sender.Interface
-	executor  *abivalidator.OperationValidator
+	sender    sender.Interface
 	ipfs      ipfs.Interface
 	admin     *admin.Admin
 	registry  registry.Interface
@@ -102,42 +101,22 @@ func NewRPC(
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	executor, err := abivalidator.NewOperationValidator(validatorContract, provider)
+	simulator, err := abivalidator.NewOperationValidator(validatorContract, provider)
 	if err != nil {
-		return nil, fmt.Errorf("unable to connect to validator contract")
+		return nil, fmt.Errorf("unable to connect to simulator contract")
 	}
 
-	senders := make([]sender.Interface, 0, cfg.SendersConfig.NumSenders)
-	for i := 0; i < int(cfg.SendersConfig.NumSenders); i++ {
-		wallet, err := SetupWallet(cfg.Mnemonic, uint32(1+i), provider)
-		if err != nil {
-			return nil, fmt.Errorf("unable to create wallet for sender %v from hd node: %w", i, err)
-		}
-		logger.Info(fmt.Sprintf("sender %v: %v", i, wallet.Address()))
-		slogger := logger.With("sender", i)
-		senders = append(senders, sender.NewSender(
-			&cfg.SendersConfig,
-			slogger,
-			metrics,
-			uint32(i),
-			wallet,
-			provider,
-			mempool,
-			endorser,
-			executor,
-			collector,
-			registry,
-		))
-	}
+	factory := sender.NewMnemonicWalletFactory(provider, cfg.Mnemonic)
+	sender := sender.NewSender(&cfg.SendersConfig, logger, factory, provider, mempool, endorser, simulator, collector, registry)
+	sender.SetRegisterer(metrics)
 
 	admin := admin.NewAdmin(logger, ipfs, mempool, registry)
 
 	s := &RPC{
 		archive:   archive,
 		mempool:   mempool,
-		senders:   senders,
+		sender:    sender,
 		collector: collector,
-		executor:  executor,
 		ipfs:      ipfs,
 		admin:     admin,
 		registry:  registry,
@@ -174,9 +153,7 @@ func (s *RPC) Run(ctx context.Context) error {
 	}()
 
 	// Run the senders
-	for _, sender := range s.senders {
-		go sender.Run(ctx)
-	}
+	go s.sender.Run(ctx)
 
 	// Start the http server and serve!
 	err := s.HTTP.ListenAndServe()
@@ -223,7 +200,7 @@ func (s *RPC) handler() http.Handler {
 	r.Use(middleware.Heartbeat("/ping"))
 
 	// HTTP request logger
-	r.Use(httplog.RequestLogger(s.Log, []string{"/", "/ping", "/status", "/favicon.ico"}))
+	r.Use(httplog.RequestLogger(s.Log, []string{"/", "/ping", "/status", "/metrics", "/favicon.ico"}))
 
 	// CORS
 	// r.Use(s.corsHandler())
@@ -256,10 +233,6 @@ func (s *RPC) handler() http.Handler {
 	// Mount rpc endpoints
 	bundlerRPCHandler := proto.NewBundlerServer(s)
 	r.Post("/rpc/Bundler/*", s.metered(bundlerRPCHandler.ServeHTTP))
-
-	// TODO: take config flag with debug_mode true/false
-	debugRPCHandler := proto.NewDebugServer(&Debug{RPC: s})
-	r.Post("/rpc/Debug/*", s.metered(debugRPCHandler.ServeHTTP))
 
 	// TODO: Add JWT for Admin space
 	adminRPCHandler := proto.NewAdminServer(s.admin)
@@ -300,6 +273,9 @@ func (s *RPC) SendOperation(ctx context.Context, pop *proto.Operation) (string, 
 	if err != nil {
 		return "", err
 	}
+
+	// If the operation is fine, broadcast it to the network
+	s.Host.Broadcast(ctx, p2p.OperationTopic, op.ToProtoPure())
 
 	return op.Hash(), nil
 }

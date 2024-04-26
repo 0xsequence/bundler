@@ -22,14 +22,13 @@ import (
 
 func TestAddOperation(t *testing.T) {
 	logger := httplog.NewLogger("")
-	mockP2p := &mocks.MockP2p{}
 	mockCollector := &mocks.MockCollector{}
 	mockEndorser := &mocks.MockEndorser{}
 	mockRegistry := &mocks.MockRegistry{}
 
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size: 10,
-	}, logger, nil, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
+	}, logger, nil, mockEndorser, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
 
 	assert.NoError(t, err)
 
@@ -45,11 +44,6 @@ func TestAddOperation(t *testing.T) {
 	mockCollector.On("ValidatePayment", op).Return(nil).Once()
 	mockRegistry.On("IsAcceptedEndorser", common.Address{}).Return(true).Once()
 
-	mockP2p.On("Broadcast", proto.Message{
-		Type:    proto.MessageType_NEW_OPERATION,
-		Message: op.ToProto(),
-	}).Return(nil).Once()
-
 	ctx, cancel := context.WithCancel(context.Background())
 	err = mempool.AddOperation(ctx, op, false)
 
@@ -58,29 +52,26 @@ func TestAddOperation(t *testing.T) {
 
 	mockEndorser.AssertExpectations(t)
 	mockCollector.AssertExpectations(t)
-	mockP2p.AssertExpectations(t)
 
 	// The op should be known now
 	assert.True(t, mempool.IsKnownOp(op))
 	assert.Equal(t, len(mempool.Operations), 1)
-	assert.Equal(t, mempool.Operations[0].ToProto(), op.ToProto())
+	assert.Equal(t, mempool.Operations[op.Hash()].ToProto(), op.ToProto())
 
 	mockEndorser.AssertExpectations(t)
 	mockCollector.AssertExpectations(t)
-	mockP2p.AssertExpectations(t)
 	mockRegistry.AssertExpectations(t)
 }
 
 func TestForceIncludeKnownOp(t *testing.T) {
 	logger := httplog.NewLogger("")
-	mockP2p := &mocks.MockP2p{}
 	mockCollector := &mocks.MockCollector{}
 	mockEndorser := &mocks.MockEndorser{}
 	mockRegistry := &mocks.MockRegistry{}
 
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size: 10,
-	}, logger, nil, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
+	}, logger, nil, mockEndorser, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
 
 	assert.NoError(t, err)
 
@@ -94,7 +85,6 @@ func TestForceIncludeKnownOp(t *testing.T) {
 	mockEndorser.On("ConstraintsMet", mock.Anything, er).Return(true, nil).Twice()
 	mockEndorser.On("DependencyState", mock.Anything, er).Return(es, nil).Twice()
 	mockCollector.On("ValidatePayment", op).Return(nil).Twice()
-	mockP2p.On("Broadcast", mock.Anything).Return(nil).Twice()
 	mockRegistry.On("IsAcceptedEndorser", common.Address{}).Return(true).Twice()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -107,26 +97,23 @@ func TestForceIncludeKnownOp(t *testing.T) {
 
 	mockEndorser.AssertExpectations(t)
 	mockCollector.AssertExpectations(t)
-	mockP2p.AssertExpectations(t)
 
 	cancel()
 
 	mockEndorser.AssertExpectations(t)
 	mockCollector.AssertExpectations(t)
-	mockP2p.AssertExpectations(t)
 	mockRegistry.AssertExpectations(t)
 }
 
 func TestSkipAddingKnownOperation(t *testing.T) {
 	logger := httplog.NewLogger("")
-	mockP2p := &mocks.MockP2p{}
 	mockCollector := &mocks.MockCollector{}
 	mockEndorser := &mocks.MockEndorser{}
 	mockRegistry := &mocks.MockRegistry{}
 
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size: 10,
-	}, logger, nil, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
+	}, logger, nil, mockEndorser, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
 
 	assert.NoError(t, err)
 
@@ -140,7 +127,6 @@ func TestSkipAddingKnownOperation(t *testing.T) {
 	mockEndorser.On("ConstraintsMet", mock.Anything, er).Return(true, nil).Once()
 	mockEndorser.On("DependencyState", mock.Anything, er).Return(es, nil).Once()
 	mockCollector.On("ValidatePayment", op).Return(nil).Once()
-	mockP2p.On("Broadcast", mock.Anything).Return(nil).Once()
 	mockRegistry.On("IsAcceptedEndorser", common.Address{}).Return(true).Once()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -155,20 +141,18 @@ func TestSkipAddingKnownOperation(t *testing.T) {
 
 	mockEndorser.AssertExpectations(t)
 	mockCollector.AssertExpectations(t)
-	mockP2p.AssertExpectations(t)
 	mockRegistry.AssertExpectations(t)
 }
 
 func TestNotReadyOperation(t *testing.T) {
 	logger := httplog.NewLogger("")
-	mockP2p := &mocks.MockP2p{}
 	mockCollector := &mocks.MockCollector{}
 	mockEndorser := &mocks.MockEndorser{}
 	mockRegistry := &mocks.MockRegistry{}
 
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size: 10,
-	}, logger, nil, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
+	}, logger, nil, mockEndorser, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
 
 	assert.NoError(t, err)
 
@@ -238,14 +222,13 @@ func TestNotReadyOperation(t *testing.T) {
 
 func TestReserveOps(t *testing.T) {
 	logger := httplog.NewLogger("")
-	mockP2p := &mocks.MockP2p{}
 	mockCollector := &mocks.MockCollector{}
 	mockEndorser := &mocks.MockEndorser{}
 	mockRegistry := &mocks.MockRegistry{}
 
 	mem, err := mempool.NewMempool(&config.MempoolConfig{
 		Size: 10,
-	}, logger, nil, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
+	}, logger, nil, mockEndorser, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
 
 	assert.NoError(t, err)
 
@@ -276,7 +259,6 @@ func TestReserveOps(t *testing.T) {
 	mockEndorser.On("ConstraintsMet", mock.Anything, er).Return(true, nil).Maybe()
 	mockEndorser.On("DependencyState", mock.Anything, er).Return(es, nil).Maybe()
 	mockCollector.On("ValidatePayment", mock.Anything).Return(nil).Maybe()
-	mockP2p.On("Broadcast", mock.Anything).Return(nil).Maybe()
 	mockRegistry.On("IsAcceptedEndorser", mock.Anything).Return(true).Maybe()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -295,22 +277,26 @@ func TestReserveOps(t *testing.T) {
 	})
 
 	assert.Equal(t, len(reserved), 2)
-	assert.Equal(t, reserved[0].Operation.Hash(), op1.Hash())
+	assert.Equal(t, reserved[0].Operation.Hash(), op3.Hash())
 	assert.Equal(t, reserved[1].Operation.Hash(), op2.Hash())
 
 	// Calling reserve again should only give one option
+	// Touch op1 so it ends in the middle
 	reserved2 := mem.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
 		assert.Equal(t, len(to), 1)
-		return []*mempool.TrackedOperation{}
+		assert.Equal(t, to[0].Operation.Hash(), op1.Hash())
+		return []*mempool.TrackedOperation{to[0]}
 	})
 
-	assert.Equal(t, len(reserved2), 0)
+	assert.Equal(t, len(reserved2), 1)
+	time.Sleep(1 * time.Millisecond)
+	mem.ReleaseOps(ctx, []string{op1.Hash()}, proto.ReadyAtChange_Now)
 
 	// Release the reserved ops
 	// sleep a bit so op2 readyAt is newer than op3, op1 goes to zero
 	time.Sleep(10 * time.Millisecond)
-	mem.ReleaseOps(ctx, []string{reserved[0].Hash()}, proto.ReadyAtChange_Zero)
-	mem.ReleaseOps(ctx, []string{reserved[1].Hash()}, proto.ReadyAtChange_Now)
+	mem.ReleaseOps(ctx, []string{op3.Hash()}, proto.ReadyAtChange_Zero)
+	mem.ReleaseOps(ctx, []string{op2.Hash()}, proto.ReadyAtChange_Now)
 
 	// Should sort the operations from the most recent ready at first
 	reserved = mem.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
@@ -319,14 +305,14 @@ func TestReserveOps(t *testing.T) {
 
 	assert.Equal(t, len(reserved), 3)
 
-	// The new order should be: op2, op3, op1
+	// The new order should be: op2, op1, op3
 	assert.Equal(t, reserved[0].Operation.Hash(), op2.Hash())
-	assert.Equal(t, reserved[1].Operation.Hash(), op3.Hash())
-	assert.Equal(t, reserved[2].Operation.Hash(), op1.Hash())
+	assert.Equal(t, reserved[1].Operation.Hash(), op1.Hash())
+	assert.Equal(t, reserved[2].Operation.Hash(), op3.Hash())
 
 	// Discard only two operations
-	mem.DiscardOps(ctx, []string{reserved[0].Hash(), reserved[1].Hash()})
-	mem.ReleaseOps(ctx, []string{reserved[2].Hash()}, proto.ReadyAtChange_Zero)
+	mem.DiscardOps(ctx, []string{op2.Hash(), op3.Hash()})
+	mem.ReleaseOps(ctx, []string{op1.Hash()}, proto.ReadyAtChange_Zero)
 
 	// Reserving now should only give the last operation
 	mem.ReserveOps(ctx, func(to []*mempool.TrackedOperation) []*mempool.TrackedOperation {
@@ -347,7 +333,6 @@ func TestReserveOps(t *testing.T) {
 
 func TestReportToIPFS(t *testing.T) {
 	logger := httplog.NewLogger("")
-	mockP2p := &mocks.MockP2p{}
 	mockCollector := &mocks.MockCollector{}
 	mockEndorser := &mocks.MockEndorser{}
 	mockIpfs := &mocks.MockIpfs{}
@@ -355,7 +340,7 @@ func TestReportToIPFS(t *testing.T) {
 
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size: 10,
-	}, logger, nil, mockEndorser, mockP2p, mockCollector, mockIpfs, calldata.DefaultModel(), mockRegistry)
+	}, logger, nil, mockEndorser, mockCollector, mockIpfs, calldata.DefaultModel(), mockRegistry)
 
 	assert.NoError(t, err)
 
@@ -369,7 +354,6 @@ func TestReportToIPFS(t *testing.T) {
 	mockEndorser.On("ConstraintsMet", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	mockEndorser.On("DependencyState", mock.Anything, mock.Anything).Return(&endorser.EndorserResultState{}, nil).Maybe()
 	mockCollector.On("ValidatePayment", op1).Return(nil).Maybe()
-	mockP2p.On("Broadcast", mock.Anything).Return(nil).Maybe()
 	mockRegistry.On("IsAcceptedEndorser", mock.Anything).Return(true).Maybe()
 
 	mockEndorser.On("IsOperationReady", mock.Anything, op1).Return(&endorser.EndorserResult{
@@ -412,7 +396,6 @@ func TestReportToIPFS(t *testing.T) {
 
 func TestRejectOverlappingDependency(t *testing.T) {
 	logger := httplog.NewLogger("")
-	mockP2p := &mocks.MockP2p{}
 	mockCollector := &mocks.MockCollector{}
 	mockEndorser := &mocks.MockEndorser{}
 	mockRegistry := &mocks.MockRegistry{}
@@ -420,7 +403,7 @@ func TestRejectOverlappingDependency(t *testing.T) {
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size:         10,
 		OverlapLimit: 1,
-	}, logger, nil, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
+	}, logger, nil, mockEndorser, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
 
 	assert.NoError(t, err)
 
@@ -448,7 +431,6 @@ func TestRejectOverlappingDependency(t *testing.T) {
 	mockEndorser.On("DependencyState", mock.Anything, mock.Anything).Return(&endorser.EndorserResultState{}, nil).Maybe()
 	mockCollector.On("ValidatePayment", mock.Anything).Return(nil).Maybe()
 	mockCollector.On("Cmp", mock.Anything, mock.Anything).Return(0).Maybe()
-	mockP2p.On("Broadcast", mock.Anything).Return(nil).Maybe()
 	mockRegistry.On("IsAcceptedEndorser", mock.Anything).Return(true).Maybe()
 
 	mockEndorser.On("IsOperationReady", mock.Anything, mock.Anything).Return(&endorser.EndorserResult{
@@ -468,7 +450,6 @@ func TestRejectOverlappingDependency(t *testing.T) {
 
 func TestReplaceOverlappingDependency(t *testing.T) {
 	logger := httplog.NewLogger("")
-	mockP2p := &mocks.MockP2p{}
 	mockCollector := &mocks.MockCollector{}
 	mockEndorser := &mocks.MockEndorser{}
 	mockRegistry := &mocks.MockRegistry{}
@@ -476,7 +457,7 @@ func TestReplaceOverlappingDependency(t *testing.T) {
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size:         10,
 		OverlapLimit: 1,
-	}, logger, nil, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
+	}, logger, nil, mockEndorser, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
 
 	assert.NoError(t, err)
 
@@ -507,7 +488,6 @@ func TestReplaceOverlappingDependency(t *testing.T) {
 	mockCollector.On("ValidatePayment", mock.Anything).Return(nil).Maybe()
 	mockCollector.On("Cmp", op1, op2).Return(-1).Maybe()
 	mockCollector.On("Cmp", op2, op1).Return(1).Maybe()
-	mockP2p.On("Broadcast", mock.Anything).Return(nil).Maybe()
 	mockRegistry.On("IsAcceptedEndorser", mock.Anything).Return(true).Maybe()
 
 	mockEndorser.On("IsOperationReady", mock.Anything, mock.Anything).Return(&endorser.EndorserResult{
@@ -525,12 +505,11 @@ func TestReplaceOverlappingDependency(t *testing.T) {
 	assert.NoError(t, res)
 
 	assert.Equal(t, len(mempool.Operations), 1)
-	assert.Equal(t, mempool.Operations[0].ToProto(), op2.ToProto())
+	assert.Equal(t, mempool.Operations[op2.Hash()].ToProto(), op2.ToProto())
 }
 
 func TestRejectBadEndorser(t *testing.T) {
 	logger := httplog.NewLogger("")
-	mockP2p := &mocks.MockP2p{}
 	mockCollector := &mocks.MockCollector{}
 	mockEndorser := &mocks.MockEndorser{}
 	mockRegistry := &mocks.MockRegistry{}
@@ -539,7 +518,7 @@ func TestRejectBadEndorser(t *testing.T) {
 		Size:          10,
 		OverlapLimit:  10,
 		WildcardLimit: 10,
-	}, logger, nil, mockEndorser, mockP2p, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
+	}, logger, nil, mockEndorser, mockCollector, nil, calldata.DefaultModel(), mockRegistry)
 
 	assert.NoError(t, err)
 
@@ -553,7 +532,6 @@ func TestRejectBadEndorser(t *testing.T) {
 	mockEndorser.On("ConstraintsMet", mock.Anything, mock.Anything).Return(true, nil).Maybe()
 	mockEndorser.On("DependencyState", mock.Anything, mock.Anything).Return(&endorser.EndorserResultState{}, nil).Maybe()
 	mockCollector.On("ValidatePayment", mock.Anything).Return(nil).Maybe()
-	mockP2p.On("Broadcast", mock.Anything).Return(nil).Maybe()
 	mockRegistry.On("IsAcceptedEndorser", common.HexToAddress("0x5887Ea54AE1308Bb7A697FdE87bA3D2E2d3952Ad")).Return(false).Once()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -564,6 +542,5 @@ func TestRejectBadEndorser(t *testing.T) {
 
 	mockEndorser.AssertExpectations(t)
 	mockCollector.AssertExpectations(t)
-	mockP2p.AssertExpectations(t)
 	mockRegistry.AssertExpectations(t)
 }

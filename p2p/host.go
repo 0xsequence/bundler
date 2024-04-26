@@ -3,17 +3,16 @@ package p2p
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math"
 	"math/big"
 	"math/rand"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/0xsequence/bundler/config"
-	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/ethkit/ethwallet"
 	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"
 	"github.com/libp2p/go-libp2p"
@@ -34,27 +33,35 @@ import (
 )
 
 type Host struct {
-	cfg      *config.P2PHostConfig
-	logger   *slog.Logger
-	metrics  *metrics
-	host     host.Host
-	pubsub   *pubsub.PubSub
-	topic    *pubsub.Topic
-	handlers map[proto.MessageType][]MsgHandler
+	lock sync.Mutex
+
+	cfg     *config.P2PHostConfig
+	logger  *slog.Logger
+	metrics *metrics
+	host    host.Host
+	pubsub  *pubsub.PubSub
+	topics  map[string]*pubsub.Topic
 
 	peerPrivKey crypto.PrivKey
 
 	chainID *big.Int
 
-	ctx     context.Context
-	ctxStop context.CancelFunc
 	running int32
-	// mu      sync.RWMutex
 }
 
 var _ Interface = &Host{}
 
-func NewHost(cfg *config.P2PHostConfig, logger *slog.Logger, metrics prometheus.Registerer, wallet *ethwallet.Wallet, chainID *big.Int) (*Host, error) {
+type Identity struct {
+	ID peer.ID
+
+	privKey crypto.PrivKey
+}
+
+func NewIdentity(mnmonic string) (*Identity, error) {
+	wallet, err := ethwallet.NewWalletFromMnemonic(mnmonic)
+	if err != nil {
+		return nil, err
+	}
 
 	// Use private key at HD node account index 0 as the peer private key.
 	peerPrivKeyBytes, err := hexutil.Decode(wallet.PrivateKeyHex())
@@ -74,7 +81,15 @@ func NewHost(cfg *config.P2PHostConfig, logger *slog.Logger, metrics prometheus.
 	if err != nil {
 		return nil, err
 	}
-	logger = logger.With("hostId", id.String())
+
+	return &Identity{
+		ID:      id,
+		privKey: peerPrivKey,
+	}, nil
+}
+
+func NewHost(cfg *config.P2PHostConfig, logger *slog.Logger, metrics prometheus.Registerer, identity *Identity, chainID *big.Int) (*Host, error) {
+	logger = logger.With("hostId", identity.ID.String())
 
 	connmgr, err := connmgr.NewConnManager(
 		300, // Lowwater
@@ -85,9 +100,14 @@ func NewHost(cfg *config.P2PHostConfig, logger *slog.Logger, metrics prometheus.
 		return nil, err
 	}
 
+	var registerOpts libp2p.Option
+	if metrics != nil {
+		registerOpts = libp2p.PrometheusRegisterer(metrics)
+	}
+
 	h, err := libp2p.New(
 		// Use the keypair we generated
-		libp2p.Identity(peerPrivKey),
+		libp2p.Identity(identity.privKey),
 
 		// if we want network to be separated, etc.
 		// libp2p.PrivateNetwork(),
@@ -135,7 +155,7 @@ func NewHost(cfg *config.P2PHostConfig, logger *slog.Logger, metrics prometheus.
 		libp2p.EnableHolePunching(),
 
 		// Metrics
-		libp2p.PrometheusRegisterer(metrics),
+		registerOpts,
 
 		// TODO: review all libp2p options and defaults
 	)
@@ -149,9 +169,10 @@ func NewHost(cfg *config.P2PHostConfig, logger *slog.Logger, metrics prometheus.
 		logger:      logger,
 		metrics:     createMetrics(metrics),
 		host:        h,
-		peerPrivKey: peerPrivKey,
-		handlers:    map[proto.MessageType][]MsgHandler{},
+		peerPrivKey: identity.privKey,
 		chainID:     chainID,
+
+		topics: make(map[string]*pubsub.Topic),
 	}
 
 	return nd, nil
@@ -164,8 +185,6 @@ func (n *Host) Run(ctx context.Context) error {
 	atomic.StoreInt32(&n.running, 1)
 	defer atomic.StoreInt32(&n.running, 0)
 
-	n.ctx, n.ctxStop = context.WithCancel(ctx)
-
 	hostAddrs := getHostAddresses(n.host)
 	for _, hostAddr := range hostAddrs {
 		n.logger.Info("-> node: listening libp2p", "op", "run", "addr", hostAddr)
@@ -177,7 +196,7 @@ func (n *Host) Run(ctx context.Context) error {
 		return err
 	}
 
-	err = n.bootstrap(bootPeers)
+	err = n.bootstrap(ctx, bootPeers)
 	if err != nil {
 		return err
 	}
@@ -193,7 +212,7 @@ func (n *Host) Run(ctx context.Context) error {
 		n.host.ConnManager().Protect(peerInfo.ID, "priority")
 	}
 
-	err = n.setupPubsub(n.chainID)
+	err = n.setupPubsub(ctx, n.chainID)
 	if err != nil {
 		return err
 	}
@@ -224,14 +243,14 @@ func (s *Host) IsStopping() bool {
 	return atomic.LoadInt32(&s.running) == 2
 }
 
-func (n *Host) bootstrap(bootPeers []peer.AddrInfo) error {
+func (n *Host) bootstrap(ctx context.Context, bootPeers []peer.AddrInfo) error {
 	// run a DHT router in server mode
-	kdht, err := dht.New(n.ctx, n.host, dht.Mode(dht.ModeServer))
+	kdht, err := dht.New(ctx, n.host, dht.Mode(dht.ModeServer))
 	if err != nil {
 		return err
 	}
 
-	if err = kdht.Bootstrap(n.ctx); err != nil {
+	if err = kdht.Bootstrap(ctx); err != nil {
 		return err
 	}
 
@@ -240,14 +259,14 @@ func (n *Host) bootstrap(bootPeers []peer.AddrInfo) error {
 		firstDone := make(chan error, 1)
 		for _, bootPeer := range bootPeers {
 			go func(ctx context.Context, peerInfo peer.AddrInfo) {
-				cerr := n.attemptBootConnect(n.ctx, peerInfo)
+				cerr := n.attemptBootConnect(ctx, peerInfo)
 				err := <-cerr
 
 				select {
 				case firstDone <- err:
 				default:
 				}
-			}(n.ctx, bootPeer)
+			}(ctx, bootPeer)
 		}
 
 		// wait for at least one successful connection
@@ -261,16 +280,18 @@ func (n *Host) bootstrap(bootPeers []peer.AddrInfo) error {
 
 	// advertise our existence at the given namespace.
 	routingDiscovery := drouting.NewRoutingDiscovery(kdht)
-	dutil.Advertise(n.ctx, routingDiscovery, DiscoveryNamespace)
+	namespace := Namespace.For(n.chainID)
+
+	dutil.Advertise(ctx, routingDiscovery, namespace)
 
 	// start discovery process in the background.
-	discoveryNameSpaceCid, err := NamespaceToCid(DiscoveryNamespace)
+	discoveryNameSpaceCid, err := NamespaceToCid(namespace)
 	if err != nil {
 		return err
 	}
 
 	go func() {
-		peerCh := kdht.FindProvidersAsync(n.ctx, discoveryNameSpaceCid, 0)
+		peerCh := kdht.FindProvidersAsync(ctx, discoveryNameSpaceCid, 0)
 		for peerInfo := range peerCh {
 			n.metrics.foundPeers.Inc()
 
@@ -280,7 +301,7 @@ func (n *Host) bootstrap(bootPeers []peer.AddrInfo) error {
 				continue
 			}
 
-			if err := n.host.Connect(n.ctx, peerInfo); err != nil {
+			if err := n.host.Connect(ctx, peerInfo); err != nil {
 				n.metrics.foundPeersFailedConnect.Inc()
 				n.logger.Error(fmt.Sprintf("failed to connect with namespaced peer %s", peerInfo.String()), "err", err)
 				continue
@@ -376,19 +397,4 @@ func (n *Host) PriorityPeers() []peer.ID {
 		}
 	}
 	return priorityPeers
-}
-
-func (n *Host) Broadcast(payload proto.Message) error {
-	if n.topic == nil {
-		return fmt.Errorf("pubsub topic not initialized")
-	}
-
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-
-	n.metrics.broadcastSentBytes.WithLabelValues(payload.Type.String()).Observe(float64(len(data)))
-
-	return n.topic.Publish(n.ctx, data)
 }

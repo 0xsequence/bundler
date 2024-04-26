@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -17,9 +18,11 @@ import (
 	"github.com/0xsequence/bundler/ipfs"
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/p2p"
+	"github.com/0xsequence/bundler/provider"
 	"github.com/0xsequence/bundler/registry"
 	"github.com/0xsequence/bundler/rpc"
 	"github.com/0xsequence/bundler/store"
+	"github.com/0xsequence/bundler/utils"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/ethwallet"
 	"github.com/go-chi/httplog/v2"
@@ -40,6 +43,7 @@ type Node struct {
 	Collector *collector.Collector
 	Registry  registry.Interface
 	Pruner    *bundler.Pruner
+	Provider  *provider.Batched
 
 	ctx       context.Context
 	ctxStopFn context.CancelFunc
@@ -77,35 +81,6 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 	logger := httplog.NewLogger("bundler", loggerOptions)
 
-	// Metrics
-	prom := prometheus.NewRegistry()
-	promPrefix := prometheus.WrapRegistererWithPrefix("bundler_", prom)
-	promPrefix.MustRegister(
-		collectors.NewGoCollector(),
-		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
-	)
-
-	// Provider
-	provider, err := ethrpc.NewProvider(cfg.NetworkConfig.RpcUrl)
-	if err != nil {
-		return nil, err
-	}
-
-	// ChainID
-	chainID, err := provider.ChainID(context.Background())
-	if err != nil {
-		return nil, err
-	}
-
-	// Debugger
-	debugger, err := debugger.NewDebugger(cfg.DebuggerConfig, context.Background(), logger, promPrefix, cfg.NetworkConfig.RpcUrl)
-	if err != nil {
-		return nil, err
-	}
-
-	// Endorser
-	endorser := endorser.NewEndorser(logger, promPrefix, provider, debugger)
-
 	// Wallet
 	mnmonic := cfg.Mnemonic
 	if mnmonic == "" {
@@ -123,15 +98,59 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		logger.Info("=> no mnemonic provided, using temporal wallet")
 	}
 
-	wallet, err := rpc.SetupWallet(mnmonic, 0, provider)
+	// Identity
+	identity, err := p2p.NewIdentity(mnmonic)
 	if err != nil {
 		return nil, err
 	}
-	logger.Info("=> setup node wallet", "address", wallet.Address().String())
+
+	// Provider
+	base, err := ethrpc.NewProvider(cfg.NetworkConfig.RpcUrl)
+	if err != nil {
+		return nil, err
+	}
+	client := utils.NewHttpRpcMetricsClient()
+	base.SetHTTPClient(&http.Client{
+		Transport: client,
+	})
+
+	// Extended provider
+	extended := provider.NewExtended(base, true, true)
+	batched := provider.NewBatched(extended, 10*time.Millisecond)
+
+	// ChainID
+	chainID, err := batched.ChainID(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("=> setup node identity", "id", identity.ID.String())
+
+	// Metrics
+	prom := prometheus.NewRegistry()
+	promPrefix := prometheus.WrapRegistererWithPrefix("bundler_", prom)
+	promPrefix = prometheus.WrapRegistererWith(prometheus.Labels{"id": identity.ID.String()}, promPrefix)
+	promPrefix = prometheus.WrapRegistererWith(prometheus.Labels{"chain_id": chainID.String()}, promPrefix)
+
+	promPrefix.MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	)
+
+	client.UseRegistry(promPrefix, cfg.NetworkConfig.RpcUrl)
+
+	// Debugger
+	debugger, err := debugger.NewDebugger(cfg.DebuggerConfig, context.Background(), logger, promPrefix, cfg.NetworkConfig.RpcUrl)
+	if err != nil {
+		return nil, err
+	}
+
+	// Endorser
+	endorser := endorser.NewEndorser(logger, promPrefix, batched, debugger)
 
 	// Store
 	// TODO: Add custom store path
-	store, err := store.CreateInstanceStore(wallet.Address().String() + "-" + chainID.String())
+	store, err := store.CreateInstanceStore(identity.ID.String() + "-" + chainID.String())
 	if err != nil {
 		logger.Warn("=> unable to create instance store", "error", err)
 	} else {
@@ -139,7 +158,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 
 	// p2p host
-	host, err := p2p.NewHost(&cfg.P2PHostConfig, logger.Logger, promPrefix, wallet, chainID)
+	host, err := p2p.NewHost(&cfg.P2PHostConfig, logger.Logger, promPrefix, identity, chainID)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +167,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	ipfs := ipfs.NewClient(promPrefix, cfg.NetworkConfig.IpfsUrl)
 
 	// Collector
-	collector, err := collector.NewCollector(&cfg.CollectorConfig, logger, promPrefix, provider)
+	collector, err := collector.NewCollector(&cfg.CollectorConfig, logger, promPrefix, batched)
 	if err != nil {
 		return nil, err
 	}
@@ -167,13 +186,13 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 
 	// Endorser registry
-	registry, err := registry.NewRegistry(&cfg.RegistryConfig, logger, promPrefix, provider)
+	registry, err := registry.NewRegistry(&cfg.RegistryConfig, logger, promPrefix, batched)
 	if err != nil {
 		return nil, err
 	}
 
 	// Mempool
-	mempool, err := mempool.NewMempool(&cfg.MempoolConfig, logger, promPrefix, endorser, host, collector, ipfs, calldataModel, registry)
+	mempool, err := mempool.NewMempool(&cfg.MempoolConfig, logger, promPrefix, endorser, collector, ipfs, calldataModel, registry)
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +207,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	pruner := bundler.NewPruner(cfg.PrunerConfig, logger, promPrefix, mempool, endorser, registry)
 
 	// RPC
-	rpc, err := rpc.NewRPC(cfg, logger, promPrefix, prom, host, mempool, archive, provider, collector, endorser, ipfs, registry)
+	rpc, err := rpc.NewRPC(cfg, logger, promPrefix, prom, host, mempool, archive, batched.Provider, collector, endorser, ipfs, registry)
 	if err != nil {
 		return nil, err
 	}
@@ -207,6 +226,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 		Collector: collector,
 		Registry:  registry,
 		Pruner:    pruner,
+		Provider:  batched,
 	}
 
 	return server, nil
@@ -233,6 +253,12 @@ func (s *Node) Run() error {
 	g.Go(func() error {
 		oplog.Info("-> rpc: run")
 		return s.RPC.Run(ctx)
+	})
+
+	// Provider
+	g.Go(func() error {
+		oplog.Info("-> provider: run")
+		return s.Provider.Run(ctx)
 	})
 
 	// Node

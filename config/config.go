@@ -28,7 +28,6 @@ type Config struct {
 	DebuggerConfig  DebuggerConfig  `toml:"debugger"`
 
 	LinearCalldataModel *LinearCalldataModel `toml:"linear_calldata_model"`
-
 }
 
 type LoggingConfig struct {
@@ -83,6 +82,8 @@ type PrunerConfig struct {
 
 type SendersConfig struct {
 	NumSenders uint `toml:"num_senders"`
+
+	MinBalance string `toml:"min_balance"`
 
 	PriorityFee int `toml:"priority_fee"`
 	RandomWait  int `toml:"random_wait"`

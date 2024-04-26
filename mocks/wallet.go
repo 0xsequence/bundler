@@ -3,6 +3,7 @@ package mocks
 import (
 	"context"
 
+	"github.com/0xsequence/bundler/interfaces"
 	"github.com/0xsequence/bundler/sender"
 	"github.com/0xsequence/ethkit/ethtxn"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
@@ -34,4 +35,20 @@ func (m *MockWallet) SendTransaction(ctx context.Context, t *types.Transaction) 
 	return args.Get(0).(*types.Transaction), args.Get(1).(ethtxn.WaitReceipt), args.Error(2)
 }
 
-var _ sender.WalletInterface = &MockWallet{}
+var _ interfaces.Wallet = &MockWallet{}
+
+type MockWalletFactory struct {
+	mock.Mock
+}
+
+func (m *MockWalletFactory) GetWallet(i int) (interfaces.Wallet, error) {
+	args := m.Called(i)
+	err := args.Error(1)
+	if err != nil {
+		return nil, err
+	}
+
+	return args.Get(0).(interfaces.Wallet), nil
+}
+
+var _ sender.WalletFactory = &MockWalletFactory{}
