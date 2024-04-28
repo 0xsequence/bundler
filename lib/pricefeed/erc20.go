@@ -1,7 +1,7 @@
 package pricefeed
 
 import (
-	"github.com/0xsequence/bundler/pricefeed/abis"
+	"github.com/0xsequence/bundler/lib/pricefeed/abis"
 	"github.com/0xsequence/ethkit/ethcontract"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/go-ethereum/common"

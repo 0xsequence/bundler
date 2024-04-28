@@ -7,9 +7,9 @@ import (
 
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/endorser"
+	"github.com/0xsequence/bundler/lib/registry"
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/proto"
-	"github.com/0xsequence/bundler/registry"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/httplog/v2"
 	"github.com/prometheus/client_golang/prometheus"

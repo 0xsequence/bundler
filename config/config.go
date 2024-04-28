@@ -42,7 +42,7 @@ type LoggingConfig struct {
 
 type NetworkConfig struct {
 	RpcUrl  string `toml:"rpc_url"`
-	IpfsUrl string `toml:"ipfs_url"`
+	IPFSUrl string `toml:"ipfs_url"`
 
 	ValidatorContract string `toml:"validator_contract"`
 }

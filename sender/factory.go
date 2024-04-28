@@ -3,7 +3,7 @@ package sender
 import (
 	"fmt"
 
-	"github.com/0xsequence/bundler/interfaces"
+	"github.com/0xsequence/bundler/lib/interfaces"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/ethwallet"
 )

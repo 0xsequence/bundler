@@ -3,10 +3,10 @@ package mocks
 import (
 	"math/big"
 
-	"github.com/0xsequence/bundler/collector"
-	"github.com/0xsequence/bundler/pricefeed"
+	"github.com/0xsequence/bundler/lib/collector"
+	"github.com/0xsequence/bundler/lib/pricefeed"
+	"github.com/0xsequence/bundler/lib/types"
 	"github.com/0xsequence/bundler/proto"
-	"github.com/0xsequence/bundler/types"
 	"github.com/stretchr/testify/mock"
 )
 

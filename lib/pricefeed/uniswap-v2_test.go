@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/0xsequence/bundler/config"
-	"github.com/0xsequence/bundler/mocks"
-	"github.com/0xsequence/bundler/pricefeed"
+	"github.com/0xsequence/bundler/lib/mocks"
+	"github.com/0xsequence/bundler/lib/pricefeed"
 	"github.com/0xsequence/ethkit/go-ethereum"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/0xsequence/ethkit/go-ethereum/common/hexutil"

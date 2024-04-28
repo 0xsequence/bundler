@@ -1,5 +1,5 @@
 # Use an official Go runtime as a parent image
-FROM golang:1.21.6 as builder
+FROM golang:1.22 as builder
 
 # Set the working directory inside the container
 WORKDIR /go/src/app

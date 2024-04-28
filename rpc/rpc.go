@@ -9,18 +9,17 @@ import (
 	"time"
 
 	"github.com/0xsequence/bundler"
-	"github.com/0xsequence/bundler/admin"
-	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/ipfs"
+	"github.com/0xsequence/bundler/lib/collector"
+	"github.com/0xsequence/bundler/lib/registry"
 	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
-	"github.com/0xsequence/bundler/registry"
+	"github.com/0xsequence/bundler/rpc/admin"
 	"github.com/0xsequence/bundler/sender"
-	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/chi/v5"
@@ -30,26 +29,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
-
-type metrics struct {
-	methodTime *prometheus.HistogramVec
-}
-
-func createMetrics(reg prometheus.Registerer) *metrics {
-	methodTime := prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "rpc_method_time",
-		Help:    "Method execution time",
-		Buckets: prometheus.ExponentialBuckets(0.001, 2, 18),
-	}, []string{"method"})
-
-	if reg != nil {
-		reg.MustRegister(methodTime)
-	}
-
-	return &metrics{
-		methodTime: methodTime,
-	}
-}
 
 type RPC struct {
 	Config     *config.Config
@@ -184,8 +163,7 @@ func (s *RPC) IsStopping() bool {
 }
 
 func (s *RPC) GetLogger(ctx context.Context) *slog.Logger {
-	lg := httplog.LogEntry(ctx)
-	return &lg
+	return httplog.LogEntry(ctx)
 }
 
 func (s *RPC) handler() http.Handler {
@@ -256,40 +234,6 @@ func (s *RPC) Ping(ctx context.Context) (bool, error) {
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("."))
-}
-
-func (s *RPC) SendOperation(ctx context.Context, pop *proto.Operation) (string, error) {
-	op, err := types.NewOperationFromProto(pop)
-	if err != nil {
-		return "", err
-	}
-
-	// Always PIN these operations to IPFS
-	// as they are being sent by the user, and
-	// it is useful for debugging
-	go op.ReportToIPFS(s.ipfs)
-
-	err = s.mempool.AddOperation(ctx, op, true)
-	if err != nil {
-		return "", err
-	}
-
-	// If the operation is fine, broadcast it to the network
-	s.Host.Broadcast(ctx, p2p.OperationTopic, op.ToProtoPure())
-
-	return op.Hash(), nil
-}
-
-func (s RPC) Mempool(ctx context.Context) (*proto.MempoolView, error) {
-	return s.mempool.Inspect(), nil
-}
-
-func (s RPC) Operations(ctx context.Context) (*proto.Operations, error) {
-	return s.archive.Operations(ctx), nil
-}
-
-func (s *RPC) FeeAsks(ctx context.Context) (*proto.FeeAsks, error) {
-	return s.collector.FeeAsks()
 }
 
 func stubHandler(respBody string) http.HandlerFunc {

@@ -3,7 +3,7 @@ package mocks
 import (
 	"context"
 
-	"github.com/0xsequence/bundler/interfaces"
+	"github.com/0xsequence/bundler/lib/interfaces"
 	"github.com/0xsequence/bundler/sender"
 	"github.com/0xsequence/ethkit/ethtxn"
 	"github.com/0xsequence/ethkit/go-ethereum/common"

@@ -7,16 +7,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/0xsequence/bundler/calldata"
-	"github.com/0xsequence/bundler/collector"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/ipfs"
+	"github.com/0xsequence/bundler/lib/calldata"
+	"github.com/0xsequence/bundler/lib/collector"
+	"github.com/0xsequence/bundler/lib/registry"
+	"github.com/0xsequence/bundler/lib/types"
+	"github.com/0xsequence/bundler/lib/utils"
 	"github.com/0xsequence/bundler/mempool/partitioner"
 	"github.com/0xsequence/bundler/proto"
-	"github.com/0xsequence/bundler/registry"
-	"github.com/0xsequence/bundler/types"
-	"github.com/0xsequence/bundler/utils"
 	"github.com/go-chi/httplog/v2"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -25,7 +25,7 @@ type Mempool struct {
 	logger  *httplog.Logger
 	metrics *metrics
 
-	Ipfs          ipfs.Interface
+	IPFS          ipfs.Interface
 	Collector     collector.Interface
 	Endorser      endorser.Interface
 	CalldataModel calldata.CostModel
@@ -72,7 +72,7 @@ func NewMempool(
 		logger:  logger,
 		metrics: createMetrics(metrics),
 
-		Ipfs:          ipfs,
+		IPFS:          ipfs,
 		Endorser:      endorser,
 		Collector:     collector,
 		CalldataModel: calldataModel,
@@ -406,12 +406,12 @@ func (mp *Mempool) tryPromoteOperation(ctx context.Context, op *types.Operation)
 
 func (mp *Mempool) ReportToIPFS(op *types.Operation) {
 	// Fire a go-routine to report the operation to IPFS
-	if mp.Ipfs == nil {
+	if mp.IPFS == nil {
 		return
 	}
 
 	go func() {
-		err := op.ReportToIPFS(mp.Ipfs)
+		err := op.ReportToIPFS(mp.IPFS)
 		if err != nil {
 			mp.logger.Warn("error reporting operation to IPFS", "op", op.Hash(), "err", err)
 		}

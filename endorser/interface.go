@@ -5,7 +5,7 @@ import (
 	"math/big"
 
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
-	"github.com/0xsequence/bundler/types"
+	"github.com/0xsequence/bundler/lib/types"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 )
 

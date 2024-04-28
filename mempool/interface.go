@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/0xsequence/bundler/endorser"
+	"github.com/0xsequence/bundler/lib/types"
 	"github.com/0xsequence/bundler/proto"
-	"github.com/0xsequence/bundler/types"
 )
 
 type TrackedOperation struct {

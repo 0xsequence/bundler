@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/0xsequence/bundler/endorser"
-	"github.com/0xsequence/bundler/types"
+	"github.com/0xsequence/bundler/lib/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/sha3"
 )
