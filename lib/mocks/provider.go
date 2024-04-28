@@ -15,6 +15,11 @@ type MockRPCProvider struct {
 	mock.Mock
 }
 
+func (m *MockRPCProvider) Do(ctx context.Context, calls ...ethrpc.Call) ([]byte, error) {
+	args := m.Called(ctx, calls)
+	return args.Get(0).([]byte), args.Error(1)
+}
+
 func (m *MockRPCProvider) NonceAt(ctx context.Context, account common.Address, blockNum *big.Int) (uint64, error) {
 	args := m.Called(ctx, account, blockNum)
 	return args.Get(0).(uint64), args.Error(1)
@@ -178,6 +183,21 @@ func (m *MockRPCProvider) TransactionInBlock(ctx context.Context, blockHash comm
 func (m *MockRPCProvider) TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
 	args := m.Called(ctx, txHash)
 	return args.Get(0).(*types.Receipt), args.Error(1)
+}
+
+func (m *MockRPCProvider) IsStreamingEnabled() bool {
+	args := m.Called()
+	return args.Bool(0)
+}
+
+func (m *MockRPCProvider) SubscribeFilterLogs(ctx context.Context, query ethereum.FilterQuery, ch chan<- types.Log) (ethereum.Subscription, error) {
+	args := m.Called(ctx, query, ch)
+	return args.Get(0).(ethereum.Subscription), args.Error(1)
+}
+
+func (m *MockRPCProvider) SubscribeNewHeads(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error) {
+	args := m.Called(ctx, ch)
+	return args.Get(0).(ethereum.Subscription), args.Error(1)
 }
 
 var _ ethrpc.Interface = &MockRPCProvider{}

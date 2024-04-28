@@ -5,9 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"math"
 	"math/big"
-	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -20,9 +18,8 @@ import (
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
+	p2pnetwork "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
-	drouting "github.com/libp2p/go-libp2p/p2p/discovery/routing"
-	dutil "github.com/libp2p/go-libp2p/p2p/discovery/util"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/libp2p/go-libp2p/p2p/security/noise"
 	libp2ptls "github.com/libp2p/go-libp2p/p2p/security/tls"
@@ -121,6 +118,7 @@ func NewHost(cfg *config.P2PHostConfig, logger *slog.Logger, metrics prometheus.
 			fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", cfg.P2PPort),         // TCP transport
 			fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1", cfg.P2PPort), // QUIC transport
 		),
+		// libp2p.ListenAddrs(listenAddr),
 
 		// support TLS connections
 		libp2p.Security(libp2ptls.ID, libp2ptls.New),
@@ -130,6 +128,7 @@ func NewHost(cfg *config.P2PHostConfig, logger *slog.Logger, metrics prometheus.
 		// support any other default transports (TCP)
 		// libp2p.DefaultTransports,
 		libp2p.ChainOptions(
+			libp2p.NoTransports,
 			libp2p.Transport(tcp.NewTCPTransport),
 			libp2p.Transport(quic.NewTransport),
 		),
@@ -244,113 +243,192 @@ func (s *Host) IsStopping() bool {
 }
 
 func (n *Host) bootstrap(ctx context.Context, bootPeers []peer.AddrInfo) error {
+	logger := n.logger
+
 	// run a DHT router in server mode
 	kdht, err := dht.New(ctx, n.host, dht.Mode(dht.ModeServer))
 	if err != nil {
 		return err
 	}
 
-	if err = kdht.Bootstrap(ctx); err != nil {
+	connected := make(chan struct{})
+
+	var wg sync.WaitGroup
+	for _, pinfo := range bootPeers {
+		// n.host.Peerstore().AddAddrs(pinfo.ID, pinfo.Addrs, peerstore.PermanentAddrTTL)
+		wg.Add(1)
+		go func(pinfo peer.AddrInfo) {
+			defer wg.Done()
+			err := n.host.Connect(ctx, pinfo)
+			if err != nil {
+				logger.Warn(fmt.Sprintf("Failed to connect to peer %s", pinfo.ID), "err", err)
+				n.metrics.bootnodesFailed.Inc()
+				return
+			}
+			logger.Info(fmt.Sprintf("Connected to peer %s", pinfo.ID), slog.String("peer", pinfo.ID.String()))
+			n.metrics.bootnodesConnected.Inc()
+			connected <- struct{}{}
+		}(pinfo)
+	}
+
+	go func() {
+		wg.Wait()
+		close(connected)
+	}()
+
+	i := 0
+	for range connected {
+		i++
+	}
+	if nPeers := len(bootPeers); i < nPeers/2 {
+		logger.Warn(fmt.Sprintf("only connected to %d bootstrap peers out of %d", i, nPeers))
+	}
+
+	err = kdht.Bootstrap(ctx)
+	if err != nil {
+		logger.Error("kdht bootstrap error", "err", err)
 		return err
 	}
 
-	// connect with bootstrap peers
-	if len(bootPeers) != 0 {
-		firstDone := make(chan error, 1)
-		for _, bootPeer := range bootPeers {
-			go func(ctx context.Context, peerInfo peer.AddrInfo) {
-				cerr := n.attemptBootConnect(ctx, peerInfo)
-				err := <-cerr
+	// routingDiscovery := discrouting.NewRoutingDiscovery(kdht)
+	// discutil.Advertise(context.Background(), routingDiscovery, DiscoveryNameSpace)
 
-				select {
-				case firstDone <- err:
-				default:
-				}
-			}(ctx, bootPeer)
-		}
-
-		// wait for at least one successful connection
-		err = <-firstDone
-		if err != nil {
-			return fmt.Errorf("failed to connect with any of the given bootstrap peers: %w", err)
-		}
-	} else {
-		n.logger.Warn("no bootstrap peers provided, starting in standalone mode")
-	}
-
-	// advertise our existence at the given namespace.
-	routingDiscovery := drouting.NewRoutingDiscovery(kdht)
-	namespace := Namespace.For(n.chainID)
-
-	dutil.Advertise(ctx, routingDiscovery, namespace)
-
-	// start discovery process in the background.
-	discoveryNameSpaceCid, err := NamespaceToCid(namespace)
+	discoveryNameSpaceCid, err := NamespaceToCid(Namespace.For(n.chainID))
 	if err != nil {
 		return err
 	}
 
+	// broadcast our existence at the given namespace every 10 seconds.
 	go func() {
-		peerCh := kdht.FindProvidersAsync(ctx, discoveryNameSpaceCid, 0)
-		for peerInfo := range peerCh {
-			n.metrics.foundPeers.Inc()
-
-			if peerInfo.ID == n.host.ID() {
-				// do not dial ourselves
-				n.metrics.foundSelfAsPeer.Inc()
-				continue
+		for {
+			err := kdht.Provide(context.Background(), discoveryNameSpaceCid, true)
+			if err != nil {
+				logger.Error("error while providing discovery namespace", "err", err)
 			}
+			time.Sleep(10 * time.Second)
+		}
+	}()
 
-			if err := n.host.Connect(ctx, peerInfo); err != nil {
-				n.metrics.foundPeersFailedConnect.Inc()
-				n.logger.Error(fmt.Sprintf("failed to connect with namespaced peer %s", peerInfo.String()), "err", err)
-				continue
+	n.host.Network().Notify(&p2pnetwork.NotifyBundle{
+		ConnectedF: func(net p2pnetwork.Network, c p2pnetwork.Conn) {
+			tagged := n.host.ConnManager().GetTagInfo(c.RemotePeer())
+			if tagged == nil {
+				return
 			}
+			if tagged.Tags["discovered"] == 0 {
+				return
+			}
+			logger.Info("notify, connected to namespaced peer", "peerId", c.RemotePeer())
+		},
+		DisconnectedF: func(net p2pnetwork.Network, c p2pnetwork.Conn) {
+			tagged := n.host.ConnManager().GetTagInfo(c.RemotePeer())
+			if tagged == nil {
+				return
+			}
+			if tagged.Tags["discovered"] == 0 {
+				return
+			}
+			logger.Info("notify, disconnected from namespaced peer", "peerId", c.RemotePeer())
+			n.host.ConnManager().UntagPeer(c.RemotePeer(), "discovered")
+		},
+	})
 
-			// tag the peer so that we can offer it higher priority among peers
-			n.metrics.foundPeersConnected.Inc()
-			n.logger.Info("connected with namespaced peer", "peerId", peerInfo.String())
-			n.host.ConnManager().TagPeer(peerInfo.ID, "discovered", 500)
+	// start discovery process in the background.
+	go func() {
+		failedPeers := map[peer.ID]time.Time{}
+
+		for {
+			// search for peers for just 15 seconds and then try again.
+			func() {
+				tctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				defer cancel()
+
+				peerCh := kdht.FindProvidersAsync(tctx, discoveryNameSpaceCid, 0)
+				for peerInfo := range peerCh {
+					if peerInfo.ID == n.host.ID() {
+						// do not dial ourselves
+						continue
+					}
+
+					n.metrics.foundPeers.Inc()
+
+					if n.host.Network().Connectedness(peerInfo.ID) == p2pnetwork.Connected {
+						// already connected
+						continue
+					}
+
+					// Skip peers with no addresses, as they are gone
+					// NOTE: we comment this out as failedPeers check below is enough
+					// if len(peerInfo.Addrs) == 0 {
+					// 	continue
+					// }
+
+					// Skip if recently failed peer connection
+					if t, ok := failedPeers[peerInfo.ID]; ok {
+						if time.Since(t) < 1*time.Minute {
+							continue
+						} else {
+							delete(failedPeers, peerInfo.ID)
+						}
+					}
+
+					// Connect to the peer
+					if err := n.host.Connect(ctx, peerInfo); err != nil {
+						n.metrics.foundPeersFailedConnect.Inc()
+						n.logger.Warn(fmt.Sprintf("failed to connect with namespaced peer %s", peerInfo.String()), "err", err)
+						failedPeers[peerInfo.ID] = time.Now()
+						continue
+					}
+
+					// tag the peer so that we can offer it higher priority among peers
+					n.metrics.foundPeersConnected.Inc()
+					n.logger.Info("connected with namespaced peer", "peerId", peerInfo.String())
+					n.host.ConnManager().TagPeer(peerInfo.ID, "discovered", 500)
+				}
+			}()
+
+			// slight delay, and continue searching
+			time.Sleep(3 * time.Second)
 		}
 	}()
 
 	return nil
 }
 
-func (n *Host) attemptBootConnect(ctx context.Context, peerInfo peer.AddrInfo) chan error {
-	res := make(chan error, 1)
+// func (n *Host) attemptBootConnect(ctx context.Context, peerInfo peer.AddrInfo) chan error {
+// 	res := make(chan error, 1)
 
-	go func(ctx context.Context, peerInfo peer.AddrInfo) {
-		defer close(res)
+// 	go func(ctx context.Context, peerInfo peer.AddrInfo) {
+// 		defer close(res)
 
-		for i := 0.0; i <= 25; i += 1.0 {
-			if ctx.Err() != nil {
-				res <- fmt.Errorf("context cancelled during boot peer connection attempt")
-				return
-			}
+// 		for i := 0.0; i <= 25; i += 1.0 {
+// 			if ctx.Err() != nil {
+// 				res <- fmt.Errorf("context cancelled during boot peer connection attempt")
+// 				return
+// 			}
 
-			if err := n.host.Connect(ctx, peerInfo); err != nil {
-				// Add a random jitter to avoid synchronized reconnection attempts
-				jitter := rand.Float64() * i
-				retryIn := time.Duration(math.Pow(2, i)+jitter) * time.Second
-				n.metrics.bootnodesRetries.Inc()
-				n.logger.Error(fmt.Sprintf("error while connecting with boot peer %s", peerInfo.String()), "err", err, "retryIn", retryIn)
-				time.Sleep(retryIn + time.Duration(float64(retryIn)*rand.Float64()))
-				continue
-			}
+// 			if err := n.host.Connect(ctx, peerInfo); err != nil {
+// 				// Add a random jitter to avoid synchronized reconnection attempts
+// 				jitter := rand.Float64() * i
+// 				retryIn := time.Duration(math.Pow(2, i)+jitter) * time.Second
+// 				n.metrics.bootnodesRetries.Inc()
+// 				n.logger.Error(fmt.Sprintf("error while connecting with boot peer %s", peerInfo.String()), "err", err, "retryIn", retryIn)
+// 				time.Sleep(retryIn + time.Duration(float64(retryIn)*rand.Float64()))
+// 				continue
+// 			}
 
-			n.metrics.bootnodesConnected.Inc()
-			n.logger.Info("connected with the given bootstrap peer", "peerId", peerInfo.String())
-			res <- nil
-			return
-		}
+// 			n.metrics.bootnodesConnected.Inc()
+// 			n.logger.Info("connected with the given bootstrap peer", "peerId", peerInfo.String())
+// 			res <- nil
+// 			return
+// 		}
 
-		n.metrics.bootnodesFailed.Inc()
-		res <- fmt.Errorf("failed to connect with boot peer %s", peerInfo.String())
-	}(ctx, peerInfo)
+// 		n.metrics.bootnodesFailed.Inc()
+// 		res <- fmt.Errorf("failed to connect with boot peer %s", peerInfo.String())
+// 	}(ctx, peerInfo)
 
-	return res
-}
+// 	return res
+// }
 
 func (n *Host) HostID() peer.ID {
 	if n.host == nil {

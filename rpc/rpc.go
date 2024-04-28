@@ -163,8 +163,7 @@ func (s *RPC) IsStopping() bool {
 }
 
 func (s *RPC) GetLogger(ctx context.Context) *slog.Logger {
-	lg := httplog.LogEntry(ctx)
-	return &lg
+	return httplog.LogEntry(ctx)
 }
 
 func (s *RPC) handler() http.Handler {

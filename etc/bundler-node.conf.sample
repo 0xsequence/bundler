@@ -1,4 +1,5 @@
-mnemonic = ""
+mnemonic = "test test test test test test test test test test test junk"
+# mnemonic = "paper slogan height shy scissors rookie fix cycle drift concert canvas lake"
 
 rpc_port = 3000
 
@@ -11,11 +12,11 @@ rpc_port = 3000
     "/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
     "/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
     "/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
-    "/ip4/24.199.127.126/tcp/4000/p2p/12D3KooWC4xKePNkVwHRzQ2vn1jjpvVtXsKWWmTGLLis2bgwPTSZ"
+    #"/ip4/24.199.127.126/tcp/4000/p2p/12D3KooWC4xKePNkVwHRzQ2vn1jjpvVtXsKWWmTGLLis2bgwPTSZ"
   ]
 
 [debugger]
-  mode = "none" # options: anvil, nonce, native (tbd)
+  mode = "none" # options: anvil, none, native (tbd)
 
 [collector]
   min_priority_fee = 2500000
