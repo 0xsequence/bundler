@@ -1,5 +1,4 @@
-mnemonic = "test test test test test test test test test test test junk"
-# mnemonic = "paper slogan height shy scissors rookie fix cycle drift concert canvas lake"
+mnemonic = ""
 
 rpc_port = 3000
 
