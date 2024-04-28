@@ -309,29 +309,29 @@ func (n *Host) bootstrap(ctx context.Context, bootPeers []peer.AddrInfo) error {
 		}
 	}()
 
-	n.host.Network().Notify(&p2pnetwork.NotifyBundle{
-		ConnectedF: func(net p2pnetwork.Network, c p2pnetwork.Conn) {
-			tagged := n.host.ConnManager().GetTagInfo(c.RemotePeer())
-			if tagged == nil {
-				return
-			}
-			if tagged.Tags["discovered"] == 0 {
-				return
-			}
-			logger.Info("notify, connected to namespaced peer", "peerId", c.RemotePeer())
-		},
-		DisconnectedF: func(net p2pnetwork.Network, c p2pnetwork.Conn) {
-			tagged := n.host.ConnManager().GetTagInfo(c.RemotePeer())
-			if tagged == nil {
-				return
-			}
-			if tagged.Tags["discovered"] == 0 {
-				return
-			}
-			logger.Info("notify, disconnected from namespaced peer", "peerId", c.RemotePeer())
-			n.host.ConnManager().UntagPeer(c.RemotePeer(), "discovered")
-		},
-	})
+	// n.host.Network().Notify(&p2pnetwork.NotifyBundle{
+	// 	ConnectedF: func(net p2pnetwork.Network, c p2pnetwork.Conn) {
+	// 		tagged := n.host.ConnManager().GetTagInfo(c.RemotePeer())
+	// 		if tagged == nil {
+	// 			return
+	// 		}
+	// 		if tagged.Tags["discovered"] == 0 {
+	// 			return
+	// 		}
+	// 		logger.Info("notify, connected to namespaced peer", "peerId", c.RemotePeer())
+	// 	},
+	// 	DisconnectedF: func(net p2pnetwork.Network, c p2pnetwork.Conn) {
+	// 		tagged := n.host.ConnManager().GetTagInfo(c.RemotePeer())
+	// 		if tagged == nil {
+	// 			return
+	// 		}
+	// 		if tagged.Tags["discovered"] == 0 {
+	// 			return
+	// 		}
+	// 		logger.Info("notify, disconnected from namespaced peer", "peerId", c.RemotePeer())
+	// 		n.host.ConnManager().UntagPeer(c.RemotePeer(), "discovered")
+	// 	},
+	// })
 
 	// start discovery process in the background.
 	go func() {
