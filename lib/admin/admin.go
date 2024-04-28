@@ -6,10 +6,10 @@ import (
 	"sort"
 
 	"github.com/0xsequence/bundler/ipfs"
-	"github.com/0xsequence/bundler/mempool"
+	"github.com/0xsequence/bundler/lib/mempool"
+	"github.com/0xsequence/bundler/lib/registry"
+	"github.com/0xsequence/bundler/lib/types"
 	"github.com/0xsequence/bundler/proto"
-	"github.com/0xsequence/bundler/registry"
-	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/httplog/v2"
 )

@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
-	"github.com/0xsequence/bundler/debugger"
-	"github.com/0xsequence/bundler/provider"
-	"github.com/0xsequence/bundler/types"
+	"github.com/0xsequence/bundler/lib/debugger"
+	"github.com/0xsequence/bundler/lib/provider"
+	"github.com/0xsequence/bundler/lib/types"
 	"github.com/0xsequence/ethkit/ethcontract"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi"

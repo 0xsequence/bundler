@@ -3,7 +3,7 @@ package endorser
 import (
 	"fmt"
 
-	"github.com/0xsequence/bundler/debugger"
+	"github.com/0xsequence/bundler/lib/debugger"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 )
 

@@ -1,7 +1,7 @@
 package sender
 
 import (
-	"github.com/0xsequence/bundler/interfaces"
+	"github.com/0xsequence/bundler/lib/interfaces"
 	"golang.org/x/net/context"
 )
 

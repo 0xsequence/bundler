@@ -3,7 +3,7 @@ package mocks
 import (
 	"context"
 
-	"github.com/0xsequence/bundler/pricefeed"
+	"github.com/0xsequence/bundler/lib/pricefeed"
 	"github.com/stretchr/testify/mock"
 )
 

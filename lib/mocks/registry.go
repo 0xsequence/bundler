@@ -3,8 +3,8 @@ package mocks
 import (
 	"math/big"
 
-	"github.com/0xsequence/bundler/registry"
-	"github.com/0xsequence/bundler/registry/source"
+	"github.com/0xsequence/bundler/lib/registry"
+	"github.com/0xsequence/bundler/lib/registry/source"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/stretchr/testify/mock"
 )

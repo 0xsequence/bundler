@@ -9,7 +9,7 @@ import (
 	"github.com/0xsequence/bundler"
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/ipfs"
-	"github.com/0xsequence/bundler/mocks"
+	"github.com/0xsequence/bundler/lib/mocks"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/go-chi/httplog/v2"
 	"github.com/libp2p/go-libp2p/core/peer"

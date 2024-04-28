@@ -10,10 +10,10 @@ import (
 
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/ipfs"
-	"github.com/0xsequence/bundler/mempool"
+	"github.com/0xsequence/bundler/lib/mempool"
+	"github.com/0xsequence/bundler/lib/store"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
-	"github.com/0xsequence/bundler/store"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
 	"github.com/go-chi/httplog/v2"

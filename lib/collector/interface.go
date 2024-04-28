@@ -4,9 +4,9 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/0xsequence/bundler/pricefeed"
+	"github.com/0xsequence/bundler/lib/pricefeed"
+	"github.com/0xsequence/bundler/lib/types"
 	"github.com/0xsequence/bundler/proto"
-	"github.com/0xsequence/bundler/types"
 )
 
 type NativeFees struct {

@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/0xsequence/bundler/config"
-	"github.com/0xsequence/bundler/mocks"
-	"github.com/0xsequence/bundler/registry"
+	"github.com/0xsequence/bundler/lib/mocks"
+	"github.com/0xsequence/bundler/lib/registry"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/httplog/v2"
 	"github.com/stretchr/testify/assert"

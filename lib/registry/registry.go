@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/0xsequence/bundler/config"
-	"github.com/0xsequence/bundler/registry/source"
+	"github.com/0xsequence/bundler/lib/registry/source"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi/bind"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/httplog/v2"

@@ -2,7 +2,7 @@ package mocks
 
 import (
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abivalidator"
-	"github.com/0xsequence/bundler/interfaces"
+	"github.com/0xsequence/bundler/lib/interfaces"
 	"github.com/0xsequence/ethkit/go-ethereum/accounts/abi/bind"
 	"github.com/stretchr/testify/mock"
 )

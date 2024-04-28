@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/0xsequence/bundler/debugger"
+	"github.com/0xsequence/bundler/lib/debugger"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/httplog/v2"
 	"github.com/stretchr/testify/assert"
@@ -71,5 +71,5 @@ func TestDebugWithOverrides(t *testing.T) {
 		t.Fatal("expected result to be non-nil")
 	}
 	assert.False(t, result.Failed)
-	assert.Equal(t, slotValue.String(), "0x" + result.ReturnValue)
+	assert.Equal(t, slotValue.String(), "0x"+result.ReturnValue)
 }

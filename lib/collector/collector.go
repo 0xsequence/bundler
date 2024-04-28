@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/0xsequence/bundler/config"
-	"github.com/0xsequence/bundler/pricefeed"
+	"github.com/0xsequence/bundler/lib/pricefeed"
+	"github.com/0xsequence/bundler/lib/types"
 	"github.com/0xsequence/bundler/proto"
-	"github.com/0xsequence/bundler/types"
 	"github.com/0xsequence/ethkit/ethrpc"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/0xsequence/go-sequence/lib/prototyp"
