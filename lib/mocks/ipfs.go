@@ -5,13 +5,13 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-type MockIpfs struct {
+type MockIPFS struct {
 	mock.Mock
 }
 
-func (m *MockIpfs) Report(data []byte) (string, error) {
+func (m *MockIPFS) Report(data []byte) (string, error) {
 	args := m.Called(data)
 	return args.String(0), args.Error(1)
 }
 
-var _ ipfs.Interface = &MockIpfs{}
+var _ ipfs.Interface = &MockIPFS{}

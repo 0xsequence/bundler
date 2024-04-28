@@ -19,7 +19,7 @@ import (
 
 func TestOperations(t *testing.T) {
 	logger := httplog.NewLogger("")
-	ipfs := &mocks.MockIpfs{}
+	ipfs := &mocks.MockIPFS{}
 	host := &mocks.MockP2p{}
 	mempool := &mocks.MockMempool{}
 
@@ -42,7 +42,7 @@ func TestOperations(t *testing.T) {
 
 func TestDoArchive(t *testing.T) {
 	logger := httplog.NewLogger("")
-	mipfs := &mocks.MockIpfs{}
+	mipfs := &mocks.MockIPFS{}
 	host := &mocks.MockP2p{}
 	mempool := &mocks.MockMempool{}
 
@@ -86,7 +86,7 @@ func TestDoArchive(t *testing.T) {
 
 func TestListenArchives(t *testing.T) {
 	logger := httplog.NewLogger("")
-	mipfs := &mocks.MockIpfs{}
+	mipfs := &mocks.MockIPFS{}
 	host := &mocks.MockP2p{}
 	mempool := &mocks.MockMempool{}
 
@@ -150,7 +150,7 @@ func TestListenArchives(t *testing.T) {
 
 func TestChainArchives(t *testing.T) {
 	logger := httplog.NewLogger("")
-	mipfs := &mocks.MockIpfs{}
+	mipfs := &mocks.MockIPFS{}
 	host := &mocks.MockP2p{}
 	mempool := &mocks.MockMempool{}
 
@@ -190,7 +190,7 @@ func TestChainArchives(t *testing.T) {
 
 func TestRunArchiver(t *testing.T) {
 	logger := httplog.NewLogger("")
-	mipfs := &mocks.MockIpfs{}
+	mipfs := &mocks.MockIPFS{}
 	host := &mocks.MockP2p{}
 	mempool := &mocks.MockMempool{}
 

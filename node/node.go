@@ -16,11 +16,11 @@ import (
 	"github.com/0xsequence/bundler/lib/calldata"
 	"github.com/0xsequence/bundler/lib/collector"
 	"github.com/0xsequence/bundler/lib/debugger"
-	"github.com/0xsequence/bundler/lib/mempool"
 	"github.com/0xsequence/bundler/lib/provider"
 	"github.com/0xsequence/bundler/lib/registry"
 	"github.com/0xsequence/bundler/lib/store"
 	"github.com/0xsequence/bundler/lib/utils"
+	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/rpc"
 	"github.com/0xsequence/ethkit/ethrpc"
@@ -164,7 +164,7 @@ func NewNode(cfg *config.Config) (*Node, error) {
 	}
 
 	// IPFS Client
-	ipfs := ipfs.NewClient(promPrefix, cfg.NetworkConfig.IpfsUrl)
+	ipfs := ipfs.NewClient(promPrefix, cfg.NetworkConfig.IPFSUrl)
 
 	// Collector
 	collector, err := collector.NewCollector(&cfg.CollectorConfig, logger, promPrefix, batched)
@@ -302,8 +302,8 @@ func (s *Node) Run() error {
 		})
 	}
 
+	// Pruner
 	g.Go(func() error {
-		// Run the pruner
 		oplog.Info("-> pruner: run")
 		s.Pruner.Run(ctx)
 		return nil
@@ -342,6 +342,8 @@ func (s *Node) Stop() {
 	}()
 
 	var wg sync.WaitGroup
+
+	// TODO: stop all various internal services
 
 	wg.Add(1)
 	go func() {

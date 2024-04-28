@@ -3,6 +3,8 @@ package rpc
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func (s *RPC) renderJSON(w http.ResponseWriter, r *http.Request, v interface{}, status int) {
@@ -16,4 +18,24 @@ func (s *RPC) renderJSON(w http.ResponseWriter, r *http.Request, v interface{}, 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	w.Write(buf)
+}
+
+type metrics struct {
+	methodTime *prometheus.HistogramVec
+}
+
+func createMetrics(reg prometheus.Registerer) *metrics {
+	methodTime := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "rpc_method_time",
+		Help:    "Method execution time",
+		Buckets: prometheus.ExponentialBuckets(0.001, 2, 18),
+	}, []string{"method"})
+
+	if reg != nil {
+		reg.MustRegister(methodTime)
+	}
+
+	return &metrics{
+		methodTime: methodTime,
+	}
 }

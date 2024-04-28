@@ -9,9 +9,9 @@ import (
 	"github.com/0xsequence/bundler/contracts/gen/solabis/abiendorser"
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/lib/calldata"
-	"github.com/0xsequence/bundler/lib/mempool"
 	"github.com/0xsequence/bundler/lib/mocks"
 	"github.com/0xsequence/bundler/lib/types"
+	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/httplog/v2"
@@ -335,12 +335,12 @@ func TestReportToIPFS(t *testing.T) {
 	logger := httplog.NewLogger("")
 	mockCollector := &mocks.MockCollector{}
 	mockEndorser := &mocks.MockEndorser{}
-	mockIpfs := &mocks.MockIpfs{}
+	mockIPFS := &mocks.MockIPFS{}
 	mockRegistry := &mocks.MockRegistry{}
 
 	mempool, err := mempool.NewMempool(&config.MempoolConfig{
 		Size: 10,
-	}, logger, nil, mockEndorser, mockCollector, mockIpfs, calldata.DefaultModel(), mockRegistry)
+	}, logger, nil, mockEndorser, mockCollector, mockIPFS, calldata.DefaultModel(), mockRegistry)
 
 	assert.NoError(t, err)
 
@@ -362,7 +362,7 @@ func TestReportToIPFS(t *testing.T) {
 
 	done := make(chan struct{})
 
-	mockIpfs.On("Report", mock.Anything).Run(func(mock.Arguments) {
+	mockIPFS.On("Report", mock.Anything).Run(func(mock.Arguments) {
 		done <- struct{}{}
 	}).Return(op1.Hash(), nil).Once()
 
@@ -373,7 +373,7 @@ func TestReportToIPFS(t *testing.T) {
 
 	<-done
 
-	mockIpfs.AssertExpectations(t)
+	mockIPFS.AssertExpectations(t)
 
 	// Do not report to IPFS if it fails
 	op2 := &types.Operation{
@@ -389,7 +389,7 @@ func TestReportToIPFS(t *testing.T) {
 	err = mempool.AddOperation(ctx, op2, false)
 	assert.Error(t, err)
 
-	mockIpfs.AssertExpectations(t)
+	mockIPFS.AssertExpectations(t)
 
 	cancel()
 }

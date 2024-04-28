@@ -6,9 +6,9 @@ import (
 	"sort"
 
 	"github.com/0xsequence/bundler/ipfs"
-	"github.com/0xsequence/bundler/lib/mempool"
 	"github.com/0xsequence/bundler/lib/registry"
 	"github.com/0xsequence/bundler/lib/types"
+	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/go-chi/httplog/v2"
@@ -17,7 +17,7 @@ import (
 type Admin struct {
 	logger *httplog.Logger
 
-	Ipfs     ipfs.Interface
+	IPFS     ipfs.Interface
 	Mempool  mempool.Interface
 	Registry registry.Interface
 }
@@ -25,7 +25,7 @@ type Admin struct {
 func NewAdmin(logger *httplog.Logger, ipfs ipfs.Interface, mempool mempool.Interface, registry registry.Interface) *Admin {
 	return &Admin{
 		logger:   logger,
-		Ipfs:     ipfs,
+		IPFS:     ipfs,
 		Mempool:  mempool,
 		Registry: registry,
 	}
@@ -120,7 +120,7 @@ func (a Admin) SendOperation(ctx context.Context, pop *proto.Operation, ignorePa
 	// Always PIN these operations to IPFS
 	// as they are being sent by the user, and
 	// it is useful for debugging
-	go op.ReportToIPFS(a.Ipfs)
+	go op.ReportToIPFS(a.IPFS)
 
 	err = a.Mempool.AddOperation(ctx, op, true)
 	if err != nil {

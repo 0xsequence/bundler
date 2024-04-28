@@ -8,8 +8,8 @@ import (
 
 	"github.com/0xsequence/bundler/config"
 	"github.com/0xsequence/bundler/lib/collector"
-	"github.com/0xsequence/bundler/lib/mempool"
 	"github.com/0xsequence/bundler/lib/types"
+	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/p2p"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/go-chi/httplog/v2"

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/0xsequence/bundler/lib/mempool"
 	"github.com/0xsequence/bundler/lib/types"
+	"github.com/0xsequence/bundler/mempool"
 	"github.com/0xsequence/bundler/proto"
 	"github.com/stretchr/testify/mock"
 )
