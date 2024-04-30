@@ -18,3 +18,6 @@ all:
 	jq .abi < out/ERC20.sol/ERC20.json | abigen -abi - --pkg abierc20 --type ERC20 --out gen/solabis/abierc20/abierc20.go
 	jq .abi < out/Registry.sol/EndorserRegistry.json | abigen -abi - --pkg abiregistry --type Registry --out gen/solabis/abiregistry/abiregistry.go
 	find . -type f -name "*.go" -exec sed -i 's|ethereum/go-ethereum|0xsequence/ethkit/go-ethereum|g' {} +
+
+deploy:
+	forge script ./script/Deploy.s.sol --broadcast --rpc-url https://nodes.sequence.app/arbitrum

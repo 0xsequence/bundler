@@ -6,6 +6,7 @@ out = "out"
 libs = ["lib"]
 remappings = [
     "ds-test/=lib/forge-std/lib/ds-test/src/",
+    "erc2470-libs/=lib/erc2470-libs/",
     "erc5189-libs/=lib/erc5189-libs/contracts/",
     "forge-std/=lib/forge-std/src/",
     "foundry-huff/=lib/foundry-huff/src/",
