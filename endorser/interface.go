@@ -58,7 +58,7 @@ type EndorserResultState struct {
 }
 
 type Interface interface {
-	SimulationSettings(ctx context.Context, endorserAddr common.Address) ([]*SimulationSetting, error)
+	SimulationSettings(ctx context.Context, op *types.Operation) ([]*SimulationSetting, error)
 	IsOperationReady(ctx context.Context, op *types.Operation) (*EndorserResult, error)
 	DependencyState(ctx context.Context, result *EndorserResult) (*EndorserResultState, error)
 	ConstraintsMet(ctx context.Context, result *EndorserResult) (bool, error)

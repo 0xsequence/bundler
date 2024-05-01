@@ -21,7 +21,7 @@ contract MockEndorser is Endorser {
     return abi.encode(_readiness, _globalDependency, _dependencies);
   }
 
-  function simulationSettings() external pure returns (Replacement[] memory replacements) {
+  function simulationSettings(Endorser.Operation calldata) external pure returns (Replacement[] memory replacements) {
     return new Replacement[](0);
   }
 }

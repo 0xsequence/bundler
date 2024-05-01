@@ -5,13 +5,13 @@ ERC-5189 Mempool Bundler
 
 This project is in the early stages of development and is not yet ready for production use.
 
-| Feature                                    | Status               |
-|--------------------------------------------|----------------------|
+| Feature                                    | Status                |
+|--------------------------------------------|-----------------------|
 | P2P Sharing of operations                  | ✅ Implemented        |
 | Mempool limits (global and per-dependency) | ✅ Implemented        |
 | Endorser reputation tracking               | 🔄 Partial            |
 | Untrusted env support (see 5189)           | 🔄 Partial            |
-| Simulation settings                        | ❌ Not implemented    |
+| Simulation settings                        | ✅ Implemented        |
 | Archival generation and broadcast          | ✅ Implemented        |
 | Metrics                                    | ✅ Implemented        |
 | Debug methods fallback to Anvil            | ✅ Implemented        |

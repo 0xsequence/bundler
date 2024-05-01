@@ -115,9 +115,9 @@ func (e *Endorser) parseSimulationSettingsRes(res string) ([]*SimulationSetting,
 	return settingsResult, nil
 }
 
-func (e *Endorser) simulationSettingsCall(ctx context.Context, endorserAddr common.Address) ([]*SimulationSetting, error) {
-	endorser := ethcontract.NewContractCaller(endorserAddr, *e.parsedEndorserABI, e.Provider)
-	calldata, err := endorser.Encode("simulationSettings")
+func (e *Endorser) simulationSettingsCall(ctx context.Context, op *types.Operation) ([]*SimulationSetting, error) {
+	endorser := ethcontract.NewContractCaller(op.Endorser, *e.parsedEndorserABI, e.Provider)
+	calldata, err := endorser.Encode("simulationSettings", &op.IEndorserOperation)
 
 	if err != nil {
 		return nil, err
@@ -127,7 +127,7 @@ func (e *Endorser) simulationSettingsCall(ctx context.Context, endorserAddr comm
 		To   common.Address `json:"to"`
 		Data string         `json:"data"`
 	}{
-		To:   endorserAddr,
+		To:   op.Endorser,
 		Data: "0x" + common.Bytes2Hex(calldata),
 	}
 
@@ -148,19 +148,19 @@ func (e *Endorser) simulationSettingsCall(ctx context.Context, endorserAddr comm
 	return settingsResult, nil
 }
 
-func (e *Endorser) SimulationSettings(ctx context.Context, endorserAddr common.Address) ([]*SimulationSetting, error) {
-	return e.simulationSettingsCall(ctx, endorserAddr)
+func (e *Endorser) SimulationSettings(ctx context.Context, op *types.Operation) ([]*SimulationSetting, error) {
+	return e.simulationSettingsCall(ctx, op)
 }
 
-func (e *Endorser) callOverrideArgs(ctx context.Context, endorserAddr common.Address) (common.Address, *debugger.DebugOverrideArgs, error) {
-	settings, err := e.simulationSettingsCall(ctx, endorserAddr)
+func (e *Endorser) callOverrideArgs(ctx context.Context, op *types.Operation) (common.Address, *debugger.DebugOverrideArgs, error) {
+	settings, err := e.simulationSettingsCall(ctx, op)
 	if err != nil {
 		return common.Address{}, nil, fmt.Errorf("unable to get simulation settings: %w", err)
 	}
 	overrideArgs := debugger.DebugOverrideArgs{}
-	to := endorserAddr
+	to := op.Endorser
 	for _, setting := range settings {
-		if setting.OldAddr == endorserAddr {
+		if setting.OldAddr == op.Endorser {
 			// Update the endorser location
 			to = setting.NewAddr
 		}
@@ -190,15 +190,15 @@ func (e *Endorser) callOverrideArgs(ctx context.Context, endorserAddr common.Add
 
 // IsOperationReady
 
-func (e *Endorser) BuildIsOperationReadyCalldata(op *types.Operation) (common.Address, string, error) {
+func (e *Endorser) BuildIsOperationReadyCalldata(op *types.Operation) (string, error) {
 	endorser := ethcontract.NewContractCaller(op.Endorser, *e.parsedEndorserABI, nil)
 	calldata, err := endorser.Encode("isOperationReady", &op.IEndorserOperation)
 
 	if err != nil {
-		return common.Address{}, "", err
+		return "", err
 	}
 
-	return op.Endorser, "0x" + common.Bytes2Hex(calldata), nil
+	return "0x" + common.Bytes2Hex(calldata), nil
 }
 
 func (e *Endorser) parseIsOperationReadyRes(res string) (*EndorserResult, error) {
@@ -304,13 +304,13 @@ func (e *Endorser) isOperationReadyCall(ctx context.Context, op *types.Operation
 	start := time.Now()
 	e.metrics.isOperationReadyAttempts.Inc()
 
-	to, data, err := e.BuildIsOperationReadyCalldata(op)
+	data, err := e.BuildIsOperationReadyCalldata(op)
 	if err != nil {
 		e.metrics.isOperationReadyError.Inc()
 		return nil, fmt.Errorf("unable to build calldata: %w", err)
 	}
 
-	to, debugOverrideArgs, err := e.callOverrideArgs(ctx, to)
+	to, debugOverrideArgs, err := e.callOverrideArgs(ctx, op)
 	if err != nil {
 		return nil, fmt.Errorf("unable to build debug override args: %w", err)
 	}
@@ -375,12 +375,12 @@ func (e *Endorser) isOperationReadyDebugger(ctx context.Context, op *types.Opera
 		return nil, fmt.Errorf("debugger is not available")
 	}
 
-	to, data, err := e.BuildIsOperationReadyCalldata(op)
+	data, err := e.BuildIsOperationReadyCalldata(op)
 	if err != nil {
 		return nil, fmt.Errorf("unable to build calldata: %w", err)
 	}
 
-	to, debugOverrideArgs, err := e.callOverrideArgs(ctx, to)
+	to, debugOverrideArgs, err := e.callOverrideArgs(ctx, op)
 	if err != nil {
 		return nil, fmt.Errorf("unable to build debug override args: %w", err)
 	}
