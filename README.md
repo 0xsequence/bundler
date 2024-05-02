@@ -36,3 +36,7 @@ The project is a mempool transaction bundler for general purpose "operations". T
 ## Consuming the API
 
 The API can be consumed using the client that can be found in the `/proto/client` directory. Note that the API is not yet stable and is subject to change.
+
+## Additional docs
+
+- [How to write an ERC-5189 Endorser](./docs/HOW_TO_WRITE_ENDORSER.md)
