@@ -5,13 +5,13 @@ ERC-5189 Mempool Bundler
 
 This project is in the early stages of development and is not yet ready for production use.
 
-| Feature                                    | Status               |
-|--------------------------------------------|----------------------|
+| Feature                                    | Status                |
+|--------------------------------------------|-----------------------|
 | P2P Sharing of operations                  | ✅ Implemented        |
 | Mempool limits (global and per-dependency) | ✅ Implemented        |
 | Endorser reputation tracking               | 🔄 Partial            |
 | Untrusted env support (see 5189)           | 🔄 Partial            |
-| Simulation settings                        | ❌ Not implemented    |
+| Simulation settings                        | ✅ Implemented        |
 | Archival generation and broadcast          | ✅ Implemented        |
 | Metrics                                    | ✅ Implemented        |
 | Debug methods fallback to Anvil            | ✅ Implemented        |
@@ -36,3 +36,7 @@ The project is a mempool transaction bundler for general purpose "operations". T
 ## Consuming the API
 
 The API can be consumed using the client that can be found in the `/proto/client` directory. Note that the API is not yet stable and is subject to change.
+
+## Additional docs
+
+- [How to write an ERC-5189 Endorser](./docs/HOW_TO_WRITE_ENDORSER.md)

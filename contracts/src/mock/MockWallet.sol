@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache 2.0
-pragma solidity ^0.8.13;
-
+pragma solidity ^0.8.18;
 
 contract MockWallet {
   function execute(address payable[] memory _to, uint256[] memory _value) external {

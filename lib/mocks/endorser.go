@@ -5,7 +5,6 @@ import (
 
 	"github.com/0xsequence/bundler/endorser"
 	"github.com/0xsequence/bundler/lib/types"
-	"github.com/0xsequence/ethkit/go-ethereum/common"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -34,8 +33,8 @@ func (m *MockEndorser) IsOperationReady(ctx context.Context, op *types.Operation
 	return args.Get(0).(*endorser.EndorserResult), args.Error(1)
 }
 
-func (m *MockEndorser) SimulationSettings(ctx context.Context, endorserAddr common.Address) ([]*endorser.SimulationSetting, error) {
-	args := m.Called(ctx, endorserAddr)
+func (m *MockEndorser) SimulationSettings(ctx context.Context, op *types.Operation) ([]*endorser.SimulationSetting, error) {
+	args := m.Called(ctx, op)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}

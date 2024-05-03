@@ -10,3 +10,6 @@
 [submodule "contracts/lib/foundry-huff"]
 	path = contracts/lib/foundry-huff
 	url = https://github.com/huff-language/foundry-huff
+[submodule "contracts/lib/erc2470-libs"]
+	path = contracts/lib/erc2470-libs
+	url = https://github.com/ScreamingHawk/erc2470-libs

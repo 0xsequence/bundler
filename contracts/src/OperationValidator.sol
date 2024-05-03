@@ -24,8 +24,8 @@ contract OperationValidator {
     uint256 preBal = fetchPaymentBal(_op.feeToken);
     uint256 preGas = gasleft();
 
-    _op.entrypoint.call{ gas: _op.gasLimit }(_op.data );
-    
+    (_op.entrypoint.call{ gas: _op.gasLimit }(_op.data ));
+
     uint256 postGas = gasleft();
     uint256 postBal = fetchPaymentBal(_op.feeToken);
 
