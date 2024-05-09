@@ -49,3 +49,21 @@ Resulting config:
     pool = "0xF64Dfe17C8b87F012FCf50FbDA1D62bfA148366a"
     base_token = "0x82af49447d8a07e3bd95bd0d56f35241523fbab1"
 ```
+
+## Register An Endorser
+
+To register an endorser, the endorser must be deployed and the address must be added to the `TemporalRegistry` contract.
+
+Deposit native tokens to register the endorser:
+
+```sh
+forge script --rpc-url $RPC_URL ./scripts/RegisterEndorser.s.sol --sig "lock(address,address,uint256)" <registry_address> <endorser_address> <lock_amount>
+```
+
+Remove registration by unlocking tokens:
+
+```sh
+forge script --rpc-url $RPC_URL ./scripts/RegisterEndorser.s.sol --sig "unlock(address,address)" <registry_address> <endorser_address>
+```
+
+Note: Unlocking is a 2 step process. The first run will initiate the unlock, the second run will finalize the unlock. Run the script twice to complete the unlock.
