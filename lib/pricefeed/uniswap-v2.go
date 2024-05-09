@@ -184,12 +184,13 @@ func (f *UniswapV2Feed) Start(ctx context.Context) error {
 	// If token0 is base token, then inverse is false
 	// If token1 is base token, then inverse is true
 	// If neither token0 nor token1 is base token, then return error
-	if token0.String() == f.cfg.BaseToken {
+	baseToken := common.HexToAddress(f.cfg.BaseToken)
+	if token0 == baseToken {
 		f.inverse = false
-	} else if token1.String() == f.cfg.BaseToken {
+	} else if token1 == baseToken {
 		f.inverse = true
 	} else {
-		return fmt.Errorf("neither token0 nor token1 is base token")
+		return fmt.Errorf("neither token0 nor token1 is base token %s %s %s", f.cfg.BaseToken, token0.String(), token1.String())
 	}
 
 	for ctx.Err() == nil {
