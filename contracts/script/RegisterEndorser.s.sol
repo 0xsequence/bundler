@@ -14,7 +14,7 @@ contract RegisterEndorser is Script {
         address owner = vm.addr(pk);
 
         vm.broadcast(pk);
-        TemporalRegistry(temporalRegistry).lock(owner, endorser, amount);
+        TemporalRegistry(temporalRegistry).lock{value: amount}(owner, endorser, 86400);
     }
 
     function unlock(address temporalRegistry, address endorser) external {
